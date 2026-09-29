@@ -77,7 +77,7 @@ El pipeline vive en [`.github/workflows/ci.yml`](.github/workflows/ci.yml) y se 
 
 | Job | Qué hace | Cuándo |
 | --- | -------- | ------ |
-| `Test (Java 25)` | Checkstyle, pruebas JUnit con Testcontainers (PostgreSQL, MongoDB, RabbitMQ), cobertura JaCoCo, análisis SonarQube y aviso a Discord si falla. | Siempre |
+| `Test (Java 25)` | Checkstyle, pruebas JUnit con Testcontainers (PostgreSQL, MongoDB, RabbitMQ), cobertura JaCoCo, análisis SonarQube (opcional, solo si existe `SONAR_TOKEN`). | Siempre |
 | `Build and Push Docker Image` | Construye la imagen del [`Dockerfile`](Dockerfile) (Temurin 25) y la publica en `ghcr.io/fmat-restaurant/menu-backend` con las etiquetas `latest` y el SHA del commit. | Solo push a `main` |
 
 Reproducir la verificación localmente (requiere Docker para Testcontainers):
@@ -88,7 +88,7 @@ Reproducir la verificación localmente (requiere Docker para Testcontainers):
 
 Configuración necesaria en GitHub:
 
-1. **Secrets** (*Settings > Secrets and variables > Actions*): `SONAR_TOKEN` (SonarCloud: *My Account > Security*) y `DISCORD_WEBHOOK`.
+1. **Secrets** (*Settings > Secrets and variables > Actions*): `SONAR_TOKEN` (SonarCloud: *My Account > Security*). Es opcional: sin él, el análisis de SonarQube se omite con un aviso.
 2. **Sonar**: ajustar `sonar.organization` y `sonar.projectKey` en [`sonar-project.properties`](sonar-project.properties) si difieren en SonarCloud.
 3. **GHCR** (*Settings > Actions > General*): *Workflow permissions* en **Read and write permissions**.
 4. **Protección de ramas** (`main` y `dev`): exigir el status check `Test (Java 25)` antes de hacer merge.
