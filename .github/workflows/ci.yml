@@ -1,0 +1,157 @@
+# 'name': Nombre legible que identifica al workflow en la pestaña 'Actions' de GitHub.
+name: CI/CD Pipeline
+
+# 'on': Bloque que define los eventos desencadenadores (triggers) del workflow.
+on:
+  # 'push': Se activa con commits en 'main' (producción) y 'dev' (pre-producción).
+  push:
+    branches: [ "main", "dev" ]
+
+  # 'pull_request': Verifica los PRs hacia 'main' y 'dev' antes de integrarlos.
+  pull_request:
+    branches: [ "main", "dev" ]
+
+  # 'workflow_dispatch': Permite disparar manualmente este pipeline desde la interfaz web o API de GitHub.
+  workflow_dispatch:
+
+  # 'schedule': Ejecución semanal cada domingo a las 00:00 UTC para detectar roturas por dependencias o imágenes.
+  schedule:
+    - cron: '0 0 * * 0'
+
+# 'concurrency': Evita ejecuciones redundantes; en PRs cancela las obsoletas y en ramas protege el despliegue.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# 'env': Versión de Java definida en el stack (Java 25 LTS, distribución Eclipse Temurin).
+env:
+  JAVA_VERSION: '25'
+  JAVA_DISTRIBUTION: 'temurin'
+
+# 'jobs': Contenedor que agrupa los trabajos independientes que componen el pipeline.
+jobs:
+
+  # ----------------------------------------------------------------------------
+  # JOB 1: INTEGRACIÓN CONTINUA (CI) - Verificación, Pruebas y Calidad de Código
+  # ----------------------------------------------------------------------------
+  test:
+    # 'name': Etiqueta visible del job; úsala como status check requerido en la protección de ramas.
+    name: Test (Java 25)
+    runs-on: ubuntu-latest
+    # 'permissions': Principio de Menor Privilegio (PoLP).
+    permissions:
+      # 'contents: read': Permite exclusivamente clonar y leer el código fuente.
+      contents: read
+      # 'pull-requests: read': Permite leer metadatos de PRs requeridos por Sonar.
+      pull-requests: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          # 'fetch-depth: 0': Clona todo el historial de git, indispensable para SonarCloud/SonarQube.
+          fetch-depth: 0
+
+      # Instala el JDK Eclipse Temurin 25; Gradle lo detecta como toolchain del proyecto.
+      - name: Set up Java ${{ env.JAVA_VERSION }} (Temurin)
+        uses: actions/setup-java@v6
+        with:
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          java-version: ${{ env.JAVA_VERSION }}
+
+      # Configura Gradle: valida el wrapper (gradle-wrapper.jar) y cachea dependencias y distribución.
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      # Análisis estático con Checkstyle (equivalente a Ruff); falla ante cualquier infracción.
+      - name: Check linting
+        run: ./gradlew checkstyleMain checkstyleTest
+
+      # Pruebas JUnit (unitarias y de integración con Testcontainers: PostgreSQL, MongoDB y RabbitMQ)
+      # y generación del reporte de cobertura con JaCoCo.
+      - name: Test with JUnit and generate coverage
+        run: ./gradlew test jacocoTestReport
+
+      # Almacena los reportes como artefactos, incluso si las pruebas fallan.
+      - name: Upload test and coverage artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results-java-${{ env.JAVA_VERSION }}
+          path: |
+            build/test-results/test/
+            build/reports/tests/test/
+            build/reports/jacoco/test/
+            build/reports/checkstyle/
+          retention-days: 14
+          if-no-files-found: warn
+
+      # Análisis de calidad y seguridad en SonarQube/SonarCloud (configuración en sonar-project.properties).
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v8.2.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+      - name: Discord notification on failure
+        if: failure()
+        uses: Ilshidur/action-discord@0.4.0
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        with:
+          args: 'Menu-Backend: tests fallidos en ${{ github.ref_name }} por ${{ github.actor }}'
+
+
+  # ----------------------------------------------------------------------------
+  # JOB 2: ENTREGA CONTINUA (CD) - Empaquetado y Publicación de Contenedor Docker
+  # ----------------------------------------------------------------------------
+  build-and-push:
+    name: Build and Push Docker Image
+    # 'needs: [test]': Solo inicia si el job de pruebas tuvo éxito.
+    needs: [test]
+    # 'if': Solo se publica con commits en 'main' (no en PRs, 'dev' ni otras ramas).
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # 'packages: write': Permite publicar imágenes en GitHub Container Registry (GHCR).
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # GHCR exige nombres en minúsculas (FMAT-Restaurant/Menu-Backend -> fmat-restaurant/menu-backend).
+      - name: Normalize repository name to lowercase
+        run: |
+          echo "IMAGE_NAME=ghcr.io/$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
+
+      # Construye la imagen multi-etapa (JDK Temurin 25 -> JRE Temurin 25) definida en el Dockerfile.
+      - name: Build and push Docker Image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:latest
+            ${{ env.IMAGE_NAME }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Discord notification
+        if: always()
+        uses: Ilshidur/action-discord@0.4.0
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        with:
+          args: 'Menu-Backend: pipeline finalizada con estado ${{ job.status }} | Commit: ${{ github.sha }} | Autor: ${{ github.actor }}'
