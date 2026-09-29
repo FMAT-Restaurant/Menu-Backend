@@ -25,7 +25,7 @@ Esa documentación es la referencia para el diseño y la implementación de este
 | ------- | ----------- |
 | [Menu-Documentation](https://github.com/FMAT-Restaurant/Menu-Documentation) | Modelo de dominio, requisitos funcionales, reglas de negocio y auditorías |
 | Especificación consolidada (`output/ers/spec.md`) | Alcance, responsabilidades e invariantes del servicio `Menu` |
-| Frontend | [Frontend Repository](URL_DEL_REPO_FRONTEND) |
+| Frontend | [Frontend Repository](https://github.com/FMAT-Restaurant/Menu-Frontend) |
 
 ## Tecnologías
  
