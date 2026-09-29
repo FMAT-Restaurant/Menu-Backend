@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AuditReport",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "verdict": {
+      "type": "string",
+      "enum": ["PASS", "FAIL"]
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "issues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "severity": {
+            "type": "string",
+            "enum": ["BLOCKER", "HIGH", "MEDIUM", "LOW"]
+          },
+          "file": {
+            "type": "string"
+          },
+          "issue": {
+            "type": "string",
+            "minLength": 1
+          },
+          "required_fix": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["severity", "file", "issue", "required_fix"]
+      }
+    },
+    "next_action": {
+      "type": "string",
+      "enum": ["NONE", "REANALYZE"]
+    }
+  },
+  "required": ["verdict", "summary", "issues", "next_action"]
+}
