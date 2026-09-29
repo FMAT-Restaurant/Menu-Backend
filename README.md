@@ -31,15 +31,15 @@ Esa documentación es la referencia para el diseño y la implementación de este
  
 | Tecnología | Versión | Notas |
 | ---------- | ------- | ----- |
-| Java | 21 (LTS) o superior | Spring Boot 4.1 exige Java 17 como mínimo y es compatible hasta Java 26 |
+| Java | 25 (LTS) o superior | Spring Boot 4.1 exige Java 17 como mínimo y es compatible hasta Java 26 |
 | Spring Boot | 4.1.1 | Basado en Spring Framework 7 |
-| Maven | Wrapper incluido (`mvnw`) | No es necesario instalar Maven por separado |
+| Gradle | 9.8.0 (wrapper incluido, `gradlew`) | No es necesario instalar Gradle por separado |
  
-> **Importante:** todo el equipo debe usar la misma versión de Java. La versión del proyecto queda fijada en el `pom.xml`.
+> **Importante:** todo el equipo debe usar la misma versión de Java. La versión del proyecto queda fijada en el `build.gradle` (toolchain de Java 25, Eclipse Temurin).
  
 ## Requisitos previos
  
-- **JDK 21 o superior** instalado (`java -version` para verificarlo).
+- **JDK 25 o superior** instalado (`java -version` para verificarlo).
 - **Git**.
 - Un IDE con soporte para Java y Spring (IntelliJ IDEA, VS Code con Extension Pack for Java, Eclipse STS).
 
@@ -70,3 +70,25 @@ feat: agregar endpoint de combos
 fix: corregir validación de variantes
 docs: actualizar README
 ```
+
+## CI/CD
+
+El pipeline vive en [`.github/workflows/ci.yml`](.github/workflows/ci.yml) y se ejecuta en cada push y Pull Request hacia `main` y `dev`, manualmente y cada domingo.
+
+| Job | Qué hace | Cuándo |
+| --- | -------- | ------ |
+| `Test (Java 25)` | Checkstyle, pruebas JUnit con Testcontainers (PostgreSQL, MongoDB, RabbitMQ), cobertura JaCoCo, análisis SonarQube y aviso a Discord si falla. | Siempre |
+| `Build and Push Docker Image` | Construye la imagen del [`Dockerfile`](Dockerfile) (Temurin 25) y la publica en `ghcr.io/fmat-restaurant/menu-backend` con las etiquetas `latest` y el SHA del commit. | Solo push a `main` |
+
+Reproducir la verificación localmente (requiere Docker para Testcontainers):
+
+```bash
+./gradlew checkstyleMain checkstyleTest test jacocoTestReport
+```
+
+Configuración necesaria en GitHub:
+
+1. **Secrets** (*Settings > Secrets and variables > Actions*): `SONAR_TOKEN` (SonarCloud: *My Account > Security*) y `DISCORD_WEBHOOK`.
+2. **Sonar**: ajustar `sonar.organization` y `sonar.projectKey` en [`sonar-project.properties`](sonar-project.properties) si difieren en SonarCloud.
+3. **GHCR** (*Settings > Actions > General*): *Workflow permissions* en **Read and write permissions**.
+4. **Protección de ramas** (`main` y `dev`): exigir el status check `Test (Java 25)` antes de hacer merge.
