@@ -42,6 +42,46 @@ Esa documentación es la referencia para el diseño y la implementación de este
 - **JDK 25 o superior** instalado (`java -version` para verificarlo).
 - **Git**.
 - Un IDE con soporte para Java y Spring (IntelliJ IDEA, VS Code con Extension Pack for Java, Eclipse STS).
+- **Docker** en ejecución (Docker Desktop, OrbStack, Colima…) para levantar PostgreSQL, MongoDB y RabbitMQ con Testcontainers.
+
+## Levantar el proyecto en local
+
+```bash
+git clone https://github.com/FMAT-Restaurant/Menu-Backend.git
+cd Menu-Backend
+./gradlew bootTestRun      # En Windows: gradlew.bat bootTestRun
+```
+
+`bootTestRun` arranca la aplicación con [`TestMenuBackendApplication`](src/test/java/com/fmatrestaurant/menu/TestMenuBackendApplication.java), que levanta automáticamente PostgreSQL, MongoDB y RabbitMQ en contenedores y conecta la aplicación a ellos. No hay que instalar ni configurar ninguna base de datos.
+
+- La API queda disponible en `http://localhost:8080`.
+- Spring Security está activo: el usuario es `user` y la contraseña se imprime en la consola al arrancar (`Using generated security password: ...`).
+- Los contenedores se detienen al cerrar la aplicación (`Ctrl+C`); los datos no se conservan entre ejecuciones.
+
+> `./gradlew bootRun` todavía no funciona porque `application.properties` no tiene configuradas las conexiones a las bases de datos. Usa `bootTestRun`.
+
+Otros comandos útiles:
+
+| Comando | Qué hace |
+| ------- | -------- |
+| `./gradlew test` | Ejecuta las pruebas (requiere Docker) |
+| `./gradlew checkstyleMain checkstyleTest` | Revisa el estilo del código |
+| `./gradlew bootJar` | Genera el `.jar` ejecutable en `build/libs/` |
+
+## Arquitectura
+
+El código sigue una arquitectura por capas, cada una como paquete bajo `com.fmatrestaurant.menu`:
+
+| Capa | Paquete | Responsabilidad |
+| ---- | ------- | --------------- |
+| API | `api` | Controladores REST, DTOs HTTP, manejo de errores |
+| Aplicación | `application` | Casos de uso, orquestación, validaciones |
+| Dominio | `domain` | Entidades JPA con las reglas de negocio del menú |
+| Infraestructura | `infrastructure` | Repositorios Spring Data, mensajería (RabbitMQ), configuración |
+
+Las pruebas viven en `src/test/java` y replican los mismos paquetes. Dependencias: `api → application → infrastructure`, y tanto `application` como `infrastructure` usan `domain`.
+
+Detalle completo, reglas y ejemplos en [`docs/arch.md`](docs/arch.md).
 
 
 ## Flujo de trabajo y ramas
