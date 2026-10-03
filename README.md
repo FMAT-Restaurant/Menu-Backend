@@ -23,15 +23,14 @@ Esa documentación es la referencia para el diseño y la implementación de este
  
 | Recurso | Descripción |
 | ------- | ----------- |
-| [Menu-Documentation](https://github.com/FMAT-Restaurant/Menu-Documentation) | Modelo de dominio, requisitos funcionales, reglas de negocio y auditorías |
-| Especificación consolidada (`output/ers/spec.md`) | Alcance, responsabilidades e invariantes del servicio `Menu` |
+| [Menu-Documentation](https://fmat-restaurant.github.io/Menu-Documentation/) | Modelo de dominio, requisitos funcionales, reglas de negocio y auditorías |
 | Frontend | [Frontend Repository](https://github.com/FMAT-Restaurant/Menu-Frontend) |
 
 ## Tecnologías
  
 | Tecnología | Versión | Notas |
 | ---------- | ------- | ----- |
-| Java | 25 (LTS) o superior | Spring Boot 4.1 exige Java 17 como mínimo y es compatible hasta Java 26 |
+| Java | 25 (LTS), Eclipse Temurin 25.0.4.1 | Fijado por el toolchain de `build.gradle` |
 | Spring Boot | 4.1.1 | Basado en Spring Framework 7 |
 | Gradle | 9.8.0 (wrapper incluido, `gradlew`) | No es necesario instalar Gradle por separado |
  
@@ -39,34 +38,40 @@ Esa documentación es la referencia para el diseño y la implementación de este
  
 ## Requisitos previos
  
-- **JDK 25 o superior** instalado (`java -version` para verificarlo).
+- **JDK 25** (Eclipse Temurin). Si no lo tienes, Gradle lo descarga automáticamente por el toolchain.
 - **Git**.
 - Un IDE con soporte para Java y Spring (IntelliJ IDEA, VS Code con Extension Pack for Java, Eclipse STS).
-- **Docker** en ejecución (Docker Desktop, OrbStack, Colima…) para levantar PostgreSQL, MongoDB y RabbitMQ con Testcontainers.
+
+No hace falta instalar Docker ni ninguna base de datos para levantar el servicio.
 
 ## Levantar el proyecto en local
 
 ```bash
 git clone https://github.com/FMAT-Restaurant/Menu-Backend.git
 cd Menu-Backend
-./gradlew bootTestRun      # En Windows: gradlew.bat bootTestRun
+./gradlew bootRun      # En Windows: gradlew.bat bootRun
 ```
 
-`bootTestRun` arranca la aplicación con [`TestMenuBackendApplication`](src/test/java/com/fmatrestaurant/menu/TestMenuBackendApplication.java), que levanta automáticamente PostgreSQL, MongoDB y RabbitMQ en contenedores y conecta la aplicación a ellos. No hay que instalar ni configurar ninguna base de datos.
-
 - La API queda disponible en `http://localhost:8080`.
-- Spring Security está activo: el usuario es `user` y la contraseña se imprime en la consola al arrancar (`Using generated security password: ...`).
-- Los contenedores se detienen al cerrar la aplicación (`Ctrl+C`); los datos no se conservan entre ejecuciones.
-
-> `./gradlew bootRun` todavía no funciona porque `application.properties` no tiene configuradas las conexiones a las bases de datos. Usa `bootTestRun`.
+- El contrato OpenAPI (esqueleto, sin endpoints todavía) se sirve en `http://localhost:8080/openapi.yaml`; el archivo es [`src/main/resources/static/openapi.yaml`](src/main/resources/static/openapi.yaml).
+- Ese archivo es una copia de [`docs/apis/menu/openapi.yaml`](https://github.com/FMAT-Restaurant/Menu-Documentation/blob/main/docs/apis/menu/openapi.yaml) del repositorio de documentación, que es la fuente de verdad (OpenAPI 3.2.1). Cualquier cambio al contrato se hace primero allá y luego se copia aquí. Las rutas y los servidores quedan pendientes de OPEN-010.
 
 Otros comandos útiles:
 
 | Comando | Qué hace |
 | ------- | -------- |
-| `./gradlew test` | Ejecuta las pruebas (requiere Docker) |
+| `./gradlew test` | Ejecuta las pruebas |
 | `./gradlew checkstyleMain checkstyleTest` | Revisa el estilo del código |
 | `./gradlew bootJar` | Genera el `.jar` ejecutable en `build/libs/` |
+
+## Decisiones pendientes
+
+| Tema | Estado |
+| ---- | ------ |
+| Persistencia | PostgreSQL 18.6 con Spring Data JPA. Se agrega (dependencias, contenedor y configuración externa) junto con la configuración local de Docker Compose, cuando exista la base de datos. |
+| Topología | Sin decidir. |
+| Límites transaccionales | Sin decidir. |
+| AuthN/AuthZ | Sin decidir. No se incluye Spring Security y el contrato OpenAPI no declara ningún esquema de seguridad; esto **no** significa que la API sea pública o anónima. |
 
 ## Arquitectura
 
@@ -89,7 +94,6 @@ Detalle completo, reglas y ejemplos en [`docs/arch.md`](docs/arch.md).
 | Rama | Propósito |
 | ---- | --------- |
 | `main` | Producción. Protegida: sin push directo, solo cambios vía Pull Request |
-| `dev` | Pre-producción. Integración de las funcionalidades antes de pasar a `main` |
 | `feature/<nombre>` | Ramas de trabajo para nuevas funcionalidades |
 | `fix/<nombre>` | Ramas de trabajo para correcciones |
  
@@ -98,8 +102,8 @@ Reglas del repositorio:
 1. Está **prohibido el push directo a `main`**.
 2. Todo cambio entra mediante **Pull Request**.
 3. Cada Pull Request requiere **al menos una revisión** de una persona distinta a quien lo creó.
-4. Las ramas de trabajo se integran primero en `dev`, y `dev` se integra en `main` cuando esté listo para producción.
-Flujo: `feature/xxx` → PR a `dev` → PR de `dev` a `main`.
+4. Las ramas de trabajo se integran directamente en `main` mediante Pull Request.
+Flujo: `feature/xxx` → PR a `main`.
 
 ## Convención de commits
  
@@ -113,14 +117,14 @@ docs: actualizar README
 
 ## CI/CD
 
-El pipeline vive en [`.github/workflows/ci.yml`](.github/workflows/ci.yml) y se ejecuta en cada push y Pull Request hacia `main` y `dev`, manualmente y cada domingo.
+El pipeline vive en [`.github/workflows/ci.yml`](.github/workflows/ci.yml) y se ejecuta en cada push y Pull Request hacia `main`, manualmente y cada domingo.
 
 | Job | Qué hace | Cuándo |
 | --- | -------- | ------ |
-| `Test (Java 25)` | Checkstyle, pruebas JUnit con Testcontainers (PostgreSQL, MongoDB, RabbitMQ), cobertura JaCoCo, análisis SonarQube (opcional, solo si existe `SONAR_TOKEN`). | Siempre |
+| `Test (Java 25)` | Checkstyle, pruebas JUnit, cobertura JaCoCo, análisis SonarQube (opcional, solo si existe `SONAR_TOKEN`). | Siempre |
 | `Build and Push Docker Image` | Construye la imagen del [`Dockerfile`](Dockerfile) (Temurin 25) y la publica en `ghcr.io/fmat-restaurant/menu-backend` con las etiquetas `latest` y el SHA del commit. | Solo push a `main` |
 
-Reproducir la verificación localmente (requiere Docker para Testcontainers):
+Reproducir la verificación localmente:
 
 ```bash
 ./gradlew checkstyleMain checkstyleTest test jacocoTestReport
@@ -131,4 +135,4 @@ Configuración necesaria en GitHub:
 1. **Secrets** (*Settings > Secrets and variables > Actions*): `SONAR_TOKEN` (SonarCloud: *My Account > Security*). Es opcional: sin él, el análisis de SonarQube se omite con un aviso.
 2. **Sonar**: ajustar `sonar.organization` y `sonar.projectKey` en [`sonar-project.properties`](sonar-project.properties) si difieren en SonarCloud.
 3. **GHCR** (*Settings > Actions > General*): *Workflow permissions* en **Read and write permissions**.
-4. **Protección de ramas** (`main` y `dev`): exigir el status check `Test (Java 25)` antes de hacer merge.
+4. **Protección de ramas** (`main`): exigir el status check `Test (Java 25)` antes de hacer merge.

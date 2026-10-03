@@ -28,21 +28,22 @@ src/
 │   └── infrastructure/               # Repositorios Spring Data, mensajería (RabbitMQ), configuración técnica
 └── test/java/com/fmatrestaurant/menu/
     ├── MenuBackendApplicationTests.java  # Prueba de arranque del contexto
-    ├── TestcontainersConfiguration.java  # Contenedores para pruebas de integración
     ├── api/                          # Pruebas de controladores (@WebMvcTest)
     ├── application/                  # Pruebas unitarias de casos de uso (JUnit + Mockito)
     ├── domain/                       # Pruebas unitarias de reglas de negocio (JUnit, sin Spring)
-    └── infrastructure/               # Pruebas de integración con Testcontainers (@DataJpaTest, @DataMongoTest)
+    └── infrastructure/               # Pruebas de integración con Testcontainers (@DataJpaTest)
 ```
 
 `MenuBackendApplication` se queda en el paquete raíz porque `@SpringBootApplication` escanea su paquete y todos los subpaquetes; si se moviera a una capa, Spring no encontraría los componentes de las demás.
+
+> **Nota:** la persistencia (PostgreSQL 18.6 + Spring Data JPA) todavía no está en el proyecto. RabbitMQ (Spring AMQP) está aprobado en el stack, pero si Menu lo usa depende de la topología, que sigue sin decidir. Los límites transaccionales y AuthN/AuthZ también están pendientes. Las referencias a JPA, Spring Data, RabbitMQ y Testcontainers en este documento describen el diseño previsto, no dependencias que ya existan.
 
 ## Responsabilidades
 
 | Capa | Contiene | No contiene |
 | ---- | -------- | ----------- |
 | `api` | `@RestController`, records de request/response, `@RestControllerAdvice` | Reglas de negocio, acceso a datos |
-| `application` | `@Service` con los casos de uso, DTOs, validaciones de entrada, transacciones (`@Transactional`) | Detalles HTTP, SQL o consultas |
+| `application` | `@Service` con los casos de uso, DTOs, validaciones de entrada. Los límites transaccionales están pendientes de decisión | Detalles HTTP, SQL o consultas |
 | `domain` | Entidades con anotaciones JPA, value objects (`@Embeddable`), invariantes del menú como métodos de las entidades | Servicios, repositorios, anotaciones de Spring (`@Service`, `@Component`) |
 | `infrastructure` | Interfaces de Spring Data (`JpaRepository`), publicadores RabbitMQ, `@Configuration` | Reglas de negocio |
 
@@ -88,10 +89,10 @@ Si en el futuro el modelo de persistencia y el de dominio divergen (por ejemplo,
 
 | Capa | Tipo de prueba | Herramientas |
 | ---- | -------------- | ------------ |
-| `domain` | Unitaria | JUnit 5 |
-| `application` | Unitaria | JUnit 5 + Mockito |
+| `domain` | Unitaria | JUnit 6 |
+| `application` | Unitaria | JUnit 6 + Mockito |
 | `api` | Slice web | `@WebMvcTest`, MockMvc |
-| `infrastructure` | Integración | `@DataJpaTest` / `@DataMongoTest` + Testcontainers |
+| `infrastructure` | Integración | `@DataJpaTest` + Testcontainers |
 
 Todas se ejecutan con:
 
@@ -99,7 +100,7 @@ Todas se ejecutan con:
 ./gradlew test
 ```
 
-Las pruebas de `infrastructure` y `MenuBackendApplicationTests` requieren Docker (Testcontainers).
+Por ahora ninguna prueba requiere Docker; las de `infrastructure` lo necesitarán (Testcontainers) cuando se agregue la persistencia.
 
 ## Alternativa: multi-módulo Gradle
 
