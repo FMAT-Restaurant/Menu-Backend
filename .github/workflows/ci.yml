@@ -3,13 +3,13 @@ name: CI/CD Pipeline
 
 # 'on': Bloque que define los eventos desencadenadores (triggers) del workflow.
 on:
-  # 'push': Se activa con commits en 'main' (producción) y 'dev' (pre-producción).
+  # 'push': Se activa con commits en 'main' (producción).
   push:
-    branches: [ "main", "dev" ]
+    branches: [ "main" ]
 
-  # 'pull_request': Verifica los PRs hacia 'main' y 'dev' antes de integrarlos.
+  # 'pull_request': Verifica los PRs hacia 'main' antes de integrarlos.
   pull_request:
-    branches: [ "main", "dev" ]
+    branches: [ "main" ]
 
   # 'workflow_dispatch': Permite disparar manualmente este pipeline desde la interfaz web o API de GitHub.
   workflow_dispatch:
@@ -70,8 +70,7 @@ jobs:
       - name: Check linting
         run: ./gradlew checkstyleMain checkstyleTest
 
-      # Pruebas JUnit (unitarias y de integración con Testcontainers: PostgreSQL, MongoDB y RabbitMQ)
-      # y generación del reporte de cobertura con JaCoCo.
+      # Pruebas JUnit y generación del reporte de cobertura con JaCoCo.
       - name: Test with JUnit and generate coverage
         run: ./gradlew test jacocoTestReport
 
@@ -109,7 +108,7 @@ jobs:
     name: Build and Push Docker Image
     # 'needs: [test]': Solo inicia si el job de pruebas tuvo éxito.
     needs: [test]
-    # 'if': Solo se publica con commits en 'main' (no en PRs, 'dev' ni otras ramas).
+    # 'if': Solo se publica con commits en 'main' (no en PRs ni otras ramas).
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
