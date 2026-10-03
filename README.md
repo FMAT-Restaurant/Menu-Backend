@@ -33,6 +33,8 @@ Esa documentación es la referencia para el diseño y la implementación de este
 | Java | 25 (LTS), Eclipse Temurin 25.0.4.1 | Fijado por el toolchain de `build.gradle` |
 | Spring Boot | 4.1.1 | Basado en Spring Framework 7 |
 | Gradle | 9.8.0 (wrapper incluido, `gradlew`) | No es necesario instalar Gradle por separado |
+| PostgreSQL | 18.6 | Corre en un contenedor; no se instala a mano |
+| Docker / Docker Compose | 29.8.1 / 5.5.1 | Entorno local y pruebas con Testcontainers |
  
 > **Importante:** todo el equipo debe usar la misma versión de Java. La versión del proyecto queda fijada en el `build.gradle` (toolchain de Java 25, Eclipse Temurin).
  
@@ -41,16 +43,36 @@ Esa documentación es la referencia para el diseño y la implementación de este
 - **JDK 25** (Eclipse Temurin). Si no lo tienes, Gradle lo descarga automáticamente por el toolchain.
 - **Git**.
 - Un IDE con soporte para Java y Spring (IntelliJ IDEA, VS Code con Extension Pack for Java, Eclipse STS).
-
-No hace falta instalar Docker ni ninguna base de datos para levantar el servicio.
+- **Docker Desktop** (Docker 29.8.1 / Compose 5.5.1) en ejecución. Se usa para levantar PostgreSQL y para las pruebas.
 
 ## Levantar el proyecto en local
+
+### Opción 1: todo con Docker Compose
 
 ```bash
 git clone https://github.com/FMAT-Restaurant/Menu-Backend.git
 cd Menu-Backend
-./gradlew bootRun      # En Windows: gradlew.bat bootRun
+docker compose up --build
 ```
+
+[`compose.yaml`](compose.yaml) construye la imagen del API con el [`Dockerfile`](Dockerfile) (Eclipse Temurin 25.0.4.1) y la levanta junto a PostgreSQL 18.6. El API espera a que PostgreSQL esté listo.
+
+- La configuración es externa: el API recibe la conexión por variables de entorno (`SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD`). `application.properties` no tiene datos de conexión.
+- Los valores por defecto (`menu` / `menu` / `menu`, puertos 8080 y 5432) se sobrescriben con variables o con un archivo `.env` (ignorado por git): `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_PORT`, `API_PORT`.
+- Los datos se guardan en el volumen `postgres-data`. `docker compose down -v` los borra.
+- Este archivo es solo para desarrollo local; no define la topología de despliegue.
+
+### Opción 2: API desde el IDE o con Gradle
+
+```bash
+docker compose up -d postgres
+export SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/menu
+export SPRING_DATASOURCE_USERNAME=menu
+export SPRING_DATASOURCE_PASSWORD=menu
+./gradlew bootRun      # En Windows: gradlew.bat bootRun (con set en lugar de export)
+```
+
+En ambos casos:
 
 - La API queda disponible en `http://localhost:8080`.
 - El contrato OpenAPI (esqueleto, sin endpoints todavía) se sirve en `http://localhost:8080/openapi.yaml`; el archivo es [`src/main/resources/static/openapi.yaml`](src/main/resources/static/openapi.yaml).
@@ -60,7 +82,7 @@ Otros comandos útiles:
 
 | Comando | Qué hace |
 | ------- | -------- |
-| `./gradlew test` | Ejecuta las pruebas |
+| `./gradlew test` | Ejecuta las pruebas (requiere Docker: Testcontainers levanta PostgreSQL 18.6) |
 | `./gradlew checkstyleMain checkstyleTest` | Revisa el estilo del código |
 | `./gradlew bootJar` | Genera el `.jar` ejecutable en `build/libs/` |
 
@@ -68,8 +90,8 @@ Otros comandos útiles:
 
 | Tema | Estado |
 | ---- | ------ |
-| Persistencia | PostgreSQL 18.6 con Spring Data JPA. Se agrega (dependencias, contenedor y configuración externa) junto con la configuración local de Docker Compose, cuando exista la base de datos. |
-| Topología | Sin decidir. |
+| Persistencia | Decidida: PostgreSQL 18.6 con Spring Data JPA. Todavía no hay entidades ni esquema. |
+| Topología | Sin decidir. `compose.yaml` es solo el entorno local. RabbitMQ está en el stack, pero no se agrega hasta decidir la topología. |
 | Límites transaccionales | Sin decidir. |
 | AuthN/AuthZ | Sin decidir. No se incluye Spring Security y el contrato OpenAPI no declara ningún esquema de seguridad; esto **no** significa que la API sea pública o anónima. |
 
@@ -121,7 +143,7 @@ El pipeline vive en [`.github/workflows/ci.yml`](.github/workflows/ci.yml) y se 
 
 | Job | Qué hace | Cuándo |
 | --- | -------- | ------ |
-| `Test (Java 25)` | Checkstyle, pruebas JUnit, cobertura JaCoCo, análisis SonarQube (opcional, solo si existe `SONAR_TOKEN`). | Siempre |
+| `Test (Java 25)` | Checkstyle, pruebas JUnit con Testcontainers (PostgreSQL), cobertura JaCoCo, análisis SonarQube (opcional, solo si existe `SONAR_TOKEN`). | Siempre |
 | `Build and Push Docker Image` | Construye la imagen del [`Dockerfile`](Dockerfile) (Temurin 25) y la publica en `ghcr.io/fmat-restaurant/menu-backend` con las etiquetas `latest` y el SHA del commit. | Solo push a `main` |
 
 Reproducir la verificación localmente:
