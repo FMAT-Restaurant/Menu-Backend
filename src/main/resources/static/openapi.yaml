@@ -1,0 +1,11 @@
+openapi: 3.2.1
+info:
+  title: Referencia de API de Menu/Catálogo
+  version: 0.0.0-pending
+  description: |
+    La página de referencia interactiva se mantiene publicada mediante Scalar.
+    Las operaciones, rutas, datos de solicitud y respuesta, y sus representaciones
+    quedan pendientes de revisión de los mockups (OPEN-010). Este documento no
+    publica un contrato aceptado.
+paths: {}
+components: {}
