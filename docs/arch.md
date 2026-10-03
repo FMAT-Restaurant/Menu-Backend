@@ -28,6 +28,7 @@ src/
 │   └── infrastructure/               # Repositorios Spring Data, mensajería (RabbitMQ), configuración técnica
 └── test/java/com/fmatrestaurant/menu/
     ├── MenuBackendApplicationTests.java  # Prueba de arranque del contexto
+    ├── TestcontainersConfiguration.java  # PostgreSQL 18.6 para pruebas
     ├── api/                          # Pruebas de controladores (@WebMvcTest)
     ├── application/                  # Pruebas unitarias de casos de uso (JUnit + Mockito)
     ├── domain/                       # Pruebas unitarias de reglas de negocio (JUnit, sin Spring)
@@ -36,7 +37,7 @@ src/
 
 `MenuBackendApplication` se queda en el paquete raíz porque `@SpringBootApplication` escanea su paquete y todos los subpaquetes; si se moviera a una capa, Spring no encontraría los componentes de las demás.
 
-> **Nota:** la persistencia (PostgreSQL 18.6 + Spring Data JPA) todavía no está en el proyecto. RabbitMQ (Spring AMQP) está aprobado en el stack, pero si Menu lo usa depende de la topología, que sigue sin decidir. Los límites transaccionales y AuthN/AuthZ también están pendientes. Las referencias a JPA, Spring Data, RabbitMQ y Testcontainers en este documento describen el diseño previsto, no dependencias que ya existan.
+> **Nota:** la persistencia es PostgreSQL 18.6 + Spring Data JPA; las dependencias ya están, pero todavía no hay entidades. RabbitMQ (Spring AMQP) está aprobado en el stack, pero si Menu lo usa depende de la topología, que sigue sin decidir. Los límites transaccionales y AuthN/AuthZ también están pendientes. Las referencias a RabbitMQ en este documento describen el diseño previsto, no una dependencia que ya exista.
 
 ## Responsabilidades
 
@@ -100,7 +101,7 @@ Todas se ejecutan con:
 ./gradlew test
 ```
 
-Por ahora ninguna prueba requiere Docker; las de `infrastructure` lo necesitarán (Testcontainers) cuando se agregue la persistencia.
+Las pruebas con `@SpringBootTest` y las de `infrastructure` requieren Docker: [`TestcontainersConfiguration`](../src/test/java/com/fmatrestaurant/menu/TestcontainersConfiguration.java) levanta PostgreSQL 18.6.
 
 ## Alternativa: multi-módulo Gradle
 
