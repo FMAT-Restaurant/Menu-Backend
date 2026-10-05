@@ -1,0 +1,36 @@
+# Entorno local: API + dependencias aprobadas (PostgreSQL 18.6).
+# No define la topología de despliegue; solo sirve para desarrollo local.
+# Los valores por defecto se pueden sobrescribir con variables de entorno o un archivo .env.
+services:
+  postgres:
+    image: postgres:18.6
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-menu}
+      POSTGRES_USER: ${POSTGRES_USER:-menu}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-menu}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      # Desde PostgreSQL 18 el volumen se monta en /var/lib/postgresql.
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # Configuración externa: Spring Boot lee estas variables de entorno.
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-menu}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-menu}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-menu}
+    ports:
+      - "${API_PORT:-8080}:8080"
+
+volumes:
+  postgres-data:
