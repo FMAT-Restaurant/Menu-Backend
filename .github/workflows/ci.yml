@@ -92,7 +92,7 @@ jobs:
       # Opcional: solo se ejecuta si el secreto SONAR_TOKEN está configurado en el repositorio.
       - name: SonarQube Scan
         if: env.SONAR_TOKEN != ''
-        uses: SonarSource/sonarqube-scan-action@v8.2.2
+        uses: SonarSource/sonarqube-scan-action@v8.3.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
