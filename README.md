@@ -33,6 +33,7 @@ Esa documentación es la referencia para el diseño y la implementación de este
 | Java | 25 (LTS), Eclipse Temurin 25.0.4.1 | Fijado por el toolchain de `build.gradle` |
 | Spring Boot | 4.1.1 | Basado en Spring Framework 7 |
 | Gradle | 9.8.0 (wrapper incluido, `gradlew`) | No es necesario instalar Gradle por separado |
+| JaCoCo | 0.8.15 | Agente y generador de reportes fijados con `jacoco.toolVersion`; plugin `jacoco` incluido en Gradle |
 | PostgreSQL | 18.6 | Corre en un contenedor; no se instala a mano |
 | RabbitMQ / Spring AMQP | 4.3.6 / 4.1.1 | RabbitMQ corre en un contenedor; Spring Boot gestiona la versión de Spring AMQP |
 | Docker / Docker Compose | 29.8.1 / 5.5.1 | Entorno local y pruebas con Testcontainers |
@@ -106,7 +107,8 @@ Otros comandos útiles:
 
 | Comando | Qué hace |
 | ------- | -------- |
-| `./gradlew test` | Ejecuta las pruebas (requiere Docker: Testcontainers levanta PostgreSQL 18.6 y RabbitMQ 4.3.6) |
+| `./gradlew test` | Ejecuta las pruebas y genera cobertura JaCoCo XML/HTML (requiere Docker: Testcontainers levanta PostgreSQL 18.6 y RabbitMQ 4.3.6) |
+| `./gradlew jacocoTestReport` | Ejecuta las pruebas si es necesario y genera los reportes de cobertura |
 | `./gradlew checkstyleMain checkstyleTest` | Revisa el estilo del código |
 | `./gradlew bootJar` | Genera el `.jar` ejecutable en `build/libs/` |
 
@@ -163,11 +165,11 @@ docs: actualizar README
 
 ## CI/CD
 
-El pipeline vive en [`.github/workflows/ci.yml`](.github/workflows/ci.yml) y se ejecuta en cada push y Pull Request hacia `main`, manualmente y cada domingo.
+El pipeline vive en [`.github/workflows/ci.yml`](.github/workflows/ci.yml) y se ejecuta en cada push a `main`, en todos los Pull Requests, manualmente y cada domingo.
 
 | Job | Qué hace | Cuándo |
 | --- | -------- | ------ |
-| `Test (Java 25)` | Checkstyle, pruebas JUnit con Testcontainers (PostgreSQL), cobertura JaCoCo, análisis SonarQube (opcional, solo si existe `SONAR_TOKEN`). | Siempre |
+| `Test (Java 25)` | Pruebas JUnit con Testcontainers (PostgreSQL y RabbitMQ), cobertura JaCoCo, Checkstyle, análisis SonarQube (opcional, solo si existe `SONAR_TOKEN`). | Siempre |
 | `Build and Push Docker Image` | Construye la imagen del [`Dockerfile`](Dockerfile) (Temurin 25) y la publica en `ghcr.io/fmat-restaurant/menu-backend` con las etiquetas `latest` y el SHA del commit. | Solo push a `main` |
 
 Reproducir la verificación localmente:
@@ -175,6 +177,35 @@ Reproducir la verificación localmente:
 ```bash
 ./gradlew checkstyleMain checkstyleTest test jacocoTestReport
 ```
+
+### Cobertura JaCoCo y SonarQube
+
+Se utiliza **JaCoCo 0.8.15**, release estable publicada el **4 de junio de 2026**, con cuatro meses de antigüedad al configurar esta integración. Es la versión estable actual y contiene correcciones y mejoras de filtrado del bytecode generado por Java 24–26. El soporte oficial de Java 25 existe desde 0.8.14 y se mantiene en 0.8.15; no se usa la versión snapshot 0.8.16. Referencia: [historial oficial de JaCoCo](https://www.jacoco.org/jacoco/trunk/doc/changes.html).
+
+El plugin `jacoco` forma parte de Gradle 9.8.0; no requiere otro plugin externo ni dependencias de producción. `toolVersion` fija tanto el agente como las herramientas de reporte en 0.8.15. Instrumenta la JVM de la tarea `test`, que conserva `useJUnitPlatform()`: la cobertura incluye las pruebas actuales de Spring Boot/JUnit y Testcontainers, mientras PostgreSQL y RabbitMQ siguen ejecutándose en Docker.
+
+Para generar cobertura desde cero (en Windows, usar `./gradlew.bat`):
+
+```bash
+./gradlew clean jacocoTestReport
+```
+
+Reportes generados:
+
+- **XML para SonarQube:** `build/reports/jacoco/test/jacocoTestReport.xml`.
+- **HTML para revisión local:** `build/reports/jacoco/test/html/index.html`.
+
+`test` finaliza con `jacocoTestReport`, incluso si alguna prueba falla y se generan datos de ejecución; a su vez, solicitar el reporte ejecuta primero las pruebas si es necesario. Una falla que impida iniciar la JVM o generar datos de cobertura no puede producir un reporte válido.
+
+En CI, cada PR ejecuta las pruebas y genera el reporte antes de Checkstyle y del análisis Sonar. Se comprueba que el XML exista y no esté vacío. Los reportes de pruebas, cobertura y Checkstyle se conservan por 14 días en el artefacto `test-results-java-25`, incluso si falla un paso. La generación de cobertura no depende de `SONAR_TOKEN`.
+
+En SonarQube, pegar esta ruta en **Paths to JaCoCo XML coverage report files**, clave **`sonar.coverage.jacoco.xmlReportPaths`** (el segundo campo de la captura):
+
+```text
+build/reports/jacoco/test/jacocoTestReport.xml
+```
+
+La misma ruta ya está definida en [`sonar-project.properties`](sonar-project.properties). El campo `sonar.coverage.jacoco.aggregateXmlReportPaths` se deja vacío: este proyecto tiene un solo módulo y genera un reporte normal, no agregado. Sonar importa el XML generado durante CI; configurar la ruta en su interfaz no genera cobertura por sí solo. Referencia: [cobertura Java en SonarQube](https://docs.sonarsource.com/sonarqube-server/analyzing-source-code/test-coverage/java-test-coverage).
 
 Configuración necesaria en GitHub:
 
