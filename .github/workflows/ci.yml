@@ -90,6 +90,11 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
 
+      # El scanner CLI necesita los classpaths resueltos de producción y pruebas.
+      - name: Prepare Java libraries for SonarQube
+        if: env.SONAR_TOKEN != ''
+        run: ./gradlew prepareSonarLibraries
+
       # Análisis de calidad y seguridad en SonarQube/SonarCloud (configuración en sonar-project.properties).
       # Opcional: solo se ejecuta si el secreto SONAR_TOKEN está configurado en el repositorio.
       - name: SonarQube Scan
