@@ -37,7 +37,7 @@ src/
 
 `MenuBackendApplication` se queda en el paquete raíz porque `@SpringBootApplication` escanea su paquete y todos los subpaquetes; si se moviera a una capa, Spring no encontraría los componentes de las demás.
 
-> **Nota:** la persistencia es PostgreSQL 18.6 + Spring Data JPA; las dependencias ya están, pero todavía no hay entidades. RabbitMQ (Spring AMQP) está aprobado en el stack, pero si Menu lo usa depende de la topología, que sigue sin decidir. Los límites transaccionales y AuthN/AuthZ también están pendientes. Las referencias a RabbitMQ en este documento describen el diseño previsto, no una dependencia que ya exista.
+> **Nota:** la persistencia es PostgreSQL 18.6 + Spring Data JPA; las dependencias ya están, pero todavía no hay entidades. RabbitMQ (Spring AMQP) está aprobado en el stack y ya existe la conectividad base (dependencia, configuración por entorno y prueba de conexión), pero qué publica o consume Menu depende de la topología, que sigue sin decidir. Los límites transaccionales y AuthN/AuthZ también están pendientes. Las referencias a publicadores RabbitMQ en este documento describen el diseño previsto: todavía no hay productores, consumidores, exchanges ni colas.
 
 ## Responsabilidades
 
