@@ -22,12 +22,14 @@ repositories {
 
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+	implementation 'org.springframework.boot:spring-boot-starter-amqp'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
 	runtimeOnly 'org.postgresql:postgresql'
 	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
 	testImplementation 'org.springframework.boot:spring-boot-testcontainers'
 	testImplementation 'org.testcontainers:testcontainers-postgresql'
+	testImplementation 'org.testcontainers:testcontainers-rabbitmq'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
@@ -36,14 +38,39 @@ checkstyle {
 	maxWarnings = 0
 }
 
+jacoco {
+	toolVersion = '0.8.15'
+}
+
 tasks.named('test') {
 	useJUnitPlatform()
 	finalizedBy tasks.named('jacocoTestReport')
 }
 
 tasks.named('jacocoTestReport') {
+	dependsOn tasks.named('test')
 	reports {
 		xml.required = true
+		xml.outputLocation = layout.buildDirectory.file('reports/jacoco/test/jacocoTestReport.xml')
 		html.required = true
+		html.outputLocation = layout.buildDirectory.dir('reports/jacoco/test/html')
+		csv.required = false
 	}
+}
+
+// El scanner CLI necesita los JAR resueltos por Gradle para analizar tipos e imports.
+tasks.register('prepareSonarMainLibraries', Sync) {
+	from configurations.runtimeClasspath
+	into layout.buildDirectory.dir('sonar/libraries/main')
+}
+
+tasks.register('prepareSonarTestLibraries', Sync) {
+	from configurations.testRuntimeClasspath
+	into layout.buildDirectory.dir('sonar/libraries/test')
+}
+
+tasks.register('prepareSonarLibraries') {
+	group = 'verification'
+	description = 'Prepara las dependencias de producción y pruebas para SonarScanner CLI.'
+	dependsOn tasks.named('prepareSonarMainLibraries'), tasks.named('prepareSonarTestLibraries')
 }
