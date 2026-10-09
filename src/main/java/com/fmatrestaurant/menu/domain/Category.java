@@ -8,11 +8,17 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 /**
- * Categoría reutilizable de un menú. Pertenece siempre a un menú (INV-MENU-001).
+ * Category of a menu. It always belongs to a menu (INV-MENU-001).
  */
 @Entity
 @Table(name = "category")
 public class Category {
+
+	/** Maximum length of the name, matching the database column. */
+	public static final int NAME_MAX_LENGTH = 255;
+
+	/** Maximum length of the description, matching the database column. */
+	public static final int DESCRIPTION_MAX_LENGTH = 255;
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -21,26 +27,27 @@ public class Category {
 	@Column(name = "menu_id", nullable = false)
 	private Long menuId;
 
-	@Column(nullable = false)
+	@Column(nullable = false, length = NAME_MAX_LENGTH)
 	private String name;
 
-	@Column
+	@Column(length = DESCRIPTION_MAX_LENGTH)
 	private String description;
 
 	protected Category() {
-		// Requerido por JPA.
+		// Required by JPA.
 	}
 
 	public Category(Long menuId, String name, String description) {
 		if (menuId == null) {
-			throw new IllegalArgumentException("La categoría debe pertenecer a un menú");
+			throw new InvalidCategoryException("A category must belong to a menu");
 		}
 		this.menuId = menuId;
 		applyDetails(name, description);
 	}
 
 	/**
-	 * Actualiza nombre y descripción. La pertenencia al menú no cambia.
+	 * Updates the name and the description. The menu the category belongs to does not change.
+	 * If any value is invalid, nothing is modified.
 	 */
 	public void update(String name, String description) {
 		applyDetails(name, description);
@@ -48,10 +55,20 @@ public class Category {
 
 	private void applyDetails(String name, String description) {
 		if (name == null || name.isBlank()) {
-			throw new IllegalArgumentException("El nombre de la categoría es obligatorio");
+			throw new InvalidCategoryException("The category name is required");
 		}
-		this.name = name.strip();
-		this.description = description == null ? null : description.strip();
+		String strippedName = name.strip();
+		if (strippedName.length() > NAME_MAX_LENGTH) {
+			throw new InvalidCategoryException(
+					"The category name must not exceed " + NAME_MAX_LENGTH + " characters");
+		}
+		String strippedDescription = description == null ? null : description.strip();
+		if (strippedDescription != null && strippedDescription.length() > DESCRIPTION_MAX_LENGTH) {
+			throw new InvalidCategoryException(
+					"The category description must not exceed " + DESCRIPTION_MAX_LENGTH + " characters");
+		}
+		this.name = strippedName;
+		this.description = strippedDescription;
 	}
 
 	public Long getId() {

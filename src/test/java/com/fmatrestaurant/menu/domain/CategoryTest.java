@@ -8,58 +8,108 @@ import org.junit.jupiter.api.Test;
 
 class CategoryTest {
 
+	private static final Long MENU_ID = 1L;
+
 	@Test
 	void keepsNameDescriptionAndMenu() {
-		Category category = new Category(1L, "Bebidas", "Bebidas frías y calientes");
+		Category category = new Category(MENU_ID, "Drinks", "Cold and hot drinks");
 
-		assertEquals(1L, category.getMenuId());
-		assertEquals("Bebidas", category.getName());
-		assertEquals("Bebidas frías y calientes", category.getDescription());
+		assertEquals(MENU_ID, category.getMenuId());
+		assertEquals("Drinks", category.getName());
+		assertEquals("Cold and hot drinks", category.getDescription());
 	}
 
 	@Test
-	void trimsNameAndDescription() {
-		Category category = new Category(1L, "  Postres ", " Dulces ");
+	void stripsNameAndDescription() {
+		Category category = new Category(MENU_ID, "  Desserts ", " Sweet things ");
 
-		assertEquals("Postres", category.getName());
-		assertEquals("Dulces", category.getDescription());
+		assertEquals("Desserts", category.getName());
+		assertEquals("Sweet things", category.getDescription());
 	}
 
 	@Test
 	void allowsMissingDescription() {
-		Category category = new Category(1L, "Entradas", null);
+		Category category = new Category(MENU_ID, "Starters", null);
 
 		assertNull(category.getDescription());
 	}
 
 	@Test
 	void rejectsBlankName() {
-		assertThrows(IllegalArgumentException.class, () -> new Category(1L, "  ", "x"));
-		assertThrows(IllegalArgumentException.class, () -> new Category(1L, null, "x"));
+		InvalidCategoryException exception = assertThrows(InvalidCategoryException.class,
+				() -> new Category(MENU_ID, "   ", "x"));
+
+		assertEquals("The category name is required", exception.getMessage());
+	}
+
+	@Test
+	void rejectsMissingName() {
+		assertThrows(InvalidCategoryException.class, () -> new Category(MENU_ID, null, "x"));
 	}
 
 	@Test
 	void rejectsMissingMenu() {
-		assertThrows(IllegalArgumentException.class, () -> new Category(null, "Bebidas", "x"));
+		InvalidCategoryException exception = assertThrows(InvalidCategoryException.class,
+				() -> new Category(null, "Drinks", "x"));
+
+		assertEquals("A category must belong to a menu", exception.getMessage());
+	}
+
+	@Test
+	void acceptsNameAndDescriptionAtMaxLength() {
+		String name = "n".repeat(Category.NAME_MAX_LENGTH);
+		String description = "d".repeat(Category.DESCRIPTION_MAX_LENGTH);
+
+		Category category = new Category(MENU_ID, name, description);
+
+		assertEquals(name, category.getName());
+		assertEquals(description, category.getDescription());
+	}
+
+	@Test
+	void rejectsNameLongerThanMaxLength() {
+		String name = "n".repeat(Category.NAME_MAX_LENGTH + 1);
+
+		assertThrows(InvalidCategoryException.class, () -> new Category(MENU_ID, name, "x"));
+	}
+
+	@Test
+	void rejectsDescriptionLongerThanMaxLength() {
+		String description = "d".repeat(Category.DESCRIPTION_MAX_LENGTH + 1);
+
+		assertThrows(InvalidCategoryException.class, () -> new Category(MENU_ID, "Drinks", description));
 	}
 
 	@Test
 	void updateChangesDetailsButKeepsMenu() {
-		Category category = new Category(1L, "Bebidas", "Viejo");
+		Category category = new Category(MENU_ID, "Drinks", "Old");
 
-		category.update("Bebidas frías", "Nuevo");
+		category.update("Cold drinks", "New");
 
-		assertEquals("Bebidas frías", category.getName());
-		assertEquals("Nuevo", category.getDescription());
-		assertEquals(1L, category.getMenuId());
+		assertEquals("Cold drinks", category.getName());
+		assertEquals("New", category.getDescription());
+		assertEquals(MENU_ID, category.getMenuId());
 	}
 
 	@Test
-	void updateRejectsBlankName() {
-		Category category = new Category(1L, "Bebidas", "x");
+	void updateRejectsBlankNameAndKeepsPreviousValues() {
+		Category category = new Category(MENU_ID, "Drinks", "Old");
 
-		assertThrows(IllegalArgumentException.class, () -> category.update(" ", "x"));
-		assertEquals("Bebidas", category.getName());
+		assertThrows(InvalidCategoryException.class, () -> category.update(" ", "New"));
+
+		assertEquals("Drinks", category.getName());
+		assertEquals("Old", category.getDescription());
+	}
+
+	@Test
+	void updateRejectsTooLongDescriptionAndKeepsPreviousValues() {
+		Category category = new Category(MENU_ID, "Drinks", "Old");
+		String description = "d".repeat(Category.DESCRIPTION_MAX_LENGTH + 1);
+
+		assertThrows(InvalidCategoryException.class, () -> category.update("Cold drinks", description));
+
+		assertEquals("Drinks", category.getName());
+		assertEquals("Old", category.getDescription());
 	}
 
 }

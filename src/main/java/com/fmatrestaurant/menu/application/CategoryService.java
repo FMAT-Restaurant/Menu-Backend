@@ -5,18 +5,18 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 
 import com.fmatrestaurant.menu.domain.Category;
+import com.fmatrestaurant.menu.domain.InvalidCategoryException;
 import com.fmatrestaurant.menu.infrastructure.CategoryRepository;
 
 /**
- * Casos de uso de categorías (REQ-MENU-CAT-001).
+ * Category use cases (REQ-MENU-CAT-001).
  *
- * <p>De momento existe un solo menú, por lo que su id es simbólico y se
- * asigna aquí.
+ * <p>For now there is a single menu, so its id is symbolic and is assigned here.
  */
 @Service
 public class CategoryService {
 
-	/** Id simbólico del único menú existente por ahora. */
+	/** Symbolic id of the only menu that exists for now. */
 	public static final Long DEFAULT_MENU_ID = 1L;
 
 	private final CategoryRepository categoryRepository;
@@ -29,12 +29,26 @@ public class CategoryService {
 		return categoryRepository.findByMenuId(DEFAULT_MENU_ID);
 	}
 
+	/**
+	 * Creates a category in the menu.
+	 *
+	 * @throws InvalidCategoryException if the name or the description are not valid
+	 */
 	public Category create(String name, String description) {
 		Category category = new Category(DEFAULT_MENU_ID, name, description);
 		return categoryRepository.save(category);
 	}
 
+	/**
+	 * Updates the name and the description of a category.
+	 *
+	 * @throws InvalidCategoryException if the id, the name or the description are not valid
+	 * @throws CategoryNotFoundException if the category does not exist
+	 */
 	public Category update(Long id, String name, String description) {
+		if (id == null) {
+			throw new InvalidCategoryException("The category id is required");
+		}
 		Category category = categoryRepository.findById(id)
 				.orElseThrow(() -> new CategoryNotFoundException(id));
 		category.update(name, description);
