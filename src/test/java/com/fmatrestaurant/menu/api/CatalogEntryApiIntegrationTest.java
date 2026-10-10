@@ -138,6 +138,18 @@ class CatalogEntryApiIntegrationTest {
 		createEntry("{\"brandName\": \"Burger\", \"description\": \"x\", \"categoryIds\": []}")
 				.andExpect(status().isUnprocessableContent())
 				.andExpect(jsonPath(VIOLATION_PATH).value("/imageId"));
+		createEntry("{\"brandName\": \"Burger\", \"description\": \"x\", \"categoryIds\": [], \"imageId\": \"abc\"}")
+				.andExpect(status().isUnprocessableContent())
+				.andExpect(jsonPath(VIOLATION_PATH).value("/imageId"))
+				.andExpect(jsonPath("$.error.details.violations[0].message").value("The value must be a valid UUID"));
+		createEntry("{\"brandName\": \"Burger\", \"description\": \"x\", \"categoryIds\": \"abc\", \"imageId\": \""
+				+ imageId + "\"}")
+				.andExpect(status().isUnprocessableContent())
+				.andExpect(jsonPath(VIOLATION_PATH).value("/categoryIds"));
+		createEntry("{\"brandName\": \"Burger\", \"description\": \"x\", \"categoryIds\": [\"abc\"], \"imageId\": \""
+				+ imageId + "\"}")
+				.andExpect(status().isUnprocessableContent())
+				.andExpect(jsonPath(VIOLATION_PATH).value("/categoryIds/0"));
 		createEntry(body(" ", imageId, burgers))
 				.andExpect(status().isUnprocessableContent())
 				.andExpect(jsonPath(VIOLATION_PATH).value("/brandName"));

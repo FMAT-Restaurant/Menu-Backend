@@ -1,7 +1,11 @@
 package com.fmatrestaurant.menu.api;
 
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
@@ -22,13 +26,15 @@ import com.fmatrestaurant.menu.application.StaleCatalogEntryException;
 import com.fmatrestaurant.menu.domain.Image;
 import com.fmatrestaurant.menu.domain.InvalidFieldException;
 
+import tools.jackson.databind.exc.MismatchedInputException;
+
 /**
  * Translates errors into the error envelopes of the API contract.
  */
 @RestControllerAdvice
 public class ApiExceptionHandler {
 
-	private static final String NOT_FOUND = "No se encontró el recurso solicitado.";
+	private static final String NOT_FOUND = "The requested resource was not found.";
 
 	@ExceptionHandler({ CatalogEntryNotFoundException.class, ImageNotFoundException.class })
 	ResponseEntity<ErrorEnvelope> notFound() {
@@ -40,9 +46,30 @@ public class ApiExceptionHandler {
 		return invalid(e.getPath(), e.getMessage());
 	}
 
+	/** A value of the wrong type names its field; broken or missing JSON keeps the generic message. */
 	@ExceptionHandler(HttpMessageNotReadableException.class)
-	ResponseEntity<ErrorEnvelope> unreadableBody() {
+	ResponseEntity<ErrorEnvelope> unreadableBody(HttpMessageNotReadableException e) {
+		if (e.getCause() instanceof MismatchedInputException mismatch && !mismatch.getPath().isEmpty()) {
+			String path = mismatch.getPath().stream()
+					.map(reference -> "/" + (reference.getPropertyName() != null ? reference.getPropertyName()
+							: reference.getIndex()))
+					.collect(Collectors.joining());
+			return invalid(path, wrongTypeMessage(mismatch.getTargetType()));
+		}
 		return invalid("/", "The request body is missing, is not valid JSON or has values of the wrong type");
+	}
+
+	private static String wrongTypeMessage(Class<?> targetType) {
+		if (targetType == UUID.class) {
+			return "The value must be a valid UUID";
+		}
+		if (targetType != null && Collection.class.isAssignableFrom(targetType)) {
+			return "The value must be an array";
+		}
+		if (targetType != null && targetType.isEnum()) {
+			return "The value must be one of " + Arrays.toString(targetType.getEnumConstants());
+		}
+		return "The value has the wrong type";
 	}
 
 	@ExceptionHandler(MethodArgumentTypeMismatchException.class)
@@ -65,16 +92,16 @@ public class ApiExceptionHandler {
 
 	@ExceptionHandler({ StaleCatalogEntryException.class, OptimisticLockingFailureException.class })
 	ResponseEntity<ErrorEnvelope> stale() {
-		return error(HttpStatus.PRECONDITION_FAILED, "El recurso cambió desde que fue leído.");
+		return error(HttpStatus.PRECONDITION_FAILED, "The resource has changed since it was read.");
 	}
 
 	@ExceptionHandler(MissingRequestHeaderException.class)
 	ResponseEntity<ErrorEnvelope> missingHeader(MissingRequestHeaderException e) {
-		return error(HttpStatus.PRECONDITION_REQUIRED, "Se requiere el encabezado " + e.getHeaderName() + ".");
+		return error(HttpStatus.PRECONDITION_REQUIRED, "The " + e.getHeaderName() + " header is required.");
 	}
 
 	private static ResponseEntity<ErrorEnvelope> invalid(String path, String message) {
-		ErrorBody body = new ErrorBody("Revisa los datos enviados en la solicitud.",
+		ErrorBody body = new ErrorBody("Check the data sent in the request.",
 				Map.of("violations", List.of(new Violation(path, message))));
 		return ResponseEntity.unprocessableContent().body(new ErrorEnvelope(body));
 	}
