@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -22,6 +23,10 @@ import com.fmatrestaurant.menu.domain.InvalidCategoryException;
 import com.fmatrestaurant.menu.infrastructure.CategoryRepository;
 
 class CategoryServiceTest {
+
+	private static final UUID ID = UUID.fromString("00000000-0000-0000-0000-000000000007");
+
+	private static final UUID MISSING_ID = UUID.fromString("00000000-0000-0000-0000-000000000099");
 
 	private CategoryRepository repository;
 
@@ -86,9 +91,9 @@ class CategoryServiceTest {
 	@Test
 	void updateChangesNameAndDescription() {
 		Category existing = new Category(CategoryService.DEFAULT_MENU_ID, "Drinks", "Old");
-		when(repository.findById(7L)).thenReturn(Optional.of(existing));
+		when(repository.findById(ID)).thenReturn(Optional.of(existing));
 
-		Category updated = service.update(7L, "Cold drinks", "New");
+		Category updated = service.update(ID, "Cold drinks", "New");
 
 		assertEquals("Cold drinks", updated.getName());
 		assertEquals("New", updated.getDescription());
@@ -98,12 +103,12 @@ class CategoryServiceTest {
 
 	@Test
 	void updateFailsWhenCategoryDoesNotExist() {
-		when(repository.findById(99L)).thenReturn(Optional.empty());
+		when(repository.findById(MISSING_ID)).thenReturn(Optional.empty());
 
 		CategoryNotFoundException exception = assertThrows(CategoryNotFoundException.class,
-				() -> service.update(99L, "x", "y"));
+				() -> service.update(MISSING_ID, "x", "y"));
 
-		assertEquals("Category not found with id 99", exception.getMessage());
+		assertEquals("Category not found with id " + MISSING_ID, exception.getMessage());
 		verify(repository, never()).save(any(Category.class));
 	}
 
@@ -118,9 +123,9 @@ class CategoryServiceTest {
 	@Test
 	void updateRejectsBlankNameWithoutSaving() {
 		Category existing = new Category(CategoryService.DEFAULT_MENU_ID, "Drinks", "Old");
-		when(repository.findById(7L)).thenReturn(Optional.of(existing));
+		when(repository.findById(ID)).thenReturn(Optional.of(existing));
 
-		assertThrows(InvalidCategoryException.class, () -> service.update(7L, " ", "New"));
+		assertThrows(InvalidCategoryException.class, () -> service.update(ID, " ", "New"));
 
 		assertEquals("Drinks", existing.getName());
 		verify(repository, never()).save(any(Category.class));
