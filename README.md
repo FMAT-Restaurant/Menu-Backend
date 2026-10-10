@@ -16,7 +16,7 @@ Este servicio implementa el bounded context `Menu`, responsable de:
 - Definir **combos**.
 - Resolver la información del menú necesaria para el flujo de comandas.
 La definición del dominio, los requisitos y las decisiones de arquitectura viven en el repositorio de documentación:
-[FMAT-Restaurant/Menu-Documentation](https://github.com/FMAT-Restaurant/Menu-Documentation).
+[FMAT-Restaurant/Menu-Documentation](https://fmat-restaurant.github.io/Menu-Documentation/).
 Esa documentación es la referencia para el diseño y la implementación de este backend.
 
 ## Documentación relacionada

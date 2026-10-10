@@ -1,5 +1,7 @@
 package com.fmatrestaurant.menu.domain;
 
+import java.util.UUID;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -21,8 +23,8 @@ public class Category {
 	public static final int DESCRIPTION_MAX_LENGTH = 255;
 
 	@Id
-	@GeneratedValue(strategy = GenerationType.IDENTITY)
-	private Long id;
+	@GeneratedValue(strategy = GenerationType.UUID)
+	private UUID id;
 
 	@Column(name = "menu_id", nullable = false)
 	private Long menuId;
@@ -71,7 +73,7 @@ public class Category {
 		this.description = strippedDescription;
 	}
 
-	public Long getId() {
+	public UUID getId() {
 		return id;
 	}
 

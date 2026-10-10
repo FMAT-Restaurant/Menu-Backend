@@ -1,6 +1,7 @@
 package com.fmatrestaurant.menu.application;
 
 import java.util.List;
+import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 
@@ -45,7 +46,7 @@ public class CategoryService {
 	 * @throws InvalidCategoryException if the id, the name or the description are not valid
 	 * @throws CategoryNotFoundException if the category does not exist
 	 */
-	public Category update(Long id, String name, String description) {
+	public Category update(UUID id, String name, String description) {
 		if (id == null) {
 			throw new InvalidCategoryException("The category id is required");
 		}

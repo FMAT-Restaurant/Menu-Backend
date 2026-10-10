@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.List;
+import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -58,7 +59,7 @@ class CategoryRepositoryTest {
 
 	@Test
 	void serviceFailsToUpdateAMissingCategory() {
-		assertThrows(CategoryNotFoundException.class, () -> service.update(999_999L, "x", "y"));
+		assertThrows(CategoryNotFoundException.class, () -> service.update(UUID.randomUUID(), "x", "y"));
 	}
 
 }

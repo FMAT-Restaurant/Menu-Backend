@@ -46,6 +46,8 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-menu}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-menu}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-menu}
+      # Solo desarrollo local: Hibernate crea y actualiza el esquema mientras no haya migraciones.
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
       SPRING_RABBITMQ_HOST: rabbitmq
       SPRING_RABBITMQ_PORT: 5672
       SPRING_RABBITMQ_VIRTUALHOST: ${RABBITMQ_VHOST:-/}
