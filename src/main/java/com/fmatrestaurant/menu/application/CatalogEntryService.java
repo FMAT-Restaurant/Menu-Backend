@@ -136,7 +136,7 @@ public class CatalogEntryService {
 	private static UUID categoryId(String value) {
 		try {
 			return UUID.fromString(value);
-		} catch (IllegalArgumentException e) {
+		} catch (IllegalArgumentException _) {
 			throw new InvalidFieldException("categoryId", "The category filter must be a UUID or " + UNCATEGORIZED);
 		}
 	}

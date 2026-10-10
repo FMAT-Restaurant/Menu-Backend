@@ -270,7 +270,7 @@ class CatalogEntryApiIntegrationTest {
 		// MockMvc runs in this thread, so the PATCH joins the slow transaction, which already read rev-0.
 		slowRequest.executeWithoutResult(transaction -> {
 			entryRepository.findById(id).orElseThrow();
-			fastRequest.executeWithoutResult(other -> entryService.update(id, 0, "First", null, null, null, null));
+			fastRequest.executeWithoutResult(_ -> entryService.update(id, 0, "First", null, null, null, null));
 			try {
 				patchEntry(id.toString(), "W/\"rev-0\"", "{\"brandName\": \"Second\"}")
 						.andExpect(status().isPreconditionFailed())

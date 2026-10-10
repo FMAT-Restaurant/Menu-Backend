@@ -107,7 +107,7 @@ public class Image {
 		}
 		ImageReader reader = readers.next();
 		List<String> warnings = new ArrayList<>();
-		reader.addIIOReadWarningListener((source, warning) -> warnings.add(warning));
+		reader.addIIOReadWarningListener((_, warning) -> warnings.add(warning));
 		try (ImageInputStream input = ImageIO.createImageInputStream(new ByteArrayInputStream(bytes))) {
 			reader.setInput(input, true, true);
 			if (reader.getWidth(0) > MAX_DIMENSION || reader.getHeight(0) > MAX_DIMENSION) {
@@ -120,7 +120,7 @@ public class Image {
 			}
 		} catch (InvalidFieldException e) {
 			throw e;
-		} catch (IOException | RuntimeException e) {
+		} catch (IOException | RuntimeException _) {
 			throw new InvalidFieldException(PATH, "The image could not be decoded");
 		} finally {
 			reader.dispose();
