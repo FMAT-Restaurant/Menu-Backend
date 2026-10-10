@@ -61,7 +61,7 @@ public class CatalogEntryService {
 	 */
 	@Transactional(readOnly = true)
 	public CatalogEntry get(UUID id) {
-		return entryRepository.findById(id).orElseThrow(() -> new CatalogEntryNotFoundException(id));
+		return find(id);
 	}
 
 	/**
@@ -99,12 +99,17 @@ public class CatalogEntryService {
 	@Transactional
 	public CatalogEntry update(UUID id, long expectedVersion, String brandName, String description,
 			EntryStatus status, List<UUID> categoryIds, UUID imageId) {
-		CatalogEntry entry = get(id);
+		CatalogEntry entry = find(id);
 		if (entry.getVersion() != expectedVersion) {
 			throw new StaleCatalogEntryException(id);
 		}
 		entry.update(brandName, description, existingImage(imageId), categories(categoryIds), status);
 		return entryRepository.saveAndFlush(entry);
+	}
+
+	/** Not transactional: it runs in the transaction of the caller. */
+	private CatalogEntry find(UUID id) {
+		return entryRepository.findById(id).orElseThrow(() -> new CatalogEntryNotFoundException(id));
 	}
 
 	private List<Category> categories(List<UUID> ids) {
