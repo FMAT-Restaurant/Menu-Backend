@@ -124,9 +124,6 @@ public class CatalogEntryController {
 
 	}
 
-	public record PageMeta(int page, int pageSize, long total, int totalPages) {
-	}
-
 	public record CatalogEntryListResponse(List<CatalogEntrySummary> data, PageMeta meta) {
 	}
 
