@@ -52,7 +52,7 @@ public class CatalogEntryService {
 	@Transactional
 	public CatalogEntry create(String brandName, String description, List<UUID> categoryIds, UUID imageId) {
 		CatalogEntry entry = new CatalogEntry(CategoryService.DEFAULT_MENU_ID, brandName, description,
-				existingImage(imageId), categories(categoryIds));
+				existingImage(imageId), categoryIds == null ? null : categories(categoryIds));
 		return entryRepository.save(entry);
 	}
 
@@ -103,7 +103,9 @@ public class CatalogEntryService {
 		if (entry.getVersion() != expectedVersion) {
 			throw new StaleCatalogEntryException(id);
 		}
-		entry.update(brandName, description, existingImage(imageId), categories(categoryIds), status);
+		// Missing categoryIds keep the current categories.
+		entry.update(brandName, description, existingImage(imageId),
+				categoryIds == null ? null : categories(categoryIds), status);
 		return entryRepository.saveAndFlush(entry);
 	}
 
@@ -113,9 +115,6 @@ public class CatalogEntryService {
 	}
 
 	private List<Category> categories(List<UUID> ids) {
-		if (ids == null) {
-			return null;
-		}
 		Set<UUID> uniqueIds = new HashSet<>(ids);
 		if (uniqueIds.contains(null)) {
 			throw new InvalidFieldException("/categoryIds", "The category ids must not be null");

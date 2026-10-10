@@ -88,6 +88,25 @@ class CatalogEntryServiceTest {
 	}
 
 	@Test
+	void createRejectsMissingCategoriesWithoutSaving() {
+		assertPath("/categoryIds", () -> service.create("Burger", "Tasty", null, IMAGE_ID));
+
+		verify(entryRepository, never()).save(any(CatalogEntry.class));
+	}
+
+	@Test
+	void updateWithoutCategoriesKeepsTheCurrentOnes() {
+		CatalogEntry entry = storedEntry();
+		entry.update(null, null, null, List.of(burgers), null);
+		when(entryRepository.findById(ENTRY_ID)).thenReturn(Optional.of(entry));
+
+		service.update(ENTRY_ID, VERSION, null, null, EntryStatus.ACTIVE, null, null);
+
+		assertEquals(Set.of(burgers), entry.getCategories());
+		verify(categoryRepository, never()).findAllById(any());
+	}
+
+	@Test
 	void createRejectsAnUnknownImageWithoutSaving() {
 		assertPath("/imageId", () -> service.create("Burger", "Tasty", List.of(), UUID.randomUUID()));
 
