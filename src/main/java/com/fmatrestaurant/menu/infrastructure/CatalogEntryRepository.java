@@ -30,6 +30,7 @@ public interface CatalogEntryRepository extends JpaRepository<CatalogEntry, UUID
 	 */
 	static Specification<CatalogEntry> search(Long menuId, String q, UUID categoryId, boolean uncategorized,
 			EntryStatus status) {
+		String categories = "categories";
 		return (root, query, cb) -> {
 			List<Predicate> predicates = new ArrayList<>();
 			predicates.add(cb.equal(root.get("menuId"), menuId));
@@ -37,15 +38,15 @@ public interface CatalogEntryRepository extends JpaRepository<CatalogEntry, UUID
 					? cb.notEqual(root.get("status"), EntryStatus.ARCHIVED)
 					: cb.equal(root.get("status"), status));
 			if (uncategorized) {
-				predicates.add(cb.isEmpty(root.get("categories")));
+				predicates.add(cb.isEmpty(root.get(categories)));
 			}
 			if (categoryId != null) {
-				predicates.add(cb.equal(root.join("categories").get("id"), categoryId));
+				predicates.add(cb.equal(root.join(categories).get("id"), categoryId));
 			}
 			if (q != null && !q.isBlank()) {
 				String pattern = "%" + q.strip().toLowerCase(Locale.ROOT)
 						.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
-				Join<CatalogEntry, Category> category = root.join("categories", JoinType.LEFT);
+				Join<CatalogEntry, Category> category = root.join(categories, JoinType.LEFT);
 				predicates.add(cb.or(
 						cb.like(cb.lower(root.get("brandName")), pattern, '\\'),
 						cb.like(cb.lower(root.get("description")), pattern, '\\'),
