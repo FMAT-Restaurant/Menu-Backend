@@ -4,7 +4,6 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -73,16 +72,21 @@ public class CompositionSlot {
 	 * Applies the given changes; a {@code null} value keeps the current one. If any value is
 	 * invalid, nothing is modified.
 	 *
-	 * @param course {@code null} keeps the course and an empty value removes it
 	 * @throws InvalidFieldException if a value is invalid
 	 */
-	public void update(String name, BigDecimal quantity, Optional<String> course) {
+	public void update(String name, BigDecimal quantity) {
 		String newName = name == null ? this.name : Fields.text("/name", "slot name", name, NAME_MAX_LENGTH);
 		int newQuantity = quantity == null ? this.quantity : quantity(quantity);
-		String newCourse = course == null ? this.course : course(course.orElse(null));
 		this.name = newName;
 		this.quantity = newQuantity;
-		this.course = newCourse;
+	}
+
+	/**
+	 * @param course the new course, or {@code null} to remove it
+	 * @throws InvalidFieldException if the course is not one of {@link #COURSES}
+	 */
+	public void changeCourse(String course) {
+		this.course = course(course);
 	}
 
 	/**

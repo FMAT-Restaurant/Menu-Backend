@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
@@ -130,12 +129,10 @@ class CatalogOfferTest {
 				List.of(option(OfferStatus.ACTIVE)));
 		assertEquals("plato fuerte", slot.getCourse());
 
-		assertPath("/course", () -> slot.update("Other", null, Optional.of("snack")));
-		assertEquals("Main", slot.getName());
-
-		slot.update(null, null, null);
+		assertPath("/course", () -> slot.changeCourse("snack"));
 		assertEquals("plato fuerte", slot.getCourse());
-		slot.update(null, null, Optional.empty());
+
+		slot.changeCourse(null);
 		assertNull(slot.getCourse());
 	}
 
