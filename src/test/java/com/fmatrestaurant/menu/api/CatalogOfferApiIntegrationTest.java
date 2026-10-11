@@ -321,6 +321,7 @@ class CatalogOfferApiIntegrationTest {
 				.andExpect(jsonPath("$.data.status").value("ACTIVE"));
 		patchOffer(id, etag(id), optionStatus(slot, option, "INACTIVE"))
 				.andExpect(jsonPath("$.data.status").value("INACTIVE"))
+				.andExpect(jsonPath("$.data.composition.slots[0].course").value("entrada"))
 				.andExpect(jsonPath("$.data.composition.slots[0].status").value("INACTIVE"));
 		patchOffer(id, etag(id), optionStatus(slot, option, "ACTIVE"))
 				.andExpect(jsonPath("$.data.status").value("ACTIVE"));

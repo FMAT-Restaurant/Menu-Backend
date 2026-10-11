@@ -5,7 +5,6 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
@@ -70,7 +69,7 @@ public class CatalogOfferService {
 	public CatalogOffer create(UUID entryId, OfferInput input) {
 		CatalogEntry entry = entryRepository.findById(entryId)
 				.orElseThrow(() -> new CatalogEntryNotFoundException(entryId));
-		UUID imageId = existingImage(input.imageId());
+		UUID imageId = existingImage(input);
 		List<SlotInput> slots = input.composition() == null ? null : input.composition().slots();
 		CatalogOffer offer = new CatalogOffer(entry, input.presentationTag(), input.basePrice(), imageId,
 				slots(List.of(), slots, true));
@@ -122,7 +121,7 @@ public class CatalogOfferService {
 		if (input.composition() != null) {
 			input.composition().rejectUnknownFields("/composition");
 		}
-		offer.update(input.presentationTag(), input.basePrice(), existingImage(input.imageId()));
+		offer.update(input.presentationTag(), input.basePrice(), existingImage(input));
 		if (input.composition() != null && input.composition().slots() != null) {
 			offer.replaceSlots(slots(offer.getSlots(), input.composition().slots(), false));
 		}
@@ -165,12 +164,14 @@ public class CatalogOfferService {
 		}
 		UUID id = create ? null : input.slotId();
 		if (id == null) {
-			String course = input.course() == null ? null : input.course().orElse(null);
-			return new CompositionSlot(input.name(), input.quantity(), course,
+			return new CompositionSlot(input.name(), input.quantity(), input.course(),
 					options(List.of(), input.options(), create));
 		}
 		CompositionSlot slot = existing(byId, seen, id, "/slotId", "slot", "offer");
-		slot.update(input.name(), input.quantity(), input.course());
+		slot.update(input.name(), input.quantity());
+		if (input.courseSent()) {
+			slot.changeCourse(input.course());
+		}
 		if (input.options() != null) {
 			slot.replaceOptions(options(slot.getOptions(), input.options(), false));
 		}
@@ -216,8 +217,12 @@ public class CatalogOfferService {
 		// Inventory is only asked when the article or the unit change.
 		boolean newItem = input.inventoryItemId() != null && !input.inventoryItemId().equals(option.getInventoryItemId());
 		boolean newUnit = input.unit() != null && !input.unit().strip().equals(option.getUnit());
-		InventoryItem item = newItem || newUnit
-				? inventoryItem(newItem ? input.inventoryItemId() : option.getInventoryItemId()) : null;
+		InventoryItem item = null;
+		if (newItem) {
+			item = inventoryItem(input.inventoryItemId());
+		} else if (newUnit) {
+			item = inventoryItem(option.getInventoryItemId());
+		}
 		option.update(input.displayName(), input.status(), item, input.quantity(), item == null ? null : input.unit());
 		return option;
 	}
@@ -239,11 +244,15 @@ public class CatalogOfferService {
 				() -> new InvalidFieldException("/inventoryItemId", "The inventory item " + id + " does not exist"));
 	}
 
-	private UUID existingImage(Optional<UUID> image) {
-		if (image == null) {
+	/** {@code null} when the image was not sent; sent as {@code null}, it is rejected. */
+	private UUID existingImage(OfferInput input) {
+		if (!input.imageIdSent()) {
 			return null;
 		}
-		UUID imageId = image.orElseThrow(() -> new InvalidFieldException("/imageId", "The image must not be null"));
+		UUID imageId = input.imageId();
+		if (imageId == null) {
+			throw new InvalidFieldException("/imageId", "The image must not be null");
+		}
 		if (!imageRepository.existsById(imageId)) {
 			throw new InvalidFieldException("/imageId", "The image " + imageId + " does not exist");
 		}
@@ -255,9 +264,8 @@ public class CatalogOfferService {
 	 * contract examples send ids and fields of other sources; PATCH rejects them
 	 * ({@code additionalProperties: false}), which also rejects mixing source types.
 	 *
-	 * <p>The bodies are classes with fields, not records: Jackson gives a record
-	 * {@code Optional.empty()} for a missing value too, so only fields tell a missing value from
-	 * {@code null}.
+	 * <p>The bodies are classes, not records, because a record cannot tell a missing value from
+	 * {@code null}: where that matters, a setter records that the field was sent.
 	 */
 	abstract static class Input {
 
@@ -293,9 +301,10 @@ public class CatalogOfferService {
 		@JsonProperty
 		private OfferStatus status;
 
-		/** {@code null} when missing, empty when sent as {@code null}, which is rejected. */
-		@JsonProperty
-		private Optional<UUID> imageId;
+		/** Rejected when sent as {@code null}. */
+		private UUID imageId;
+
+		private boolean imageIdSent;
 
 		@JsonProperty
 		private CompositionInput composition;
@@ -312,8 +321,18 @@ public class CatalogOfferService {
 			return status;
 		}
 
-		public Optional<UUID> imageId() {
+		public UUID imageId() {
 			return imageId;
+		}
+
+		public boolean imageIdSent() {
+			return imageIdSent;
+		}
+
+		@JsonProperty("imageId")
+		private void setImageId(UUID imageId) {
+			this.imageId = imageId;
+			this.imageIdSent = true;
 		}
 
 		public CompositionInput composition() {
@@ -344,9 +363,10 @@ public class CatalogOfferService {
 		@JsonProperty
 		private BigDecimal quantity;
 
-		/** {@code null} when missing, empty when sent as {@code null} to remove the course. */
-		@JsonProperty
-		private Optional<String> course;
+		/** Sent as {@code null}, it removes the course. */
+		private String course;
+
+		private boolean courseSent;
 
 		@JsonProperty
 		private Boolean required;
@@ -366,8 +386,18 @@ public class CatalogOfferService {
 			return quantity;
 		}
 
-		public Optional<String> course() {
+		public String course() {
 			return course;
+		}
+
+		public boolean courseSent() {
+			return courseSent;
+		}
+
+		@JsonProperty("course")
+		private void setCourse(String course) {
+			this.course = course;
+			this.courseSent = true;
 		}
 
 		public Boolean required() {
