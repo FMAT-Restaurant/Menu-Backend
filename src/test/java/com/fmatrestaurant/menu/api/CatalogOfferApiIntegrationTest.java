@@ -7,13 +7,6 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.clearInvocations;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -25,7 +18,6 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 import javax.imageio.ImageIO;
@@ -41,14 +33,12 @@ import org.springframework.context.annotation.Import;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
-import org.springframework.web.client.ResourceAccessException;
 
 import com.fmatrestaurant.menu.TestcontainersConfiguration;
 import com.fmatrestaurant.menu.application.CatalogOfferService;
@@ -59,17 +49,14 @@ import com.fmatrestaurant.menu.domain.InventoryItem;
 import com.fmatrestaurant.menu.infrastructure.CatalogEntryRepository;
 import com.fmatrestaurant.menu.infrastructure.CatalogOfferRepository;
 import com.fmatrestaurant.menu.infrastructure.ImageRepository;
-import com.fmatrestaurant.menu.infrastructure.InventoryClient;
-import com.fmatrestaurant.menu.infrastructure.InventoryClient.InventoryItemPage;
-import com.fmatrestaurant.menu.infrastructure.InventoryClient.Meta;
 import com.jayway.jsonpath.JsonPath;
 
 import jakarta.persistence.EntityManagerFactory;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * HTTP flows of offers and their compositions against PostgreSQL (Testcontainers), with Inventory
- * replaced by a mock. Requires Docker.
+ * HTTP flows of offers and their compositions against PostgreSQL (Testcontainers). Inventory item
+ * data is supplied by the request, as it is by the front end. Requires Docker.
  */
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest(properties = { "spring.jpa.hibernate.ddl-auto=create-drop",
@@ -84,8 +71,6 @@ class CatalogOfferApiIntegrationTest {
 	private static final InventoryItem POTATOES = new InventoryItem(UUID.randomUUID(), "Potatoes", "g");
 
 	private static final InventoryItem JUICE = new InventoryItem(UUID.randomUUID(), "Orange juice", "ml");
-
-	private static final UUID UNKNOWN_ITEM = UUID.randomUUID();
 
 	@Autowired
 	private MockMvc mockMvc;
@@ -111,9 +96,6 @@ class CatalogOfferApiIntegrationTest {
 	@Autowired
 	private JsonMapper jsonMapper;
 
-	@MockitoBean
-	private InventoryClient inventoryClient;
-
 	private UUID imageId;
 
 	private UUID entryId;
@@ -125,9 +107,6 @@ class CatalogOfferApiIntegrationTest {
 		imageRepository.deleteAll();
 		imageId = imageRepository.save(new Image("image/png", png())).getId();
 		entryId = entryRepository.save(new CatalogEntry(1L, "Hawaiian burger", "Tasty", imageId, List.of())).getId();
-		when(inventoryClient.find(POTATOES.id())).thenReturn(Optional.of(POTATOES));
-		when(inventoryClient.find(JUICE.id())).thenReturn(Optional.of(JUICE));
-		when(inventoryClient.find(UNKNOWN_ITEM)).thenReturn(Optional.empty());
 	}
 
 	@Test
@@ -204,8 +183,9 @@ class CatalogOfferApiIntegrationTest {
 				{"basePrice": 10, "imageId": "%s", "composition": {"slots": []}}""".formatted(imageId)),
 				"/composition/slots");
 		expectViolation(createOffer(entryId, offerBody("Individual", "-1")), "/basePrice");
-		expectViolation(createOffer(entryId, offerWith(option(UNKNOWN_ITEM, "g"))),
-				"/composition/slots/0/options/0/inventoryItemId");
+		expectViolation(createOffer(entryId, offerWith(option(POTATOES.id(), "g")
+				.replace("\"id\": \"" + POTATOES.id() + "\", ", ""))),
+				"/composition/slots/0/options/0/source/id");
 		expectViolation(createOffer(entryId, offerWith(option(POTATOES.id(), "kg"))),
 				"/composition/slots/0/options/0/unit");
 		expectViolation(createOffer(entryId, offerWith(option(POTATOES.id(), "g").replace("200", "0"))),
@@ -230,7 +210,8 @@ class CatalogOfferApiIntegrationTest {
 				.andExpect(status().isNotModified());
 		String listEtag = mockMvc.perform(get(OFFERS)).andExpect(status().isOk())
 				.andReturn().getResponse().getHeader(HttpHeaders.ETAG);
-		mockMvc.perform(get(OFFERS).header(HttpHeaders.IF_NONE_MATCH, listEtag))
+        assert listEtag != null;
+        mockMvc.perform(get(OFFERS).header(HttpHeaders.IF_NONE_MATCH, listEtag))
 				.andExpect(status().isNotModified());
 		mockMvc.perform(get(OFFERS + "/" + UUID.randomUUID())).andExpect(status().isNotFound());
 		mockMvc.perform(get(OFFERS + "/not-a-uuid")).andExpect(status().isNotFound());
@@ -262,9 +243,7 @@ class CatalogOfferApiIntegrationTest {
 		String json = read(id);
 		String slot = JsonPath.read(json, "$.data.composition.slots[0].slotId");
 		String fries = JsonPath.read(json, "$.data.composition.slots[0].options[0].optionId");
-		clearInvocations(inventoryClient);
-
-		// Only the quantity changes, so Inventory is not asked; the juice option is removed.
+		// Only the quantity changes; the juice option is removed.
 		String patched = patchOffer(id, etag(id), """
 				{"composition": {"slots": [
 				  {"slotId": "%s", "course": null, "options": [
@@ -282,7 +261,6 @@ class CatalogOfferApiIntegrationTest {
 				.andExpect(jsonPath("$.data.composition.slots[1].name").value("Drink"))
 				.andExpect(jsonPath("$.data.composition.slots[1].quantity").value(2))
 				.andReturn().getResponse().getContentAsString();
-		verify(inventoryClient, never()).find(POTATOES.id());
 		String drink = JsonPath.read(patched, "$.data.composition.slots[1].slotId");
 
 		// A change of an option only is reflected in the ETag; omitting options keeps them.
@@ -298,11 +276,11 @@ class CatalogOfferApiIntegrationTest {
 				.andExpect(jsonPath("$.data.composition.slots[1].options", hasSize(1)));
 		assertNotEquals(before, etag(id));
 
-		// Changing the article checks the unit against the new article.
+		// Changing the article sends its current data with the option update.
 		patchOffer(id, etag(id), """
 				{"composition": {"slots": [
-				  {"slotId": "%s", "options": [{"optionId": "%s", "inventoryItemId": "%s", "unit": "ml"}]}]}}
-				""".formatted(slot, fries, JUICE.id()))
+				  {"slotId": "%s", "options": [{"optionId": "%s", "source": %s, "unit": "ml"}]}]}}
+				""".formatted(slot, fries, itemSource(JUICE)))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.composition.slots", hasSize(1)))
 				.andExpect(jsonPath("$.data.composition.slots[0].options[0].source.name").value("Orange juice"))
@@ -367,7 +345,8 @@ class CatalogOfferApiIntegrationTest {
 		expectRejected(id, etag, prefix + "{\"slotId\": \"" + slot + "\", \"options\": [{\"optionId\": \"" + fries
 				+ "\", \"unit\": \"kg\"}]}]}}", "/composition/slots/0/options/0/unit");
 		expectRejected(id, etag, prefix + "{\"slotId\": \"" + slot + "\", \"options\": [{\"optionId\": \"" + fries
-				+ "\", \"inventoryItemId\": \"" + UNKNOWN_ITEM + "\"}]}]}}", "/composition/slots/0/options/0/inventoryItemId");
+				+ "\", \"source\": {\"name\": \"Potatoes\", \"unit\": \"g\"}}]}]}}",
+				"/composition/slots/0/options/0/source/id");
 		expectRejected(id, etag, prefix + "{\"slotId\": \"" + slot + "\", \"options\": [{\"optionId\": \"" + fries
 				+ "\", \"quantity\": -1}]}]}}", "/composition/slots/0/options/0/quantity");
 		expectRejected(id, etag, prefix + "{\"slotId\": \"" + slot + "\"}, {\"quantity\": 1, \"options\": ["
@@ -382,12 +361,6 @@ class CatalogOfferApiIntegrationTest {
 				"/composition/slots/0/options/0/recipeId");
 		expectRejected(id, etag, "{\"presentationTag\": \"Changed\", \"imageId\": \"" + UUID.randomUUID() + "\"}",
 				"/imageId");
-
-		when(inventoryClient.find(JUICE.id())).thenThrow(new ResourceAccessException("down"));
-		patchOffer(id, etag, prefix + "{\"slotId\": \"" + slot + "\", \"options\": [{\"optionId\": \"" + fries
-				+ "\", \"inventoryItemId\": \"" + JUICE.id() + "\", \"unit\": \"ml\"}]}]}}")
-				.andExpect(status().isServiceUnavailable());
-
 		mockMvc.perform(get(OFFERS + "/" + id))
 				.andExpect(header().string(HttpHeaders.ETAG, etag))
 				.andExpect(jsonPath("$.data.presentationTag").value("Individual"))
@@ -433,27 +406,7 @@ class CatalogOfferApiIntegrationTest {
 		assertEquals(3, statistics.getPrepareStatementCount());
 	}
 
-	@Test
-	void searchesInventoryItems() throws Exception {
-		when(inventoryClient.search("pot", 1, 12))
-				.thenReturn(new InventoryItemPage(List.of(POTATOES), new Meta(1, 12, 1, 1)));
-
-		mockMvc.perform(get("/api/v1/inventory/items").param("q", "pot"))
-				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.data[0].id").value(POTATOES.id().toString()))
-				.andExpect(jsonPath("$.data[0].name").value("Potatoes"))
-				.andExpect(jsonPath("$.data[0].unit").value("g"))
-				.andExpect(jsonPath("$.meta.total").value(1))
-				.andExpect(jsonPath("$.meta.totalPages").value(1));
-		mockMvc.perform(get("/api/v1/inventory/items").param("pageSize", "0"))
-				.andExpect(status().isUnprocessableContent());
-
-		when(inventoryClient.search(any(), anyInt(), eq(5))).thenThrow(new ResourceAccessException("down"));
-		mockMvc.perform(get("/api/v1/inventory/items").param("pageSize", "5"))
-				.andExpect(status().isServiceUnavailable());
-	}
-
-	/** The client sends an id that the server must not use. */
+	/** Sentinel option id; the server must assign its own option id. */
 	private static final String SENT_ID = "b37c1bd7-17b2-47a2-a3a4-802559445301";
 
 	private void expectRejected(String id, String etag, String json, String path) throws Exception {
@@ -506,7 +459,7 @@ class CatalogOfferApiIntegrationTest {
 				{%s"basePrice": %s, "status": "ACTIVE", "imageId": "%s", "composition": {"slots": [
 				  {"slotId": "%s", "name": "Side", "required": true, "quantity": 1, "course": "entrada",
 				   "options": [%s]}]}}
-				""".formatted(tagField, price, imageId, SENT_ID, option(POTATOES.id(), "g").replace("{",
+				""".formatted(tagField, price, imageId, SENT_ID, option(POTATOES.id(), "g").replaceFirst("\\{",
 				"{\"optionId\": \"" + SENT_ID + "\", \"recipeId\": null, "));
 	}
 
@@ -518,10 +471,16 @@ class CatalogOfferApiIntegrationTest {
 	}
 
 	private static String option(UUID item, String unit) {
+		InventoryItem source = item.equals(JUICE.id()) ? JUICE : POTATOES;
 		String name = item.equals(JUICE.id()) ? "Juice" : "Fries";
 		return """
-				{"displayName": "%s", "status": "ACTIVE", "sourceType": "INVENTORY_ITEM", "inventoryItemId": "%s",
-				 "quantity": 200, "unit": "%s"}""".formatted(name, item, unit);
+				{"displayName": "%s", "status": "ACTIVE", "sourceType": "INVENTORY_ITEM", "source": %s,
+				 "quantity": 200, "unit": "%s"}""".formatted(name, itemSource(source), unit);
+	}
+
+	private static String itemSource(InventoryItem item) {
+		return """
+				{"id": "%s", "name": "%s", "unit": "%s"}""".formatted(item.id(), item.name(), item.unit());
 	}
 
 	private static byte[] png() throws IOException {

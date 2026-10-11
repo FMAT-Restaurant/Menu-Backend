@@ -1,9 +1,7 @@
-<div align="center">
+<div style="text-align: center;">
 
 # Menu Backend
 Backend del microservicio de **menú** del sistema de comandas de **FMAT Restaurant**.
-
-
 </div>
 
 ## Propósito
@@ -112,14 +110,9 @@ Otros comandos útiles:
 | `./gradlew checkstyleMain checkstyleTest` | Revisa el estilo del código |
 | `./gradlew bootJar` | Genera el `.jar` ejecutable en `build/libs/` |
 
-### Conexión con Inventario
+### Artículos de Inventario
 
-Las opciones de una composición referencian artículos de Inventario, que es dueño de su identidad, unidad y existencias. Menu los consulta por HTTP y no los administra:
-
-- `GET /api/v1/inventory/items` reenvía la búsqueda a Inventario. Al crear o editar una opción, Menu valida que el artículo exista y que la unidad sea la del artículo (OPEN-006 no define conversiones).
-- La URL base se configura con `MENU_INVENTORY_BASE_URL` (por defecto `http://localhost:8081/api/v1`). Se asume que Inventario expone `GET /inventory/items` y `GET /inventory/items/{id}` con la forma de `InventoryItem` del contrato de Menu, hasta que exista un contrato propio de Inventario.
-- Mientras Inventario no tenga contrato, el perfil `inventory-stub` sustituye el servicio por artículos fijos en memoria ([`InMemoryInventoryClient`](src/main/java/com/fmatrestaurant/menu/infrastructure/InMemoryInventoryClient.java), IDs `00000000-0000-0000-0000-00000000000N`). Para probar a mano: `SPRING_PROFILES_ACTIVE=inventory-stub docker compose up -d --build` (o `SPRING_PROFILES_ACTIVE=inventory-stub` en el `.env`), o `SPRING_PROFILES_ACTIVE=inventory-stub ./gradlew bootRun`. No lo actives en otros entornos.
-- Si Inventario no responde, la operación se rechaza completa con `503`. Las consultas de ofertas no dependen de Inventario: guardan el nombre del artículo al configurar la opción.
+El front consulta el servicio externo de Inventario y envía el artículo seleccionado al guardar una oferta. Cada opción incluye `source: {id, name, unit}` y `unit`; Menu exige que ambas unidades coincidan porque OPEN-006 no define conversiones. Menu almacena la referencia y una copia del nombre y la unidad recibidos para responder consultas de ofertas sin depender de Inventario. Menu no administra artículos ni existencias.
 
 ## Decisiones pendientes
 

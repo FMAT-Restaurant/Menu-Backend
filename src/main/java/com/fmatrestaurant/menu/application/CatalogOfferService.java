@@ -46,14 +46,11 @@ public class CatalogOfferService {
 
 	private final ImageRepository imageRepository;
 
-	private final InventoryItemService inventoryItemService;
-
 	public CatalogOfferService(CatalogOfferRepository offerRepository, CatalogEntryRepository entryRepository,
-			ImageRepository imageRepository, InventoryItemService inventoryItemService) {
+			ImageRepository imageRepository) {
 		this.offerRepository = offerRepository;
 		this.entryRepository = entryRepository;
 		this.imageRepository = imageRepository;
-		this.inventoryItemService = inventoryItemService;
 	}
 
 	/**
@@ -61,9 +58,8 @@ public class CatalogOfferService {
 	 * slot and option ids sent by the client are ignored, the server assigns them.
 	 *
 	 * @throws CatalogEntryNotFoundException if the entry does not exist
-	 * @throws InvalidFieldException if a value is missing or invalid, the image or an inventory item
-	 *         does not exist, or the composition is empty
-	 * @throws InventoryUnavailableException if Inventory cannot answer
+	 * @throws InvalidFieldException if a value is missing or invalid, the image does not exist, or the
+	 *         composition is empty
 	 */
 	@Transactional
 	public CatalogOffer create(UUID entryId, OfferInput input) {
@@ -107,8 +103,7 @@ public class CatalogOfferService {
 	 * @throws CatalogOfferNotFoundException if the offer does not exist
 	 * @throws StaleCatalogOfferException if the offer changed since the expected version
 	 * @throws InvalidFieldException if a field is not defined by the contract, a value or id is invalid,
-	 *         unknown, foreign or repeated, a list is empty, the image or an inventory item does not exist, or the offer cannot be activated
-	 * @throws InventoryUnavailableException if Inventory cannot answer
+	 *         unknown, foreign or repeated, a list is empty, the image does not exist, or the offer cannot be activated
 	 */
 	@Transactional
 	public CatalogOffer update(UUID id, long expectedVersion, OfferInput input) {
@@ -207,23 +202,21 @@ public class CatalogOfferService {
 			if (input.sourceType() == null) {
 				throw new InvalidFieldException("/sourceType", "The source type is required");
 			}
-			if (input.inventoryItemId() == null) {
-				throw new InvalidFieldException("/inventoryItemId", "The inventory item is required");
+			if (input.sourceType() != SourceType.INVENTORY_ITEM) {
+				throw new InvalidFieldException("/sourceType", "Only inventory item content is supported");
 			}
-			return new SlotOption(input.displayName(), input.status(), inventoryItem(input.inventoryItemId()),
+			return new SlotOption(input.displayName(), input.status(), inventoryItem(input.source()),
 					input.quantity(), input.unit());
 		}
 		SlotOption option = existing(byId, seen, id, "/optionId", "option", "slot");
-		// Inventory is only asked when the article or the unit change.
-		boolean newItem = input.inventoryItemId() != null && !input.inventoryItemId().equals(option.getInventoryItemId());
-		boolean newUnit = input.unit() != null && !input.unit().strip().equals(option.getUnit());
-		InventoryItem item = null;
-		if (newItem) {
-			item = inventoryItem(input.inventoryItemId());
-		} else if (newUnit) {
-			item = inventoryItem(option.getInventoryItemId());
+		if (input.sourceType() != null && input.sourceType() != SourceType.INVENTORY_ITEM) {
+			throw new InvalidFieldException("/sourceType", "Only inventory item content is supported");
 		}
-		option.update(input.displayName(), input.status(), item, input.quantity(), item == null ? null : input.unit());
+		if (input.source() != null) {
+			input.source().rejectUnknownFields("/source");
+		}
+		option.update(input.displayName(), input.status(),
+				input.source() == null ? null : inventoryItem(input.source()), input.quantity(), input.unit());
 		return option;
 	}
 
@@ -239,9 +232,11 @@ public class CatalogOfferService {
 		return member;
 	}
 
-	private InventoryItem inventoryItem(UUID id) {
-		return inventoryItemService.find(id).orElseThrow(
-				() -> new InvalidFieldException("/inventoryItemId", "The inventory item " + id + " does not exist"));
+	private static InventoryItem inventoryItem(InventoryItemInput input) {
+		if (input == null) {
+			throw new InvalidFieldException("/source", "The inventory item data is required");
+		}
+		return new InventoryItem(input.id(), input.name(), input.unit());
 	}
 
 	/** {@code null} when the image was not sent; sent as {@code null}, it is rejected. */
@@ -272,7 +267,7 @@ public class CatalogOfferService {
 		private final List<String> unknownFields = new ArrayList<>();
 
 		@JsonAnySetter
-		private void unknownField(String name, Object value) {
+		private void unknownField(String name) {
 			unknownFields.add(name);
 		}
 
@@ -282,8 +277,8 @@ public class CatalogOfferService {
 
 		void rejectUnknownFields(String path) {
 			if (!unknownFields.isEmpty()) {
-				throw new InvalidFieldException(path + "/" + unknownFields.get(0),
-						"The field " + unknownFields.get(0) + " is not allowed");
+				throw new InvalidFieldException(path + "/" + unknownFields.getFirst(),
+						"The field " + unknownFields.getFirst() + " is not allowed");
 			}
 		}
 
@@ -425,7 +420,7 @@ public class CatalogOfferService {
 		private SourceType sourceType;
 
 		@JsonProperty
-		private UUID inventoryItemId;
+		private InventoryItemInput source;
 
 		@JsonProperty
 		private BigDecimal quantity;
@@ -449,12 +444,38 @@ public class CatalogOfferService {
 			return sourceType;
 		}
 
-		public UUID inventoryItemId() {
-			return inventoryItemId;
+		public InventoryItemInput source() {
+			return source;
 		}
 
 		public BigDecimal quantity() {
 			return quantity;
+		}
+
+		public String unit() {
+			return unit;
+		}
+
+	}
+
+	/** Inventory data received from the caller and stored with the menu option as a snapshot. */
+	public static class InventoryItemInput extends Input {
+
+		@JsonProperty
+		private UUID id;
+
+		@JsonProperty
+		private String name;
+
+		@JsonProperty
+		private String unit;
+
+		public UUID id() {
+			return id;
+		}
+
+		public String name() {
+			return name;
 		}
 
 		public String unit() {

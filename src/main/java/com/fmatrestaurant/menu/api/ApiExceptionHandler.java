@@ -22,8 +22,8 @@ import org.springframework.web.multipart.support.MissingServletRequestPartExcept
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fmatrestaurant.menu.application.CatalogEntryNotFoundException;
 import com.fmatrestaurant.menu.application.CatalogOfferNotFoundException;
+import com.fmatrestaurant.menu.application.CategoryNotFoundException;
 import com.fmatrestaurant.menu.application.ImageNotFoundException;
-import com.fmatrestaurant.menu.application.InventoryUnavailableException;
 import com.fmatrestaurant.menu.application.StaleCatalogEntryException;
 import com.fmatrestaurant.menu.application.StaleCatalogOfferException;
 import com.fmatrestaurant.menu.domain.Image;
@@ -108,11 +108,6 @@ public class ApiExceptionHandler {
 			OptimisticLockingFailureException.class })
 	ResponseEntity<ErrorEnvelope> stale() {
 		return error(HttpStatus.PRECONDITION_FAILED, "The resource has changed since it was read.");
-	}
-
-	@ExceptionHandler(InventoryUnavailableException.class)
-	ResponseEntity<ErrorEnvelope> inventoryUnavailable(InventoryUnavailableException e) {
-		return error(HttpStatus.SERVICE_UNAVAILABLE, e.getMessage() + ". Try again later.");
 	}
 
 	@ExceptionHandler(MissingRequestHeaderException.class)

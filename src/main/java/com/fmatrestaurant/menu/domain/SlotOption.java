@@ -30,6 +30,9 @@ public class SlotOption {
 	/** Maximum length of the unit, matching the database column. */
 	public static final int UNIT_MAX_LENGTH = 32;
 
+	/** Maximum length of the source name, matching the database column. */
+	public static final int SOURCE_NAME_MAX_LENGTH = 255;
+
 	@Id
 	@GeneratedValue(strategy = GenerationType.UUID)
 	private UUID id;
@@ -49,7 +52,7 @@ public class SlotOption {
 	private UUID inventoryItemId;
 
 	/** Name of the article when it was referenced, so reads do not depend on Inventory. */
-	@Column(name = "source_name", nullable = false)
+	@Column(name = "source_name", nullable = false, length = SOURCE_NAME_MAX_LENGTH)
 	private String sourceName;
 
 	// ponytail: OPEN-006 leaves range and precision open, so the value is kept as sent.
@@ -64,7 +67,7 @@ public class SlotOption {
 	}
 
 	/**
-	 * Creates an option whose content is an Inventory article.
+	 * Creates an option whose content is the Inventory item data received by Menu.
 	 *
 	 * @throws InvalidFieldException if a value is missing or invalid, or the unit is not the one of the article
 	 */
@@ -73,21 +76,21 @@ public class SlotOption {
 			throw new InvalidFieldException("/status", "The option status is required");
 		}
 		if (item == null) {
-			throw new InvalidFieldException("/inventoryItemId", "The inventory item is required");
+			throw new InvalidFieldException("/source", "The inventory item data is required");
 		}
 		this.displayName = Fields.text("/displayName", "option display name", displayName, DISPLAY_NAME_MAX_LENGTH);
 		this.quantity = quantity(quantity);
-		this.unit = unit(unit, item);
+		this.inventoryItemId = itemId(item);
+		this.sourceName = itemName(item);
+		this.unit = unit(unit, itemUnit(item));
 		this.status = status;
 		this.sourceType = SourceType.INVENTORY_ITEM;
-		this.inventoryItemId = item.id();
-		this.sourceName = item.name();
 	}
 
 	/**
-	 * Applies the given changes; a {@code null} value keeps the current one. A new article or unit
-	 * must come with the article, current or new, to check the unit against it. If any value is
-	 * invalid, nothing is modified.
+	 * Applies the given changes; a {@code null} value keeps the current one. A new article includes
+	 * its received data so Menu can keep the source snapshot and check unit compatibility locally.
+	 * If any value is invalid, nothing is modified.
 	 *
 	 * @throws InvalidFieldException if a value is invalid or the unit is not the one of the article
 	 */
@@ -95,22 +98,18 @@ public class SlotOption {
 		String newDisplayName = displayName == null ? this.displayName
 				: Fields.text("/displayName", "option display name", displayName, DISPLAY_NAME_MAX_LENGTH);
 		BigDecimal newQuantity = quantity == null ? this.quantity : quantity(quantity);
-		String newUnit = this.unit;
-		if (item != null) {
-			newUnit = unit(unit == null ? this.unit : unit, item);
-		} else if (unit != null) {
-			throw new IllegalArgumentException("Changing the unit requires the inventory item");
-		}
+		UUID newInventoryItemId = item == null ? this.inventoryItemId : itemId(item);
+		String newSourceName = item == null ? this.sourceName : itemName(item);
+		String sourceUnit = item == null ? this.unit : itemUnit(item);
+		String newUnit = item == null && unit == null ? this.unit : unit(unit == null ? this.unit : unit, sourceUnit);
 		this.displayName = newDisplayName;
 		this.quantity = newQuantity;
 		this.unit = newUnit;
 		if (status != null) {
 			this.status = status;
 		}
-		if (item != null) {
-			this.inventoryItemId = item.id();
-			this.sourceName = item.name();
-		}
+		this.inventoryItemId = newInventoryItemId;
+		this.sourceName = newSourceName;
 	}
 
 	private static BigDecimal quantity(BigDecimal quantity) {
@@ -123,12 +122,27 @@ public class SlotOption {
 		return quantity;
 	}
 
-	/** ponytail: OPEN-006 does not define conversions, so only the unit of the article is compatible. */
-	private static String unit(String unit, InventoryItem item) {
+	private static UUID itemId(InventoryItem item) {
+		if (item.id() == null) {
+			throw new InvalidFieldException("/source/id", "The inventory item id is required");
+		}
+		return item.id();
+	}
+
+	private static String itemName(InventoryItem item) {
+		return Fields.text("/source/name", "inventory item name", item.name(), SOURCE_NAME_MAX_LENGTH);
+	}
+
+	private static String itemUnit(InventoryItem item) {
+		return Fields.text("/source/unit", "inventory item unit", item.unit(), UNIT_MAX_LENGTH);
+	}
+
+	/** OPEN-006 defines no conversions, so the option unit must match the received item's unit. */
+	private static String unit(String unit, String itemUnit) {
 		String value = Fields.text("/unit", "unit", unit, UNIT_MAX_LENGTH);
-		if (!value.equals(item.unit())) {
+		if (!value.equals(itemUnit)) {
 			throw new InvalidFieldException("/unit",
-					"The unit " + value + " is not compatible with the unit " + item.unit() + " of the inventory item");
+					"The unit " + value + " is not compatible with the unit " + itemUnit + " of the inventory item");
 		}
 		return value;
 	}

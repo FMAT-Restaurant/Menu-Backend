@@ -147,7 +147,11 @@ class CatalogOfferTest {
 		assertPath("/quantity", () -> new SlotOption("Fries", OfferStatus.ACTIVE, POTATOES, BigDecimal.ZERO, "g"));
 		assertPath("/unit", () -> new SlotOption("Fries", OfferStatus.ACTIVE, POTATOES, BigDecimal.ONE, "kg"));
 		assertPath("/status", () -> new SlotOption("Fries", null, POTATOES, BigDecimal.ONE, "g"));
-		assertPath("/inventoryItemId", () -> new SlotOption("Fries", OfferStatus.ACTIVE, null, BigDecimal.ONE, "g"));
+		assertPath("/source", () -> new SlotOption("Fries", OfferStatus.ACTIVE, null, BigDecimal.ONE, "g"));
+		assertPath("/source/name", () -> new SlotOption("Fries", OfferStatus.ACTIVE,
+				new InventoryItem(UUID.randomUUID(), " ", "g"), BigDecimal.ONE, "g"));
+		assertPath("/source/unit", () -> new SlotOption("Fries", OfferStatus.ACTIVE,
+				new InventoryItem(UUID.randomUUID(), "Potatoes", null), BigDecimal.ONE, "g"));
 	}
 
 	@Test
