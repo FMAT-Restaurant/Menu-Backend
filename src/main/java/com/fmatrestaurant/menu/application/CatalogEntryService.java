@@ -1,9 +1,12 @@
 package com.fmatrestaurant.menu.application;
 
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -16,6 +19,7 @@ import com.fmatrestaurant.menu.domain.Category;
 import com.fmatrestaurant.menu.domain.EntryStatus;
 import com.fmatrestaurant.menu.domain.InvalidFieldException;
 import com.fmatrestaurant.menu.infrastructure.CatalogEntryRepository;
+import com.fmatrestaurant.menu.infrastructure.CatalogOfferRepository;
 import com.fmatrestaurant.menu.infrastructure.CategoryRepository;
 import com.fmatrestaurant.menu.infrastructure.ImageRepository;
 
@@ -36,11 +40,14 @@ public class CatalogEntryService {
 
 	private final ImageRepository imageRepository;
 
+	private final CatalogOfferRepository offerRepository;
+
 	public CatalogEntryService(CatalogEntryRepository entryRepository, CategoryRepository categoryRepository,
-			ImageRepository imageRepository) {
+			ImageRepository imageRepository, CatalogOfferRepository offerRepository) {
 		this.entryRepository = entryRepository;
 		this.categoryRepository = categoryRepository;
 		this.imageRepository = imageRepository;
+		this.offerRepository = offerRepository;
 	}
 
 	/**
@@ -74,17 +81,24 @@ public class CatalogEntryService {
 	 */
 	@Transactional(readOnly = true)
 	public Page<CatalogEntry> list(String q, String categoryFilter, EntryStatus status, int page, int pageSize) {
-		if (page < 1) {
-			throw new InvalidFieldException("page", "The page must be 1 or greater");
-		}
-		if (pageSize < 1) {
-			throw new InvalidFieldException("pageSize", "The page size must be 1 or greater");
-		}
+		Pages.check(page, pageSize);
 		boolean uncategorized = UNCATEGORIZED.equals(categoryFilter);
 		UUID categoryId = categoryFilter == null || uncategorized ? null : categoryId(categoryFilter);
 		return entryRepository.findAll(
 				CatalogEntryRepository.search(CategoryService.DEFAULT_MENU_ID, q, categoryId, uncategorized, status),
 				PageRequest.of(page - 1, pageSize, Sort.by("brandName", "id")));
+	}
+
+	/**
+	 * Number of offers of each entry; entries without offers are left out.
+	 */
+	@Transactional(readOnly = true)
+	public Map<UUID, Long> offerCounts(Collection<UUID> entryIds) {
+		if (entryIds.isEmpty()) {
+			return Map.of();
+		}
+		return offerRepository.countByEntryIds(entryIds).stream()
+				.collect(Collectors.toMap(row -> (UUID) row[0], row -> (Long) row[1]));
 	}
 
 	/**
