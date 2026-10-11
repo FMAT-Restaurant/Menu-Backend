@@ -53,6 +53,8 @@ services:
       SPRING_RABBITMQ_VIRTUALHOST: ${RABBITMQ_VHOST:-/}
       SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USER:-menu}
       SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-menu}
+      # Solo desarrollo local: inventory-stub sustituye Inventario por artículos en memoria mientras no tenga contrato.
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
     ports:
       - "${API_PORT:-8080}:8080"
 

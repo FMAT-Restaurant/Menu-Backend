@@ -2,9 +2,8 @@ package com.fmatrestaurant.menu.api;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpHeaders;
@@ -34,8 +33,6 @@ import com.fmatrestaurant.menu.domain.EntryStatus;
 @RequestMapping("/api/v1/menu/entries")
 public class CatalogEntryController {
 
-	private static final Pattern ETAG = Pattern.compile("(?:W/)?\"rev-(\\d+)\"");
-
 	private static final Comparator<Category> BY_NAME = Comparator.comparing(Category::getName)
 			.thenComparing(Category::getId);
 
@@ -61,8 +58,12 @@ public class CatalogEntryController {
 			@RequestParam(defaultValue = "1") int page,
 			@RequestParam(defaultValue = "12") int pageSize) {
 		Page<CatalogEntry> entries = entryService.list(q, categoryId, status, page, pageSize);
+		Map<UUID, Long> offerCounts = entryService.offerCounts(
+				entries.getContent().stream().map(CatalogEntry::getId).toList());
 		return new CatalogEntryListResponse(
-				entries.getContent().stream().map(CatalogEntrySummary::of).toList(),
+				entries.getContent().stream()
+						.map(entry -> CatalogEntrySummary.of(entry, offerCounts.getOrDefault(entry.getId(), 0L)))
+						.toList(),
 				new PageMeta(page, pageSize, entries.getTotalElements(), entries.getTotalPages()));
 	}
 
@@ -76,19 +77,13 @@ public class CatalogEntryController {
 	@PatchMapping("/{entryId}")
 	public ResponseEntity<DataResponse<CatalogEntryDetail>> update(@PathVariable UUID entryId,
 			@RequestHeader(HttpHeaders.IF_MATCH) String ifMatch, @RequestBody CatalogEntryRequest request) {
-		CatalogEntry entry = entryService.update(entryId, version(ifMatch), request.brandName(),
+		CatalogEntry entry = entryService.update(entryId, Revisions.version(ifMatch), request.brandName(),
 				request.description(), request.status(), request.categoryIds(), request.imageId());
 		return ResponseEntity.ok().eTag(etag(entry)).body(new DataResponse<>(CatalogEntryDetail.of(entry)));
 	}
 
 	private static String etag(CatalogEntry entry) {
-		return "W/\"rev-" + entry.getVersion() + "\"";
-	}
-
-	/** An If-Match that is not an ETag of this API never matches, so it ends in 412. */
-	private static long version(String ifMatch) {
-		Matcher matcher = ETAG.matcher(ifMatch.strip());
-		return matcher.matches() ? Long.parseLong(matcher.group(1)) : -1;
+		return Revisions.weak(entry.getVersion());
 	}
 
 	/** Body of POST and PATCH; on PATCH, missing values keep the current ones. */
@@ -113,13 +108,12 @@ public class CatalogEntryController {
 	public record CatalogEntrySummary(UUID id, String brandName, String description, EntryStatus status,
 			ImageResponse image, List<CategoryReference> categories, int offerCount) {
 
-		static CatalogEntrySummary of(CatalogEntry entry) {
+		static CatalogEntrySummary of(CatalogEntry entry, long offerCount) {
 			return new CatalogEntrySummary(entry.getId(), entry.getBrandName(), entry.getDescription(),
 					entry.getStatus(), ImageResponse.of(entry.getImageId()),
 					entry.getCategories().stream().sorted(BY_NAME)
 							.map(category -> new CategoryReference(category.getId(), category.getName())).toList(),
-					// ponytail: offers arrive with MVP1-T15; count them from the offer repository then.
-					0);
+					(int) offerCount);
 		}
 
 	}
