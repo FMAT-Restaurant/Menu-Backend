@@ -8,14 +8,16 @@ import org.springframework.web.filter.ShallowEtagHeaderFilter;
 @Configuration(proxyBeanMethods = false)
 public class WebConfiguration {
 
-	/** ETag and 304 responses for collection reads, computed from their response bodies. */
+	/** ETag and 304 responses for the lists, computed from the response body. */
 	@Bean
-	FilterRegistrationBean<ShallowEtagHeaderFilter> collectionEtagFilter() {
+	FilterRegistrationBean<ShallowEtagHeaderFilter> listEtagFilter() {
 		FilterRegistrationBean<ShallowEtagHeaderFilter> registration =
 				new FilterRegistrationBean<>(new ShallowEtagHeaderFilter());
-		registration.addUrlPatterns("/api/v1/menu/entries");
-		registration.addUrlPatterns("/api/v1/menu/categories");
+		registration.addUrlPatterns(
+				"/api/v1/menu/categories",
+				"/api/v1/menu/entries",
+				"/api/v1/menu/offers"
+		);
 		return registration;
 	}
-
 }

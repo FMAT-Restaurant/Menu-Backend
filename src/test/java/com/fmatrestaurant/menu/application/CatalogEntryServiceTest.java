@@ -23,6 +23,7 @@ import com.fmatrestaurant.menu.domain.Category;
 import com.fmatrestaurant.menu.domain.EntryStatus;
 import com.fmatrestaurant.menu.domain.InvalidFieldException;
 import com.fmatrestaurant.menu.infrastructure.CatalogEntryRepository;
+import com.fmatrestaurant.menu.infrastructure.CatalogOfferRepository;
 import com.fmatrestaurant.menu.infrastructure.CategoryRepository;
 import com.fmatrestaurant.menu.infrastructure.ImageRepository;
 
@@ -51,7 +52,8 @@ class CatalogEntryServiceTest {
 		entryRepository = mock(CatalogEntryRepository.class);
 		categoryRepository = mock(CategoryRepository.class);
 		imageRepository = mock(ImageRepository.class);
-		service = new CatalogEntryService(entryRepository, categoryRepository, imageRepository);
+		service = new CatalogEntryService(entryRepository, categoryRepository, imageRepository,
+				mock(CatalogOfferRepository.class));
 		when(entryRepository.save(any(CatalogEntry.class))).thenAnswer(invocation -> invocation.getArgument(0));
 		when(entryRepository.saveAndFlush(any(CatalogEntry.class))).thenAnswer(invocation -> invocation.getArgument(0));
 		when(imageRepository.existsById(IMAGE_ID)).thenReturn(true);

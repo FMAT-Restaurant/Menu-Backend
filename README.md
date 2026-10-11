@@ -1,9 +1,7 @@
-<div align="center">
+<div style="text-align: center;">
 
 # Menu Backend
 Backend del microservicio de **menú** del sistema de comandas de **FMAT Restaurant**.
-
-
 </div>
 
 ## Propósito
@@ -112,11 +110,15 @@ Otros comandos útiles:
 | `./gradlew checkstyleMain checkstyleTest` | Revisa el estilo del código |
 | `./gradlew bootJar` | Genera el `.jar` ejecutable en `build/libs/` |
 
+### Artículos de Inventario
+
+El front consulta el servicio externo de Inventario y envía el artículo seleccionado al guardar una oferta. Cada opción incluye `source: {id, name, unit}` y `unit`; Menu exige que ambas unidades coincidan porque OPEN-006 no define conversiones. Menu almacena la referencia y una copia del nombre y la unidad recibidos para responder consultas de ofertas sin depender de Inventario. Menu no administra artículos ni existencias.
+
 ## Decisiones pendientes
 
 | Tema | Estado |
 | ---- | ------ |
-| Persistencia | Decidida: PostgreSQL 18.6 con Spring Data JPA. Todavía no hay entidades ni esquema. |
+| Persistencia | Decidida: PostgreSQL 18.6 con Spring Data JPA. Sin migraciones: el esquema lo genera Hibernate en local. |
 | Topología | Sin decidir. `compose.yaml` es solo el entorno local. La conectividad base con RabbitMQ ya está configurada, pero no hay exchanges, colas, bindings ni contratos de mensajes hasta decidir la topología. |
 | Límites transaccionales | Sin decidir. |
 | AuthN/AuthZ | Sin decidir. No se incluye Spring Security y el contrato OpenAPI no declara ningún esquema de seguridad; esto **no** significa que la API sea pública o anónima. |
