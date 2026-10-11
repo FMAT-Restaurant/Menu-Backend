@@ -21,9 +21,11 @@ import org.springframework.web.multipart.support.MissingServletRequestPartExcept
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fmatrestaurant.menu.application.CatalogEntryNotFoundException;
+import com.fmatrestaurant.menu.application.CategoryNotFoundException;
 import com.fmatrestaurant.menu.application.ImageNotFoundException;
 import com.fmatrestaurant.menu.application.StaleCatalogEntryException;
 import com.fmatrestaurant.menu.domain.Image;
+import com.fmatrestaurant.menu.domain.InvalidCategoryException;
 import com.fmatrestaurant.menu.domain.InvalidFieldException;
 
 import tools.jackson.databind.exc.MismatchedInputException;
@@ -36,13 +38,19 @@ public class ApiExceptionHandler {
 
 	private static final String NOT_FOUND = "The requested resource was not found.";
 
-	@ExceptionHandler({ CatalogEntryNotFoundException.class, ImageNotFoundException.class })
+	@ExceptionHandler({ CatalogEntryNotFoundException.class, CategoryNotFoundException.class,
+			ImageNotFoundException.class })
 	ResponseEntity<ErrorEnvelope> notFound() {
 		return error(HttpStatus.NOT_FOUND, NOT_FOUND);
 	}
 
 	@ExceptionHandler(InvalidFieldException.class)
 	ResponseEntity<ErrorEnvelope> invalidField(InvalidFieldException e) {
+		return invalid(e.getPath(), e.getMessage());
+	}
+
+	@ExceptionHandler(InvalidCategoryException.class)
+	ResponseEntity<ErrorEnvelope> invalidCategory(InvalidCategoryException e) {
 		return invalid(e.getPath(), e.getMessage());
 	}
 

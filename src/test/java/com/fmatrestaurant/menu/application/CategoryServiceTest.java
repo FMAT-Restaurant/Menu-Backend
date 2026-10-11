@@ -17,9 +17,12 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 
 import com.fmatrestaurant.menu.domain.Category;
 import com.fmatrestaurant.menu.domain.InvalidCategoryException;
+import com.fmatrestaurant.menu.domain.InvalidFieldException;
+import com.fmatrestaurant.menu.infrastructure.CatalogEntryRepository;
 import com.fmatrestaurant.menu.infrastructure.CategoryRepository;
 
 class CategoryServiceTest {
@@ -30,13 +33,16 @@ class CategoryServiceTest {
 
 	private CategoryRepository repository;
 
+	private CatalogEntryRepository entryRepository;
+
 	private CategoryService service;
 
 	@BeforeEach
 	void setUp() {
 		repository = mock(CategoryRepository.class);
-		service = new CategoryService(repository);
-		when(repository.save(any(Category.class))).thenAnswer(invocation -> invocation.getArgument(0));
+		entryRepository = mock(CatalogEntryRepository.class);
+		service = new CategoryService(repository, entryRepository);
+		when(repository.saveAndFlush(any(Category.class))).thenAnswer(invocation -> invocation.getArgument(0));
 	}
 
 	@Test
@@ -61,14 +67,14 @@ class CategoryServiceTest {
 		assertEquals(CategoryService.DEFAULT_MENU_ID, created.getMenuId());
 		assertEquals("Desserts", created.getName());
 		assertEquals("Sweet things", created.getDescription());
-		verify(repository).save(created);
+		verify(repository).saveAndFlush(created);
 	}
 
 	@Test
 	void createRejectsBlankNameWithoutSaving() {
 		assertThrows(InvalidCategoryException.class, () -> service.create(" ", "x"));
 
-		verify(repository, never()).save(any(Category.class));
+		verify(repository, never()).saveAndFlush(any(Category.class));
 	}
 
 	@Test
@@ -77,13 +83,22 @@ class CategoryServiceTest {
 
 		assertThrows(InvalidCategoryException.class, () -> service.create(name, "x"));
 
-		verify(repository, never()).save(any(Category.class));
+		verify(repository, never()).saveAndFlush(any(Category.class));
+	}
+
+	@Test
+	void createRejectsDuplicateNameWithoutSaving() {
+		when(repository.existsByMenuIdAndName(CategoryService.DEFAULT_MENU_ID, "Drinks")).thenReturn(true);
+
+		assertThrows(InvalidCategoryException.class, () -> service.create("Drinks", null));
+
+		verify(repository, never()).saveAndFlush(any(Category.class));
 	}
 
 	@Test
 	void createPropagatesRepositoryFailures() {
 		doThrow(new DataIntegrityViolationException("constraint violated"))
-				.when(repository).save(any(Category.class));
+				.when(repository).saveAndFlush(any(Category.class));
 
 		assertThrows(DataIntegrityViolationException.class, () -> service.create("Drinks", "x"));
 	}
@@ -98,7 +113,7 @@ class CategoryServiceTest {
 		assertEquals("Cold drinks", updated.getName());
 		assertEquals("New", updated.getDescription());
 		assertEquals(CategoryService.DEFAULT_MENU_ID, updated.getMenuId());
-		verify(repository).save(existing);
+		verify(repository).saveAndFlush(existing);
 	}
 
 	@Test
@@ -109,7 +124,7 @@ class CategoryServiceTest {
 				() -> service.update(MISSING_ID, "x", "y"));
 
 		assertEquals("Category not found with id " + MISSING_ID, exception.getMessage());
-		verify(repository, never()).save(any(Category.class));
+		verify(repository, never()).saveAndFlush(any(Category.class));
 	}
 
 	@Test
@@ -117,7 +132,7 @@ class CategoryServiceTest {
 		assertThrows(InvalidCategoryException.class, () -> service.update(null, "x", "y"));
 
 		verify(repository, never()).findById(any());
-		verify(repository, never()).save(any(Category.class));
+		verify(repository, never()).saveAndFlush(any(Category.class));
 	}
 
 	@Test
@@ -129,6 +144,64 @@ class CategoryServiceTest {
 
 		assertEquals("Drinks", existing.getName());
 		verify(repository, never()).save(any(Category.class));
+	}
+
+	@Test
+	void updateRejectsDuplicateNameWithoutSaving() {
+		Category existing = mock(Category.class);
+		when(existing.getId()).thenReturn(ID);
+		when(existing.getMenuId()).thenReturn(CategoryService.DEFAULT_MENU_ID);
+		when(existing.getName()).thenReturn("Drinks");
+		when(repository.findById(ID)).thenReturn(Optional.of(existing));
+		when(repository.existsByMenuIdAndNameAndIdNot(CategoryService.DEFAULT_MENU_ID, "Food", ID)).thenReturn(true);
+
+		assertThrows(InvalidCategoryException.class, () -> service.update(ID, "Food", "New"));
+
+		assertEquals("Drinks", existing.getName());
+		verify(repository, never()).saveAndFlush(any(Category.class));
+	}
+
+	@Test
+	void updateRejectsNullNameWithoutSaving() {
+		Category existing = new Category(CategoryService.DEFAULT_MENU_ID, "Drinks", "Old");
+		when(repository.findById(ID)).thenReturn(Optional.of(existing));
+
+		assertThrows(InvalidCategoryException.class, () -> service.update(ID, null, "New"));
+
+		assertEquals("Drinks", existing.getName());
+		verify(repository, never()).saveAndFlush(any(Category.class));
+	}
+
+	@Test
+	void listRejectsInvalidPageAndPageSize() {
+		assertThrows(InvalidFieldException.class, () -> service.list(0, 12));
+		assertThrows(InvalidFieldException.class, () -> service.list(1, 0));
+
+		verify(repository, never()).findByMenuId(any(Long.class), any());
+	}
+
+	@Test
+	void deleteRemovesCategoryAssociationsAndCategory() {
+		Category existing = new Category(CategoryService.DEFAULT_MENU_ID, "Drinks", null);
+		when(repository.findById(ID)).thenReturn(Optional.of(existing));
+
+		assertEquals(existing, service.delete(ID, 0));
+
+		verify(entryRepository).deleteCategoryAssociations(ID);
+		verify(repository).delete(existing);
+		verify(repository).flush();
+	}
+
+	@Test
+	void deleteRejectsStaleVersionWithoutRemovingAnything() {
+		Category existing = new Category(CategoryService.DEFAULT_MENU_ID, "Drinks", null);
+		when(repository.findById(ID)).thenReturn(Optional.of(existing));
+
+		assertThrows(OptimisticLockingFailureException.class, () -> service.delete(ID, 1));
+
+		verify(entryRepository, never()).deleteCategoryAssociations(any());
+		verify(repository, never()).delete(any(Category.class));
+		verify(repository, never()).flush();
 	}
 
 }
