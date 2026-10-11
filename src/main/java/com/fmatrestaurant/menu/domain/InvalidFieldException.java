@@ -19,4 +19,9 @@ public class InvalidFieldException extends IllegalArgumentException {
 		return path;
 	}
 
+	/** The same violation, with its path nested under the given prefix. */
+	public InvalidFieldException prefixed(String prefix) {
+		return new InvalidFieldException(prefix + path, getMessage());
+	}
+
 }

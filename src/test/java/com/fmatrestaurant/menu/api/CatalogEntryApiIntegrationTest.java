@@ -44,6 +44,7 @@ import com.fmatrestaurant.menu.application.CatalogEntryService;
 import com.fmatrestaurant.menu.domain.Category;
 import com.fmatrestaurant.menu.domain.Image;
 import com.fmatrestaurant.menu.infrastructure.CatalogEntryRepository;
+import com.fmatrestaurant.menu.infrastructure.CatalogOfferRepository;
 import com.fmatrestaurant.menu.infrastructure.CategoryRepository;
 import com.fmatrestaurant.menu.infrastructure.ImageRepository;
 import com.jayway.jsonpath.JsonPath;
@@ -69,6 +70,9 @@ class CatalogEntryApiIntegrationTest {
 	private CatalogEntryRepository entryRepository;
 
 	@Autowired
+	private CatalogOfferRepository offerRepository;
+
+	@Autowired
 	private CategoryRepository categoryRepository;
 
 	@Autowired
@@ -90,6 +94,7 @@ class CatalogEntryApiIntegrationTest {
 
 	@BeforeEach
 	void setUp() throws Exception {
+		offerRepository.deleteAll();
 		entryRepository.deleteAll();
 		categoryRepository.deleteAll();
 		imageRepository.deleteAll();

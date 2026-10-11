@@ -112,11 +112,20 @@ Otros comandos útiles:
 | `./gradlew checkstyleMain checkstyleTest` | Revisa el estilo del código |
 | `./gradlew bootJar` | Genera el `.jar` ejecutable en `build/libs/` |
 
+### Conexión con Inventario
+
+Las opciones de una composición referencian artículos de Inventario, que es dueño de su identidad, unidad y existencias. Menu los consulta por HTTP y no los administra:
+
+- `GET /api/v1/inventory/items` reenvía la búsqueda a Inventario. Al crear o editar una opción, Menu valida que el artículo exista y que la unidad sea la del artículo (OPEN-006 no define conversiones).
+- La URL base se configura con `MENU_INVENTORY_BASE_URL` (por defecto `http://localhost:8081/api/v1`). Se asume que Inventario expone `GET /inventory/items` y `GET /inventory/items/{id}` con la forma de `InventoryItem` del contrato de Menu, hasta que exista un contrato propio de Inventario.
+- Mientras Inventario no tenga contrato, el perfil `inventory-stub` sustituye el servicio por artículos fijos en memoria ([`InMemoryInventoryClient`](src/main/java/com/fmatrestaurant/menu/infrastructure/InMemoryInventoryClient.java), IDs `00000000-0000-0000-0000-00000000000N`). Para probar a mano: `SPRING_PROFILES_ACTIVE=inventory-stub docker compose up -d --build` (o `SPRING_PROFILES_ACTIVE=inventory-stub` en el `.env`), o `SPRING_PROFILES_ACTIVE=inventory-stub ./gradlew bootRun`. No lo actives en otros entornos.
+- Si Inventario no responde, la operación se rechaza completa con `503`. Las consultas de ofertas no dependen de Inventario: guardan el nombre del artículo al configurar la opción.
+
 ## Decisiones pendientes
 
 | Tema | Estado |
 | ---- | ------ |
-| Persistencia | Decidida: PostgreSQL 18.6 con Spring Data JPA. Todavía no hay entidades ni esquema. |
+| Persistencia | Decidida: PostgreSQL 18.6 con Spring Data JPA. Sin migraciones: el esquema lo genera Hibernate en local. |
 | Topología | Sin decidir. `compose.yaml` es solo el entorno local. La conectividad base con RabbitMQ ya está configurada, pero no hay exchanges, colas, bindings ni contratos de mensajes hasta decidir la topología. |
 | Límites transaccionales | Sin decidir. |
 | AuthN/AuthZ | Sin decidir. No se incluye Spring Security y el contrato OpenAPI no declara ningún esquema de seguridad; esto **no** significa que la API sea pública o anónima. |
