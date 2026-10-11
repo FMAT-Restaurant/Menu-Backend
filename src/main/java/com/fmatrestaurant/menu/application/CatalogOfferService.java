@@ -267,7 +267,7 @@ public class CatalogOfferService {
 		private final List<String> unknownFields = new ArrayList<>();
 
 		@JsonAnySetter
-		private void unknownField(String name) {
+		private void unknownField(String name, Object ignoredValue) {
 			unknownFields.add(name);
 		}
 
