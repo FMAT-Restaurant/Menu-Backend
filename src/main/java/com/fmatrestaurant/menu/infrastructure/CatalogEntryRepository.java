@@ -1,6 +1,7 @@
 package com.fmatrestaurant.menu.infrastructure;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -8,6 +9,9 @@ import java.util.UUID;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import com.fmatrestaurant.menu.domain.CatalogEntry;
 import com.fmatrestaurant.menu.domain.Category;
@@ -19,6 +23,27 @@ import jakarta.persistence.criteria.Predicate;
 
 public interface CatalogEntryRepository extends JpaRepository<CatalogEntry, UUID>,
 		JpaSpecificationExecutor<CatalogEntry> {
+
+	/** Counts distinct entries in the menu for each requested category. */
+	@Query("""
+			select category.id as categoryId, count(distinct entry.id) as entryCount
+			from CatalogEntry entry join entry.categories category
+			where entry.menuId = :menuId and category.id in :categoryIds
+			group by category.id
+			""")
+	List<CategoryEntryCount> countDistinctEntriesByCategory(@Param("menuId") Long menuId,
+			@Param("categoryIds") Collection<UUID> categoryIds);
+
+	interface CategoryEntryCount {
+		UUID getCategoryId();
+
+		Long getEntryCount();
+	}
+
+	/** Removes the join-table links for a category without deleting its catalog entries. */
+	@Modifying(flushAutomatically = true)
+	@Query(value = "delete from catalog_entry_category where category_id = :categoryId", nativeQuery = true)
+	void deleteCategoryAssociations(@Param("categoryId") UUID categoryId);
 
 	/**
 	 * Administrative search of the entries of a menu.
