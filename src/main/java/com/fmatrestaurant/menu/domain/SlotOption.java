@@ -101,7 +101,14 @@ public class SlotOption {
 		UUID newInventoryItemId = item == null ? this.inventoryItemId : itemId(item);
 		String newSourceName = item == null ? this.sourceName : itemName(item);
 		String sourceUnit = item == null ? this.unit : itemUnit(item);
-		String newUnit = item == null && unit == null ? this.unit : unit(unit == null ? this.unit : unit, sourceUnit);
+		String newUnit = this.unit;
+		if (item != null || unit != null) {
+			String unitToValidate = this.unit;
+			if (unit != null) {
+				unitToValidate = unit;
+			}
+			newUnit = unit(unitToValidate, sourceUnit);
+		}
 		this.displayName = newDisplayName;
 		this.quantity = newQuantity;
 		this.unit = newUnit;
