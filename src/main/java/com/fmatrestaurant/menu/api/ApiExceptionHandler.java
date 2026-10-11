@@ -27,6 +27,7 @@ import com.fmatrestaurant.menu.application.InventoryUnavailableException;
 import com.fmatrestaurant.menu.application.StaleCatalogEntryException;
 import com.fmatrestaurant.menu.application.StaleCatalogOfferException;
 import com.fmatrestaurant.menu.domain.Image;
+import com.fmatrestaurant.menu.domain.InvalidCategoryException;
 import com.fmatrestaurant.menu.domain.InvalidFieldException;
 
 import tools.jackson.databind.exc.MismatchedInputException;
@@ -39,14 +40,23 @@ public class ApiExceptionHandler {
 
 	private static final String NOT_FOUND = "The requested resource was not found.";
 
-	@ExceptionHandler({ CatalogEntryNotFoundException.class, CatalogOfferNotFoundException.class,
-			ImageNotFoundException.class })
-	ResponseEntity<ErrorEnvelope> notFound() {
-		return error(HttpStatus.NOT_FOUND, NOT_FOUND);
-	}
+	@ExceptionHandler({
+    CatalogEntryNotFoundException.class,
+    CatalogOfferNotFoundException.class,
+    CategoryNotFoundException.class,
+    ImageNotFoundException.class
+  })
+  ResponseEntity<ErrorEnvelope> notFound() {
+      return error(HttpStatus.NOT_FOUND, NOT_FOUND);
+  }
 
 	@ExceptionHandler(InvalidFieldException.class)
 	ResponseEntity<ErrorEnvelope> invalidField(InvalidFieldException e) {
+		return invalid(e.getPath(), e.getMessage());
+	}
+
+	@ExceptionHandler(InvalidCategoryException.class)
+	ResponseEntity<ErrorEnvelope> invalidCategory(InvalidCategoryException e) {
 		return invalid(e.getPath(), e.getMessage());
 	}
 
