@@ -112,4 +112,26 @@ class CategoryTest {
 		assertEquals("Old", category.getDescription());
 	}
 
+	@Test
+	void partialUpdateKeepsOmittedFieldsAndAllowsClearingDescription() {
+		Category category = new Category(MENU_ID, "Drinks", "Old");
+
+		category.update(null, false, "", true);
+
+		assertEquals("Drinks", category.getName());
+		assertNull(category.getDescription());
+	}
+
+	@Test
+	void partialUpdateValidatesBeforeChangingAnyField() {
+		Category category = new Category(MENU_ID, "Drinks", "Old");
+		String description = "d".repeat(Category.DESCRIPTION_MAX_LENGTH + 1);
+
+		assertThrows(InvalidCategoryException.class,
+				() -> category.update("Cold drinks", true, description, true));
+
+		assertEquals("Drinks", category.getName());
+		assertEquals("Old", category.getDescription());
+	}
+
 }

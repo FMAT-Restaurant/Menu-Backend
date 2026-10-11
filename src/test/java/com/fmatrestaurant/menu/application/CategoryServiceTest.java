@@ -20,6 +20,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 
 import com.fmatrestaurant.menu.domain.Category;
 import com.fmatrestaurant.menu.domain.InvalidCategoryException;
+import com.fmatrestaurant.menu.infrastructure.CatalogEntryRepository;
 import com.fmatrestaurant.menu.infrastructure.CategoryRepository;
 
 class CategoryServiceTest {
@@ -30,13 +31,16 @@ class CategoryServiceTest {
 
 	private CategoryRepository repository;
 
+	private CatalogEntryRepository entryRepository;
+
 	private CategoryService service;
 
 	@BeforeEach
 	void setUp() {
 		repository = mock(CategoryRepository.class);
-		service = new CategoryService(repository);
-		when(repository.save(any(Category.class))).thenAnswer(invocation -> invocation.getArgument(0));
+		entryRepository = mock(CatalogEntryRepository.class);
+		service = new CategoryService(repository, entryRepository);
+		when(repository.saveAndFlush(any(Category.class))).thenAnswer(invocation -> invocation.getArgument(0));
 	}
 
 	@Test
@@ -61,14 +65,14 @@ class CategoryServiceTest {
 		assertEquals(CategoryService.DEFAULT_MENU_ID, created.getMenuId());
 		assertEquals("Desserts", created.getName());
 		assertEquals("Sweet things", created.getDescription());
-		verify(repository).save(created);
+		verify(repository).saveAndFlush(created);
 	}
 
 	@Test
 	void createRejectsBlankNameWithoutSaving() {
 		assertThrows(InvalidCategoryException.class, () -> service.create(" ", "x"));
 
-		verify(repository, never()).save(any(Category.class));
+		verify(repository, never()).saveAndFlush(any(Category.class));
 	}
 
 	@Test
@@ -77,13 +81,13 @@ class CategoryServiceTest {
 
 		assertThrows(InvalidCategoryException.class, () -> service.create(name, "x"));
 
-		verify(repository, never()).save(any(Category.class));
+		verify(repository, never()).saveAndFlush(any(Category.class));
 	}
 
 	@Test
 	void createPropagatesRepositoryFailures() {
 		doThrow(new DataIntegrityViolationException("constraint violated"))
-				.when(repository).save(any(Category.class));
+				.when(repository).saveAndFlush(any(Category.class));
 
 		assertThrows(DataIntegrityViolationException.class, () -> service.create("Drinks", "x"));
 	}
@@ -98,7 +102,7 @@ class CategoryServiceTest {
 		assertEquals("Cold drinks", updated.getName());
 		assertEquals("New", updated.getDescription());
 		assertEquals(CategoryService.DEFAULT_MENU_ID, updated.getMenuId());
-		verify(repository).save(existing);
+		verify(repository).saveAndFlush(existing);
 	}
 
 	@Test
@@ -109,7 +113,7 @@ class CategoryServiceTest {
 				() -> service.update(MISSING_ID, "x", "y"));
 
 		assertEquals("Category not found with id " + MISSING_ID, exception.getMessage());
-		verify(repository, never()).save(any(Category.class));
+		verify(repository, never()).saveAndFlush(any(Category.class));
 	}
 
 	@Test
@@ -117,7 +121,7 @@ class CategoryServiceTest {
 		assertThrows(InvalidCategoryException.class, () -> service.update(null, "x", "y"));
 
 		verify(repository, never()).findById(any());
-		verify(repository, never()).save(any(Category.class));
+		verify(repository, never()).saveAndFlush(any(Category.class));
 	}
 
 	@Test
