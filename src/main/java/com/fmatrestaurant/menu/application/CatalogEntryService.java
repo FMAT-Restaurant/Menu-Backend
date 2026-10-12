@@ -8,6 +8,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -143,10 +144,16 @@ public class CatalogEntryService {
 		if (entry.getStatus() != EntryStatus.ARCHIVED) {
 			throw new DeletionNotAllowedException("Only an ARCHIVED catalog entry can be deleted");
 		}
-		offerRepository.deleteAll(offerRepository.findByEntryId(id));
-		offerRepository.flush();
-		entryRepository.delete(entry);
-		entryRepository.flush();
+		try {
+			offerRepository.deleteAll(offerRepository.findByEntryId(id));
+			offerRepository.flush();
+			entryRepository.delete(entry);
+			entryRepository.flush();
+		}
+		catch (DataIntegrityViolationException e) {
+			// An offer was added to the entry after its offers were read.
+			throw new DeletionNotAllowedException("The entry changed while it was being deleted; try again");
+		}
 	}
 
 	/** Not transactional: it runs in the transaction of the caller. */

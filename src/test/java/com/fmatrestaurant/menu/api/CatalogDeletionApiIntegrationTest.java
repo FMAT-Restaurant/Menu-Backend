@@ -2,6 +2,7 @@ package com.fmatrestaurant.menu.api;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -15,6 +16,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 import javax.imageio.ImageIO;
 
@@ -24,14 +26,20 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import com.fmatrestaurant.menu.TestcontainersConfiguration;
 import com.fmatrestaurant.menu.domain.CatalogEntry;
+import com.fmatrestaurant.menu.domain.CatalogOffer;
 import com.fmatrestaurant.menu.domain.Image;
+import com.fmatrestaurant.menu.domain.OfferStatus;
 import com.fmatrestaurant.menu.infrastructure.CatalogEntryRepository;
 import com.fmatrestaurant.menu.infrastructure.CatalogOfferRepository;
 import com.fmatrestaurant.menu.infrastructure.ImageRepository;
@@ -63,6 +71,12 @@ class CatalogDeletionApiIntegrationTest {
 	@Autowired
 	private ImageRepository imageRepository;
 
+	@Autowired
+	private JdbcTemplate jdbcTemplate;
+
+	@Autowired
+	private PlatformTransactionManager transactionManager;
+
 	private UUID imageId;
 
 	@BeforeEach
@@ -86,6 +100,8 @@ class CatalogDeletionApiIntegrationTest {
 		mockMvc.perform(get(OFFERS + "/" + firstOffer)).andExpect(status().isNotFound());
 		mockMvc.perform(get(OFFERS + "/" + secondOffer)).andExpect(status().isNotFound());
 		assertEquals(0, offerRepository.count());
+		assertEquals(0, count("composition_slot"));
+		assertEquals(0, count("slot_option"));
 	}
 
 	@Test
@@ -116,6 +132,9 @@ class CatalogDeletionApiIntegrationTest {
 		assertTrue(entryRepository.existsById(inactive));
 		assertTrue(entryRepository.existsById(active));
 		mockMvc.perform(get(OFFERS + "/" + inactiveOffer)).andExpect(status().isOk());
+		mockMvc.perform(get(ENTRIES + "/" + inactive)).andExpect(jsonPath("$.data.status").value("INACTIVE"));
+		mockMvc.perform(get(ENTRIES + "/" + active)).andExpect(jsonPath("$.data.status").value("ACTIVE"));
+		assertEquals(1, count("composition_slot"));
 	}
 
 	@Test
@@ -155,12 +174,16 @@ class CatalogDeletionApiIntegrationTest {
 		UUID entry = newEntry();
 		String offer = newOffer(entry);
 		String other = newOffer(entry);
+		assertEquals(2, count("composition_slot"));
+		assertEquals(2, count("slot_option"));
 
 		deleteOffer(offer, offerEtag(offer)).andExpect(status().isNoContent());
 
 		mockMvc.perform(get(OFFERS + "/" + offer)).andExpect(status().isNotFound());
 		mockMvc.perform(get(OFFERS + "/" + other)).andExpect(status().isOk());
 		assertTrue(entryRepository.existsById(entry));
+		assertEquals(1, count("composition_slot"));
+		assertEquals(1, count("slot_option"));
 	}
 
 	@Test
@@ -173,6 +196,9 @@ class CatalogDeletionApiIntegrationTest {
 				.andExpect(jsonPath("$.error").exists());
 
 		mockMvc.perform(get(OFFERS + "/" + offer)).andExpect(jsonPath("$.data.status").value("ACTIVE"));
+		mockMvc.perform(get(ENTRIES + "/" + entry)).andExpect(jsonPath("$.data.status").value("INACTIVE"));
+		assertEquals(1, count("composition_slot"));
+		assertEquals(1, count("slot_option"));
 	}
 
 	@Test
@@ -203,6 +229,44 @@ class CatalogDeletionApiIntegrationTest {
 		deleteOffer(offer, "W/" + offerEtag(offer)).andExpect(status().isPreconditionFailed());
 
 		assertFalse(offerRepository.findByEntryId(entry).isEmpty());
+	}
+
+	@Test
+	void entryStatusChangesDoNotChangeTheStatusOfItsOffers() throws Exception {
+		UUID entry = newEntry();
+		String active = newOffer(entry);
+		activateOffer(active);
+		String inactive = newOffer(entry);
+
+		for (String status : List.of("ACTIVE", "INACTIVE", "ARCHIVED", "INACTIVE", "ACTIVE")) {
+			setEntryStatus(entry, status);
+
+			assertOfferStatus(active, "ACTIVE");
+			assertOfferStatus(inactive, "INACTIVE");
+		}
+	}
+
+	@Test
+	void aConcurrentChangeToTheOfferThatKeepsTheEntryEligibleIsRejected() throws Exception {
+		UUID entry = newEntry();
+		String deleted = newOffer(entry);
+		String kept = newOffer(entry);
+		activateOffer(kept);
+		setEntryStatus(entry, "ACTIVE");
+		String deletedEtag = offerEtag(deleted);
+
+		TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+		assertThrows(OptimisticLockingFailureException.class, () -> transaction.executeWithoutResult(tx -> {
+			CatalogOffer concurrent = offerRepository.findById(UUID.fromString(kept)).orElseThrow();
+			assertFalse(concurrent.getSlots().isEmpty());
+			// Another request deletes the other offer after the one above was read.
+			deleteInAnotherThread(deleted, deletedEtag);
+			concurrent.changeStatus(OfferStatus.INACTIVE);
+			offerRepository.saveAndFlush(concurrent);
+		}));
+
+		assertOfferStatus(kept, "ACTIVE");
+		mockMvc.perform(get(OFFERS + "/" + deleted)).andExpect(status().isNotFound());
 	}
 
 	private UUID newEntry() {
@@ -242,6 +306,25 @@ class CatalogDeletionApiIntegrationTest {
 
 	private ResultActions deleteOffer(String offer, String ifMatch) throws Exception {
 		return mockMvc.perform(delete(OFFERS + "/" + offer).header(HttpHeaders.IF_MATCH, ifMatch));
+	}
+
+	private void deleteInAnotherThread(String offer, String ifMatch) {
+		CompletableFuture.runAsync(() -> {
+			try {
+				deleteOffer(offer, ifMatch).andExpect(status().isNoContent());
+			}
+			catch (Exception e) {
+				throw new IllegalStateException(e);
+			}
+		}).join();
+	}
+
+	private void assertOfferStatus(String offer, String expected) throws Exception {
+		mockMvc.perform(get(OFFERS + "/" + offer)).andExpect(jsonPath("$.data.status").value(expected));
+	}
+
+	private long count(String table) {
+		return jdbcTemplate.queryForObject("select count(*) from " + table, Long.class);
 	}
 
 	private String offerBody() {

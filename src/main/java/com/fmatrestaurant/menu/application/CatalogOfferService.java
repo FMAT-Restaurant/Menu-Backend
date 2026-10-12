@@ -154,17 +154,27 @@ public class CatalogOfferService {
 		if (offer.getStatus() != OfferStatus.INACTIVE) {
 			throw new DeletionNotAllowedException("Only an INACTIVE offer can be deleted");
 		}
-		if (entry.getStatus() == EntryStatus.ACTIVE && !hasOtherActiveOffer(entryId, id)) {
-			throw new DeletionNotAllowedException(
-					"An ACTIVE entry must keep at least one other ACTIVE offer; inactivate or archive the entry first");
+		if (entry.getStatus() == EntryStatus.ACTIVE) {
+			requireAnotherActiveOffer(entryId, id);
 		}
 		offerRepository.delete(offer);
 		offerRepository.flush();
 	}
 
-	private boolean hasOtherActiveOffer(UUID entryId, UUID deletedOfferId) {
-		return offerRepository.findByEntryId(entryId).stream()
-				.anyMatch(other -> !other.getId().equals(deletedOfferId) && other.getStatus() == OfferStatus.ACTIVE);
+	/**
+	 * Checks that another offer of the entry is ACTIVE. The version of that offer is incremented, and its row
+	 * stays locked, so a concurrent change based on its previous version, such as inactivating it, is
+	 * rejected instead of leaving the entry without an ACTIVE offer once this one is deleted.
+	 */
+	private void requireAnotherActiveOffer(UUID entryId, UUID deletedOfferId) {
+		CatalogOffer active = offerRepository.findByEntryId(entryId).stream()
+				.filter(other -> !other.getId().equals(deletedOfferId) && other.getStatus() == OfferStatus.ACTIVE)
+				.findFirst()
+				.orElseThrow(() -> new DeletionNotAllowedException(
+						"An ACTIVE entry must keep at least one other ACTIVE offer; inactivate or archive the entry first"));
+		if (offerRepository.incrementVersion(active.getId(), active.getVersion()) != 1) {
+			throw new DeletionNotAllowedException("The offers of the entry changed while the deletion was checked; try again");
+		}
 	}
 
 	/**

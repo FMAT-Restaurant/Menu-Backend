@@ -3,6 +3,7 @@ package com.fmatrestaurant.menu.application;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -17,6 +18,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.fmatrestaurant.menu.domain.CatalogEntry;
@@ -103,6 +105,18 @@ class CatalogEntryDeletionTest {
 		entry(EntryStatus.ACTIVE);
 
 		assertThrows(StaleCatalogEntryException.class, () -> service.delete(ENTRY_ID, VERSION + 1));
+	}
+
+	@Test
+	void reportsAConflictWhenAnOfferIsAddedWhileDeleting() {
+		entry(EntryStatus.ARCHIVED);
+		when(offerRepository.findByEntryId(ENTRY_ID)).thenReturn(List.of());
+		doThrow(new DataIntegrityViolationException("foreign key")).when(entryRepository).flush();
+
+		DeletionNotAllowedException exception = assertThrows(DeletionNotAllowedException.class,
+				() -> service.delete(ENTRY_ID, VERSION));
+
+		assertEquals("The entry changed while it was being deleted; try again", exception.getMessage());
 	}
 
 	@Test

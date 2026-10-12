@@ -10,6 +10,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -32,6 +33,17 @@ public interface CatalogOfferRepository extends JpaRepository<CatalogOffer, UUID
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("select o from CatalogOffer o where o.id = :id")
 	Optional<CatalogOffer> findForDeletionById(@Param("id") UUID id);
+
+	/**
+	 * Increments the version of the offer only if it still has the given version. The row stays locked until
+	 * the end of the transaction, so a concurrent change that was based on the previous version is rejected.
+	 *
+	 * @return the number of offers updated: 0 when the offer changed or no longer exists
+	 */
+	@Modifying
+	@Query(value = "update catalog_offer set version = version + 1 where id = :id and version = :version",
+			nativeQuery = true)
+	int incrementVersion(@Param("id") UUID id, @Param("version") long version);
 
 	/** The id of the entry of an offer, without loading the offer. */
 	@Query("select o.entry.id from CatalogOffer o where o.id = :id")

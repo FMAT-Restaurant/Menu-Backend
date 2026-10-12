@@ -77,10 +77,27 @@ class CatalogOfferDeletionTest {
 		CatalogOffer offer = loaded(entry, OFFER_ID, false);
 		CatalogOffer other = offer(entry, UUID.randomUUID(), true);
 		when(offerRepository.findByEntryId(ENTRY_ID)).thenReturn(List.of(offer, other));
+		when(offerRepository.incrementVersion(other.getId(), VERSION)).thenReturn(1);
 
 		service.delete(OFFER_ID, VERSION);
 
+		verify(offerRepository).incrementVersion(other.getId(), VERSION);
 		verify(offerRepository).delete(offer);
+	}
+
+	@Test
+	void rejectsWhenTheOtherActiveOfferChangedWhileItWasChecked() {
+		CatalogEntry entry = entry(EntryStatus.ACTIVE);
+		CatalogOffer offer = loaded(entry, OFFER_ID, false);
+		CatalogOffer other = offer(entry, UUID.randomUUID(), true);
+		when(offerRepository.findByEntryId(ENTRY_ID)).thenReturn(List.of(offer, other));
+		when(offerRepository.incrementVersion(other.getId(), VERSION)).thenReturn(0);
+
+		DeletionNotAllowedException exception = assertThrows(DeletionNotAllowedException.class,
+				() -> service.delete(OFFER_ID, VERSION));
+
+		assertEquals("The offers of the entry changed while the deletion was checked; try again", exception.getMessage());
+		verify(offerRepository, never()).delete(any(CatalogOffer.class));
 	}
 
 	@Test
