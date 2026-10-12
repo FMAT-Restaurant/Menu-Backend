@@ -123,6 +123,32 @@ public class CatalogEntryService {
 		return entryRepository.saveAndFlush(entry);
 	}
 
+	/**
+	 * Deletes an archived entry together with its offers and what they own (slots and options). The
+	 * Inventory articles and the recipes they reference are not touched.
+	 *
+	 * @param expectedVersion the version the client read
+	 * @throws CatalogEntryNotFoundException if the entry does not exist
+	 * @throws StaleCatalogEntryException if the entry changed since the expected version
+	 * @throws DeletionNotAllowedException if the entry is not ARCHIVED
+	 */
+	@Transactional
+	public void delete(UUID id, long expectedVersion) {
+		CatalogEntry entry = entryRepository.findWithLockById(id)
+				.orElseThrow(() -> new CatalogEntryNotFoundException(id));
+		long currentVersion = entry.getVersion() == null ? 0 : entry.getVersion();
+		if (currentVersion != expectedVersion) {
+			throw new StaleCatalogEntryException(id);
+		}
+		if (entry.getStatus() != EntryStatus.ARCHIVED) {
+			throw new DeletionNotAllowedException("Only an ARCHIVED catalog entry can be deleted");
+		}
+		offerRepository.deleteAll(offerRepository.findByEntryId(id));
+		offerRepository.flush();
+		entryRepository.delete(entry);
+		entryRepository.flush();
+	}
+
 	/** Not transactional: it runs in the transaction of the caller. */
 	private CatalogEntry find(UUID id) {
 		return entryRepository.findById(id).orElseThrow(() -> new CatalogEntryNotFoundException(id));

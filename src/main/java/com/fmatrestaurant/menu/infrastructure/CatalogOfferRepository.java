@@ -11,6 +11,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import com.fmatrestaurant.menu.domain.CatalogOffer;
 
@@ -26,6 +27,17 @@ public interface CatalogOfferRepository extends JpaRepository<CatalogOffer, UUID
 	 */
 	@Lock(LockModeType.OPTIMISTIC_FORCE_INCREMENT)
 	Optional<CatalogOffer> findWithLockById(UUID id);
+
+	/** Loads the offer and locks its row until the end of the transaction, to delete it. */
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("select o from CatalogOffer o where o.id = :id")
+	Optional<CatalogOffer> findForDeletionById(@Param("id") UUID id);
+
+	/** The id of the entry of an offer, without loading the offer. */
+	@Query("select o.entry.id from CatalogOffer o where o.id = :id")
+	Optional<UUID> findEntryIdById(@Param("id") UUID id);
+
+	List<CatalogOffer> findByEntryId(UUID entryId);
 
 	/** Pairs of entry id and number of offers, only for entries that have offers. */
 	@Query("select o.entry.id, count(o) from CatalogOffer o where o.entry.id in :entryIds group by o.entry.id")

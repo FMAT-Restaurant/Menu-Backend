@@ -9,6 +9,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -80,6 +81,14 @@ public class CatalogEntryController {
 		CatalogEntry entry = entryService.update(entryId, Revisions.version(ifMatch), request.brandName(),
 				request.description(), request.status(), request.categoryIds(), request.imageId());
 		return ResponseEntity.ok().eTag(etag(entry)).body(new DataResponse<>(CatalogEntryDetail.of(entry)));
+	}
+
+	/** Deletes an ARCHIVED entry and its offers; any other status is answered with 409. */
+	@DeleteMapping("/{entryId}")
+	public ResponseEntity<Void> delete(@PathVariable UUID entryId,
+			@RequestHeader(HttpHeaders.IF_MATCH) String ifMatch) {
+		entryService.delete(entryId, Revisions.version(ifMatch));
+		return ResponseEntity.noContent().build();
 	}
 
 	private static String etag(CatalogEntry entry) {

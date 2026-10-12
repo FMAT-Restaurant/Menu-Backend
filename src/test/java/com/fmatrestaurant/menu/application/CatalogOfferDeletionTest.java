@@ -1,0 +1,186 @@
+package com.fmatrestaurant.menu.application;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import java.math.BigDecimal;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
+
+import com.fmatrestaurant.menu.domain.CatalogEntry;
+import com.fmatrestaurant.menu.domain.CatalogOffer;
+import com.fmatrestaurant.menu.domain.CompositionSlot;
+import com.fmatrestaurant.menu.domain.EntryStatus;
+import com.fmatrestaurant.menu.domain.InventoryItem;
+import com.fmatrestaurant.menu.domain.OfferStatus;
+import com.fmatrestaurant.menu.domain.SlotOption;
+import com.fmatrestaurant.menu.infrastructure.CatalogEntryRepository;
+import com.fmatrestaurant.menu.infrastructure.CatalogOfferRepository;
+import com.fmatrestaurant.menu.infrastructure.ImageRepository;
+
+class CatalogOfferDeletionTest {
+
+	private static final UUID ENTRY_ID = UUID.randomUUID();
+
+	private static final UUID OFFER_ID = UUID.randomUUID();
+
+	private static final long VERSION = 5;
+
+	private CatalogEntryRepository entryRepository;
+
+	private CatalogOfferRepository offerRepository;
+
+	private CatalogOfferService service;
+
+	@BeforeEach
+	void setUp() {
+		entryRepository = mock(CatalogEntryRepository.class);
+		offerRepository = mock(CatalogOfferRepository.class);
+		service = new CatalogOfferService(offerRepository, entryRepository, mock(ImageRepository.class));
+	}
+
+	@Test
+	void deletesAnInactiveOfferOfAnInactiveEntry() {
+		CatalogEntry entry = entry(EntryStatus.INACTIVE);
+		CatalogOffer offer = loaded(entry, OFFER_ID, false);
+		when(offerRepository.findByEntryId(ENTRY_ID)).thenReturn(List.of(offer));
+
+		service.delete(OFFER_ID, VERSION);
+
+		verify(offerRepository).delete(offer);
+	}
+
+	@Test
+	void deletesAnInactiveOfferOfAnArchivedEntryWithoutOtherOffers() {
+		CatalogEntry entry = entry(EntryStatus.ARCHIVED);
+		CatalogOffer offer = loaded(entry, OFFER_ID, false);
+		when(offerRepository.findByEntryId(ENTRY_ID)).thenReturn(List.of(offer));
+
+		service.delete(OFFER_ID, VERSION);
+
+		verify(offerRepository).delete(offer);
+	}
+
+	@Test
+	void deletesAnInactiveOfferOfAnActiveEntryThatKeepsAnotherActiveOffer() {
+		CatalogEntry entry = entry(EntryStatus.ACTIVE);
+		CatalogOffer offer = loaded(entry, OFFER_ID, false);
+		CatalogOffer other = offer(entry, UUID.randomUUID(), true);
+		when(offerRepository.findByEntryId(ENTRY_ID)).thenReturn(List.of(offer, other));
+
+		service.delete(OFFER_ID, VERSION);
+
+		verify(offerRepository).delete(offer);
+	}
+
+	@Test
+	void rejectsAnActiveOffer() {
+		CatalogEntry entry = entry(EntryStatus.INACTIVE);
+		loaded(entry, OFFER_ID, true);
+
+		DeletionNotAllowedException exception = assertThrows(DeletionNotAllowedException.class,
+				() -> service.delete(OFFER_ID, VERSION));
+
+		assertEquals("Only an INACTIVE offer can be deleted", exception.getMessage());
+		verify(offerRepository, never()).delete(any(CatalogOffer.class));
+	}
+
+	@Test
+	void rejectsLeavingAnActiveEntryWithoutAnotherActiveOffer() {
+		CatalogEntry entry = entry(EntryStatus.ACTIVE);
+		CatalogOffer offer = loaded(entry, OFFER_ID, false);
+		CatalogOffer inactiveOther = offer(entry, UUID.randomUUID(), false);
+		when(offerRepository.findByEntryId(ENTRY_ID)).thenReturn(List.of(offer, inactiveOther));
+
+		assertThrows(DeletionNotAllowedException.class, () -> service.delete(OFFER_ID, VERSION));
+
+		verify(offerRepository, never()).delete(any(CatalogOffer.class));
+	}
+
+	@Test
+	void rejectsLeavingAnActiveEntryWithoutOffers() {
+		CatalogEntry entry = entry(EntryStatus.ACTIVE);
+		CatalogOffer offer = loaded(entry, OFFER_ID, false);
+		when(offerRepository.findByEntryId(ENTRY_ID)).thenReturn(List.of(offer));
+
+		assertThrows(DeletionNotAllowedException.class, () -> service.delete(OFFER_ID, VERSION));
+
+		verify(offerRepository, never()).delete(any(CatalogOffer.class));
+	}
+
+	@Test
+	void rejectsAStaleVersionWithoutDeletingAnything() {
+		CatalogEntry entry = entry(EntryStatus.INACTIVE);
+		loaded(entry, OFFER_ID, false);
+
+		assertThrows(StaleCatalogOfferException.class, () -> service.delete(OFFER_ID, VERSION + 1));
+
+		verify(offerRepository, never()).delete(any(CatalogOffer.class));
+	}
+
+	@Test
+	void checksTheVersionBeforeTheStatus() {
+		CatalogEntry entry = entry(EntryStatus.INACTIVE);
+		loaded(entry, OFFER_ID, true);
+
+		assertThrows(StaleCatalogOfferException.class, () -> service.delete(OFFER_ID, VERSION + 1));
+	}
+
+	@Test
+	void failsWhenTheOfferDoesNotExist() {
+		when(offerRepository.findEntryIdById(OFFER_ID)).thenReturn(Optional.empty());
+
+		assertThrows(CatalogOfferNotFoundException.class, () -> service.delete(OFFER_ID, VERSION));
+
+		verify(offerRepository, never()).delete(any(CatalogOffer.class));
+	}
+
+	@Test
+	void failsWhenTheOfferWasDeletedWhileWaitingForTheLock() {
+		CatalogEntry entry = entry(EntryStatus.INACTIVE);
+		when(offerRepository.findEntryIdById(OFFER_ID)).thenReturn(Optional.of(entry.getId()));
+		when(offerRepository.findForDeletionById(OFFER_ID)).thenReturn(Optional.empty());
+
+		assertThrows(CatalogOfferNotFoundException.class, () -> service.delete(OFFER_ID, VERSION));
+	}
+
+	private CatalogEntry entry(EntryStatus status) {
+		CatalogEntry entry = new CatalogEntry(1L, "Hawaiian burger", "Tasty", UUID.randomUUID(), List.of());
+		entry.update(null, null, null, null, status);
+		ReflectionTestUtils.setField(entry, "id", ENTRY_ID);
+		when(entryRepository.findWithLockById(ENTRY_ID)).thenReturn(Optional.of(entry));
+		return entry;
+	}
+
+	/** An offer as the repository returns it for the deletion, with the version JPA assigns. */
+	private CatalogOffer loaded(CatalogEntry entry, UUID id, boolean active) {
+		CatalogOffer offer = offer(entry, id, active);
+		when(offerRepository.findEntryIdById(id)).thenReturn(Optional.of(entry.getId()));
+		when(offerRepository.findForDeletionById(id)).thenReturn(Optional.of(offer));
+		return offer;
+	}
+
+	private static CatalogOffer offer(CatalogEntry entry, UUID id, boolean active) {
+		SlotOption option = new SlotOption("Fries", OfferStatus.ACTIVE,
+				new InventoryItem(UUID.randomUUID(), "Potatoes", "g"), new BigDecimal("200"), "g");
+		CompositionSlot slot = new CompositionSlot("Side", BigDecimal.ONE, null, List.of(option));
+		CatalogOffer offer = new CatalogOffer(entry, "Individual", BigDecimal.TEN, UUID.randomUUID(), List.of(slot));
+		if (active) {
+			offer.changeStatus(OfferStatus.ACTIVE);
+		}
+		ReflectionTestUtils.setField(offer, "id", id);
+		ReflectionTestUtils.setField(offer, "version", VERSION);
+		return offer;
+	}
+
+}
