@@ -13,10 +13,6 @@ final class Revisions {
 	private Revisions() {
 	}
 
-	static String weak(long version) {
-		return "W/" + strong(version);
-	}
-
 	static String strong(long version) {
 		return "\"rev-" + version + "\"";
 	}
@@ -26,10 +22,17 @@ final class Revisions {
 		return ifMatch.strip().startsWith("W/") ? -1 : version(ifMatch);
 	}
 
-	/** An If-Match that is not an ETag of this API never matches, so it ends in 412. */
-	static long version(String ifMatch) {
+	/** An If-Match that is not an ETag of this API, or whose revision is out of range, never matches: 412. */
+	private static long version(String ifMatch) {
 		Matcher matcher = ETAG.matcher(ifMatch.strip());
-		return matcher.matches() ? Long.parseLong(matcher.group(1)) : -1;
+		if (!matcher.matches()) {
+			return -1;
+		}
+		try {
+			return Long.parseLong(matcher.group(1));
+		} catch (NumberFormatException _) {
+			return -1;
+		}
 	}
 
 }

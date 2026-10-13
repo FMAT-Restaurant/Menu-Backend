@@ -27,6 +27,7 @@ import com.fmatrestaurant.menu.domain.SlotOption;
 import com.fmatrestaurant.menu.infrastructure.CatalogEntryRepository;
 import com.fmatrestaurant.menu.infrastructure.CatalogOfferRepository;
 import com.fmatrestaurant.menu.infrastructure.ImageRepository;
+import com.fmatrestaurant.menu.infrastructure.InventoryClient;
 
 class CatalogOfferDeletionTest {
 
@@ -46,7 +47,8 @@ class CatalogOfferDeletionTest {
 	void setUp() {
 		entryRepository = mock(CatalogEntryRepository.class);
 		offerRepository = mock(CatalogOfferRepository.class);
-		service = new CatalogOfferService(offerRepository, entryRepository, mock(ImageRepository.class));
+		service = new CatalogOfferService(offerRepository, entryRepository, mock(ImageRepository.class),
+				mock(InventoryClient.class));
 	}
 
 	@Test

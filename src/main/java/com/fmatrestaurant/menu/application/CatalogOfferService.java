@@ -2,6 +2,7 @@ package com.fmatrestaurant.menu.application;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -10,6 +11,7 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -18,6 +20,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonSetter;
+import com.fasterxml.jackson.annotation.Nulls;
 import com.fmatrestaurant.menu.domain.CatalogEntry;
 import com.fmatrestaurant.menu.domain.CatalogOffer;
 import com.fmatrestaurant.menu.domain.CompositionSlot;
@@ -30,13 +34,14 @@ import com.fmatrestaurant.menu.domain.SourceType;
 import com.fmatrestaurant.menu.infrastructure.CatalogEntryRepository;
 import com.fmatrestaurant.menu.infrastructure.CatalogOfferRepository;
 import com.fmatrestaurant.menu.infrastructure.ImageRepository;
+import com.fmatrestaurant.menu.infrastructure.InventoryClient;
 
 /**
  * Offer and composition use cases (REQ-MENU-OFFER-001 to REQ-MENU-OFFER-004, REQ-MENU-COMP-001 to
  * REQ-MENU-COMP-005, REQ-MENU-CONT-001 and REQ-MENU-CONT-002 with Inventory content).
  *
  * <p>Each write runs in a transaction and validates the whole result, so a rejected request leaves
- * no partial changes.
+ * no partial changes. Inventory articles are confirmed with the Inventory service before saving.
  */
 @Service
 public class CatalogOfferService {
@@ -47,30 +52,46 @@ public class CatalogOfferService {
 
 	private final ImageRepository imageRepository;
 
+	private final InventoryClient inventoryClient;
+
 	public CatalogOfferService(CatalogOfferRepository offerRepository, CatalogEntryRepository entryRepository,
-			ImageRepository imageRepository) {
+			ImageRepository imageRepository, InventoryClient inventoryClient) {
 		this.offerRepository = offerRepository;
 		this.entryRepository = entryRepository;
 		this.imageRepository = imageRepository;
+		this.inventoryClient = inventoryClient;
 	}
 
 	/**
-	 * Creates an offer of the entry. It always starts {@link OfferStatus#INACTIVE}: the status and the
-	 * slot and option ids sent by the client are ignored, the server assigns them.
+	 * Creates an offer of the entry. It always starts {@link OfferStatus#INACTIVE} and its options start
+	 * {@link OfferStatus#ACTIVE}; the server assigns every status and id, so the client cannot send them.
 	 *
 	 * @throws CatalogEntryNotFoundException if the entry does not exist
-	 * @throws InvalidFieldException if a value is missing or invalid, the image does not exist, or the
-	 *         composition is empty
+	 * @throws InvalidFieldException if a field is not defined by the contract, a value is missing or invalid,
+	 *         the image or an inventory item does not exist, or the composition is empty
+	 * @throws org.springframework.web.client.RestClientException if Inventory cannot confirm the articles
 	 */
 	@Transactional
 	public CatalogOffer create(UUID entryId, OfferInput input) {
 		CatalogEntry entry = entryRepository.findById(entryId)
 				.orElseThrow(() -> new CatalogEntryNotFoundException(entryId));
-		UUID imageId = existingImage(input);
+		input.rejectUnknownFields();
+		notAllowed("/status", input.status());
+		if (input.composition() != null) {
+			input.composition().rejectUnknownFields("/composition");
+		}
+		UUID imageId = existingImage(input.imageId());
 		List<SlotInput> slots = input.composition() == null ? null : input.composition().slots();
 		CatalogOffer offer = new CatalogOffer(entry, input.presentationTag(), input.basePrice(), imageId,
-				slots(List.of(), slots, true));
-		return offerRepository.save(offer);
+				slots(List.of(), slots, true, new HashMap<>()));
+		try {
+			return offerRepository.saveAndFlush(offer);
+		}
+		catch (DataIntegrityViolationException _) {
+			// ponytail: the only constraint an offer can violate here is the foreign key to its entry, deleted
+			// after it was read; if another constraint is added, check which one failed instead of answering 404.
+			throw new CatalogEntryNotFoundException(entryId);
+		}
 	}
 
 	/**
@@ -104,7 +125,9 @@ public class CatalogOfferService {
 	 * @throws CatalogOfferNotFoundException if the offer does not exist
 	 * @throws StaleCatalogOfferException if the offer changed since the expected version
 	 * @throws InvalidFieldException if a field is not defined by the contract, a value or id is invalid,
-	 *         unknown, foreign or repeated, a list is empty, the image does not exist, or the offer cannot be activated
+	 *         unknown, foreign or repeated, a list is empty, the image or an inventory item does not exist, or
+	 *         the offer cannot be activated
+	 * @throws org.springframework.web.client.RestClientException if Inventory cannot confirm the articles
 	 */
 	@Transactional
 	public CatalogOffer update(UUID id, long expectedVersion, OfferInput input) {
@@ -117,9 +140,9 @@ public class CatalogOfferService {
 		if (input.composition() != null) {
 			input.composition().rejectUnknownFields("/composition");
 		}
-		offer.update(input.presentationTag(), input.basePrice(), existingImage(input));
+		offer.update(input.presentationTag(), input.basePrice(), existingImage(input.imageId()));
 		if (input.composition() != null && input.composition().slots() != null) {
-			offer.replaceSlots(slots(offer.getSlots(), input.composition().slots(), false));
+			offer.replaceSlots(slots(offer.getSlots(), input.composition().slots(), false, new HashMap<>()));
 		}
 		if (input.status() != null) {
 			offer.changeStatus(input.status());
@@ -178,9 +201,11 @@ public class CatalogOfferService {
 	}
 
 	/**
-	 * @param create when {@code true}, every slot and option is new and their ids are ignored
+	 * @param create when {@code true}, every slot and option is new and ids or statuses are not allowed
+	 * @param items the Inventory articles already confirmed in this operation, by id
 	 */
-	private List<CompositionSlot> slots(List<CompositionSlot> current, List<SlotInput> inputs, boolean create) {
+	private List<CompositionSlot> slots(List<CompositionSlot> current, List<SlotInput> inputs, boolean create,
+			Map<UUID, InventoryItem> items) {
 		if (inputs == null || inputs.isEmpty()) {
 			throw new InvalidFieldException("/composition/slots", "The composition must have at least one slot");
 		}
@@ -190,7 +215,7 @@ public class CatalogOfferService {
 		List<CompositionSlot> result = new ArrayList<>();
 		for (int i = 0; i < inputs.size(); i++) {
 			try {
-				result.add(slot(byId, seen, inputs.get(i), create));
+				result.add(slot(byId, seen, inputs.get(i), create, items));
 			} catch (InvalidFieldException e) {
 				throw e.prefixed("/composition/slots/" + i);
 			}
@@ -198,20 +223,22 @@ public class CatalogOfferService {
 		return result;
 	}
 
-	private CompositionSlot slot(Map<UUID, CompositionSlot> byId, Set<UUID> seen, SlotInput input, boolean create) {
+	private CompositionSlot slot(Map<UUID, CompositionSlot> byId, Set<UUID> seen, SlotInput input, boolean create,
+			Map<UUID, InventoryItem> items) {
 		if (input == null) {
 			throw new InvalidFieldException("", "The slot is required");
 		}
-		if (!create) {
-			input.rejectUnknownFields();
+		input.rejectUnknownFields();
+		if (create) {
+			notAllowed("/slotId", input.slotId());
+			if (input.courseSent() && input.course() == null) {
+				throw new InvalidFieldException("/course", "The value must not be null");
+			}
 		}
-		if (Boolean.FALSE.equals(input.required())) {
-			throw new InvalidFieldException("/required", "Every slot takes part in the selection; required must be true");
-		}
-		UUID id = create ? null : input.slotId();
+		UUID id = input.slotId();
 		if (id == null) {
 			return new CompositionSlot(input.name(), input.quantity(), input.course(),
-					options(List.of(), input.options(), create));
+					options(List.of(), input.options(), create, items));
 		}
 		CompositionSlot slot = existing(byId, seen, id, "/slotId", "slot", "offer");
 		slot.update(input.name(), input.quantity());
@@ -219,12 +246,13 @@ public class CatalogOfferService {
 			slot.changeCourse(input.course());
 		}
 		if (input.options() != null) {
-			slot.replaceOptions(options(slot.getOptions(), input.options(), false));
+			slot.replaceOptions(options(slot.getOptions(), input.options(), false, items));
 		}
 		return slot;
 	}
 
-	private List<SlotOption> options(List<SlotOption> current, List<OptionInput> inputs, boolean create) {
+	private List<SlotOption> options(List<SlotOption> current, List<OptionInput> inputs, boolean create,
+			Map<UUID, InventoryItem> items) {
 		if (inputs == null || inputs.isEmpty()) {
 			throw new InvalidFieldException("/options", "A slot must have at least one option");
 		}
@@ -233,7 +261,7 @@ public class CatalogOfferService {
 		List<SlotOption> result = new ArrayList<>();
 		for (int i = 0; i < inputs.size(); i++) {
 			try {
-				result.add(option(byId, seen, inputs.get(i), create));
+				result.add(option(byId, seen, inputs.get(i), create, items));
 			} catch (InvalidFieldException e) {
 				throw e.prefixed("/options/" + i);
 			}
@@ -241,33 +269,36 @@ public class CatalogOfferService {
 		return result;
 	}
 
-	private SlotOption option(Map<UUID, SlotOption> byId, Set<UUID> seen, OptionInput input, boolean create) {
+	/**
+	 * Inventory is consulted for a new option and when the article or the unit of an existing one change;
+	 * other changes keep the stored reference without consulting it.
+	 */
+	private SlotOption option(Map<UUID, SlotOption> byId, Set<UUID> seen, OptionInput input, boolean create,
+			Map<UUID, InventoryItem> items) {
 		if (input == null) {
 			throw new InvalidFieldException("", "The option is required");
 		}
-		if (!create) {
-			input.rejectUnknownFields();
+		input.rejectUnknownFields();
+		if (create) {
+			notAllowed("/optionId", input.optionId());
+			notAllowed("/status", input.status());
 		}
-		UUID id = create ? null : input.optionId();
+		// RECIPE is not a SourceType yet, so the body is rejected when it is read.
+		if (input.sourceType() == null) {
+			throw new InvalidFieldException("/sourceType", "The source type is required");
+		}
+		UUID id = input.optionId();
 		if (id == null) {
-			if (input.sourceType() == null) {
-				throw new InvalidFieldException("/sourceType", "The source type is required");
-			}
-			if (input.sourceType() != SourceType.INVENTORY_ITEM) {
-				throw new InvalidFieldException("/sourceType", "Only inventory item content is supported");
-			}
-			return new SlotOption(input.displayName(), input.status(), inventoryItem(input.source()),
-					input.quantity(), input.unit());
+			return new SlotOption(input.displayName(), create ? OfferStatus.ACTIVE : input.status(),
+					inventoryItem(input.inventoryItemId(), items), input.quantity(), input.unit());
 		}
 		SlotOption option = existing(byId, seen, id, "/optionId", "option", "slot");
-		if (input.sourceType() != null && input.sourceType() != SourceType.INVENTORY_ITEM) {
-			throw new InvalidFieldException("/sourceType", "Only inventory item content is supported");
+		InventoryItem item = null;
+		if (input.inventoryItemId() != null || input.unit() != null) {
+			item = inventoryItem(input.inventoryItemId() != null ? input.inventoryItemId() : option.getInventoryItemId(),
+					items);
 		}
-		if (input.source() != null) {
-			input.source().rejectUnknownFields("/source");
-		}
-		option.update(input.displayName(), input.status(),
-				input.source() == null ? null : inventoryItem(input.source()), input.quantity(), input.unit());
+		option.update(input.displayName(), input.status(), item, input.quantity(), input.unit());
 		return option;
 	}
 
@@ -283,21 +314,29 @@ public class CatalogOfferService {
 		return member;
 	}
 
-	private static InventoryItem inventoryItem(InventoryItemInput input) {
-		if (input == null) {
-			throw new InvalidFieldException("/source", "The inventory item data is required");
+	/** A field that the server assigns, so the client must not send it. */
+	private static void notAllowed(String path, Object value) {
+		if (value != null) {
+			throw new InvalidFieldException(path, "The field " + path.substring(1) + " is not allowed");
 		}
-		return new InventoryItem(input.id(), input.name(), input.unit());
 	}
 
-	/** {@code null} when the image was not sent; sent as {@code null}, it is rejected. */
-	private UUID existingImage(OfferInput input) {
-		if (!input.imageIdSent()) {
-			return null;
+	/**
+	 * The article as Inventory returns it, consulted once per id in each operation. Its unit is the one
+	 * the option unit is checked against.
+	 */
+	private InventoryItem inventoryItem(UUID id, Map<UUID, InventoryItem> items) {
+		if (id == null) {
+			throw new InvalidFieldException("/inventoryItemId", "The inventory item id is required");
 		}
-		UUID imageId = input.imageId();
+		return items.computeIfAbsent(id, key -> inventoryClient.find(key).orElseThrow(
+				() -> new InvalidFieldException("/inventoryItemId", "The inventory item " + key + " does not exist")));
+	}
+
+	/** {@code null} when the image was not sent. */
+	private UUID existingImage(UUID imageId) {
 		if (imageId == null) {
-			throw new InvalidFieldException("/imageId", "The image must not be null");
+			return null;
 		}
 		if (!imageRepository.existsById(imageId)) {
 			throw new InvalidFieldException("/imageId", "The image " + imageId + " does not exist");
@@ -306,12 +345,11 @@ public class CatalogOfferService {
 	}
 
 	/**
-	 * Fields of a request body that the contract does not define. POST ignores them, because the
-	 * contract examples send ids and fields of other sources; PATCH rejects them
+	 * Fields of a request body that the contract does not define are rejected
 	 * ({@code additionalProperties: false}), which also rejects mixing source types.
 	 *
-	 * <p>The bodies are classes, not records, because a record cannot tell a missing value from
-	 * {@code null}: where that matters, a setter records that the field was sent.
+	 * <p>A field sent as {@code null} fails when it is read ({@link Nulls#FAIL}), unlike a missing one. The
+	 * only field that accepts {@code null} is the course of a slot, so a setter records that it was sent.
 	 */
 	abstract static class Input {
 
@@ -335,24 +373,27 @@ public class CatalogOfferService {
 
 	}
 
-	/** Body of POST and PATCH; on PATCH, missing values keep the current ones, and so does {@code null}. */
+	/** Body of POST and PATCH; on PATCH, missing values keep the current ones. */
 	public static class OfferInput extends Input {
 
 		@JsonProperty
+		@JsonSetter(nulls = Nulls.FAIL)
 		private String presentationTag;
 
 		@JsonProperty
+		@JsonSetter(nulls = Nulls.FAIL)
 		private BigDecimal basePrice;
 
 		@JsonProperty
+		@JsonSetter(nulls = Nulls.FAIL)
 		private OfferStatus status;
 
-		/** Rejected when sent as {@code null}. */
+		@JsonProperty
+		@JsonSetter(nulls = Nulls.FAIL)
 		private UUID imageId;
 
-		private boolean imageIdSent;
-
 		@JsonProperty
+		@JsonSetter(nulls = Nulls.FAIL)
 		private CompositionInput composition;
 
 		public String presentationTag() {
@@ -371,16 +412,6 @@ public class CatalogOfferService {
 			return imageId;
 		}
 
-		public boolean imageIdSent() {
-			return imageIdSent;
-		}
-
-		@JsonProperty("imageId")
-		private void setImageId(UUID imageId) {
-			this.imageId = imageId;
-			this.imageIdSent = true;
-		}
-
 		public CompositionInput composition() {
 			return composition;
 		}
@@ -390,6 +421,7 @@ public class CatalogOfferService {
 	public static class CompositionInput extends Input {
 
 		@JsonProperty
+		@JsonSetter(nulls = Nulls.FAIL)
 		private List<SlotInput> slots;
 
 		public List<SlotInput> slots() {
@@ -401,23 +433,24 @@ public class CatalogOfferService {
 	public static class SlotInput extends Input {
 
 		@JsonProperty
+		@JsonSetter(nulls = Nulls.FAIL)
 		private UUID slotId;
 
 		@JsonProperty
+		@JsonSetter(nulls = Nulls.FAIL)
 		private String name;
 
 		@JsonProperty
+		@JsonSetter(nulls = Nulls.FAIL)
 		private BigDecimal quantity;
 
-		/** Sent as {@code null}, it removes the course. */
+		/** Sent as {@code null}, it removes the course on PATCH. */
 		private String course;
 
 		private boolean courseSent;
 
 		@JsonProperty
-		private Boolean required;
-
-		@JsonProperty
+		@JsonSetter(nulls = Nulls.FAIL)
 		private List<OptionInput> options;
 
 		public UUID slotId() {
@@ -446,10 +479,6 @@ public class CatalogOfferService {
 			this.courseSent = true;
 		}
 
-		public Boolean required() {
-			return required;
-		}
-
 		public List<OptionInput> options() {
 			return options;
 		}
@@ -459,24 +488,31 @@ public class CatalogOfferService {
 	public static class OptionInput extends Input {
 
 		@JsonProperty
+		@JsonSetter(nulls = Nulls.FAIL)
 		private UUID optionId;
 
 		@JsonProperty
+		@JsonSetter(nulls = Nulls.FAIL)
 		private String displayName;
 
 		@JsonProperty
+		@JsonSetter(nulls = Nulls.FAIL)
 		private OfferStatus status;
 
 		@JsonProperty
+		@JsonSetter(nulls = Nulls.FAIL)
 		private SourceType sourceType;
 
 		@JsonProperty
-		private InventoryItemInput source;
+		@JsonSetter(nulls = Nulls.FAIL)
+		private UUID inventoryItemId;
 
 		@JsonProperty
+		@JsonSetter(nulls = Nulls.FAIL)
 		private BigDecimal quantity;
 
 		@JsonProperty
+		@JsonSetter(nulls = Nulls.FAIL)
 		private String unit;
 
 		public UUID optionId() {
@@ -495,38 +531,12 @@ public class CatalogOfferService {
 			return sourceType;
 		}
 
-		public InventoryItemInput source() {
-			return source;
+		public UUID inventoryItemId() {
+			return inventoryItemId;
 		}
 
 		public BigDecimal quantity() {
 			return quantity;
-		}
-
-		public String unit() {
-			return unit;
-		}
-
-	}
-
-	/** Inventory data received from the caller and stored with the menu option as a snapshot. */
-	public static class InventoryItemInput extends Input {
-
-		@JsonProperty
-		private UUID id;
-
-		@JsonProperty
-		private String name;
-
-		@JsonProperty
-		private String unit;
-
-		public UUID id() {
-			return id;
-		}
-
-		public String name() {
-			return name;
 		}
 
 		public String unit() {

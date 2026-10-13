@@ -54,6 +54,9 @@ services:
       SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USER:-menu}
       SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-menu}
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
+      # Host del microservicio externo de Inventario (incluye /api/v1).
+      INVENTORY_BASE_URL: ${INVENTORY_BASE_URL:-http://host.docker.internal:8081/api/v1}
+      INVENTORY_TOKEN: ${INVENTORY_TOKEN:-}
     ports:
       - "${API_PORT:-8080}:8080"
 

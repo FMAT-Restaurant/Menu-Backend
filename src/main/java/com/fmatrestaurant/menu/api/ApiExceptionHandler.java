@@ -15,6 +15,7 @@ import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
@@ -31,6 +32,7 @@ import com.fmatrestaurant.menu.domain.Image;
 import com.fmatrestaurant.menu.domain.InvalidCategoryException;
 import com.fmatrestaurant.menu.domain.InvalidFieldException;
 
+import tools.jackson.databind.exc.InvalidNullException;
 import tools.jackson.databind.exc.MismatchedInputException;
 
 /**
@@ -69,7 +71,8 @@ public class ApiExceptionHandler {
 					.map(reference -> "/" + (reference.getPropertyName() != null ? reference.getPropertyName()
 							: reference.getIndex()))
 					.collect(Collectors.joining());
-			return invalid(path, wrongTypeMessage(mismatch.getTargetType()));
+			return invalid(path, mismatch instanceof InvalidNullException ? "The value must not be null"
+					: wrongTypeMessage(mismatch.getTargetType()));
 		}
 		return invalid("/", "The request body is missing, is not valid JSON or has values of the wrong type");
 	}
@@ -115,6 +118,15 @@ public class ApiExceptionHandler {
 	@ExceptionHandler(DeletionNotAllowedException.class)
 	ResponseEntity<ErrorEnvelope> deletionNotAllowed(DeletionNotAllowedException e) {
 		return error(HttpStatus.CONFLICT, e.getMessage());
+	}
+
+	/**
+	 * Inventory could not confirm the articles (timeout, unavailable, access denied or an invalid answer),
+	 * so nothing was saved; the contract does not document this answer yet.
+	 */
+	@ExceptionHandler(RestClientException.class)
+	ResponseEntity<ErrorEnvelope> inventoryUnavailable() {
+		return error(HttpStatus.BAD_GATEWAY, "The Inventory service could not confirm the articles; try again later.");
 	}
 
 	@ExceptionHandler(MissingRequestHeaderException.class)
