@@ -150,7 +150,7 @@ public class CatalogEntryService {
 			entryRepository.delete(entry);
 			entryRepository.flush();
 		}
-		catch (DataIntegrityViolationException e) {
+		catch (DataIntegrityViolationException _) {
 			// An offer was added to the entry after its offers were read.
 			throw new DeletionNotAllowedException("The entry changed while it was being deleted; try again");
 		}
