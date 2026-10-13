@@ -155,9 +155,15 @@ class CatalogOfferApiIntegrationTest {
 		String individual = JsonPath.read(response, "$.data.id");
 		String family = create(offerBody("Family", "320"));
 		UUID otherEntry = entryRepository.save(new CatalogEntry(1L, "Lemonade", "Fresh", imageId, List.of())).getId();
-		createOffer(otherEntry, offerBody(null, "40"))
+		String untagged = JsonPath.read(createOffer(otherEntry, offerBody(null, "40"))
 				.andExpect(status().isCreated())
-				.andExpect(jsonPath("$.data.presentationTag").doesNotExist());
+				.andExpect(jsonPath("$.data.presentationTag").doesNotExist())
+				.andReturn().getResponse().getContentAsString(), "$.data.id");
+		// A missing tag is left out of both the detail and the summary.
+		mockMvc.perform(get(OFFERS + "/" + untagged)).andExpect(jsonPath("$.data.presentationTag").doesNotExist());
+		mockMvc.perform(get(OFFERS).param("entryId", otherEntry.toString()))
+				.andExpect(jsonPath("$.data[0].id").value(untagged))
+				.andExpect(jsonPath("$.data[0].presentationTag").doesNotExist());
 
 		mockMvc.perform(get(OFFERS + "/" + individual))
 				.andExpect(status().isOk())

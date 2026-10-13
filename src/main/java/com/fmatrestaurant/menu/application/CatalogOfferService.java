@@ -88,7 +88,8 @@ public class CatalogOfferService {
 			return offerRepository.saveAndFlush(offer);
 		}
 		catch (DataIntegrityViolationException _) {
-			// The entry was deleted after it was read.
+			// ponytail: the only constraint an offer can violate here is the foreign key to its entry, deleted
+			// after it was read; if another constraint is added, check which one failed instead of answering 404.
 			throw new CatalogEntryNotFoundException(entryId);
 		}
 	}
