@@ -23,6 +23,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fmatrestaurant.menu.application.CatalogEntryNotFoundException;
 import com.fmatrestaurant.menu.application.CatalogOfferNotFoundException;
 import com.fmatrestaurant.menu.application.CategoryNotFoundException;
+import com.fmatrestaurant.menu.application.DeletionNotAllowedException;
 import com.fmatrestaurant.menu.application.ImageNotFoundException;
 import com.fmatrestaurant.menu.application.StaleCatalogEntryException;
 import com.fmatrestaurant.menu.application.StaleCatalogOfferException;
@@ -108,6 +109,12 @@ public class ApiExceptionHandler {
 			OptimisticLockingFailureException.class })
 	ResponseEntity<ErrorEnvelope> stale() {
 		return error(HttpStatus.PRECONDITION_FAILED, "The resource has changed since it was read.");
+	}
+
+	/** The current state does not allow the deletion; the contract does not document this answer yet. */
+	@ExceptionHandler(DeletionNotAllowedException.class)
+	ResponseEntity<ErrorEnvelope> deletionNotAllowed(DeletionNotAllowedException e) {
+		return error(HttpStatus.CONFLICT, e.getMessage());
 	}
 
 	@ExceptionHandler(MissingRequestHeaderException.class)

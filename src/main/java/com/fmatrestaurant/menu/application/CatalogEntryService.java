@@ -8,6 +8,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -121,6 +122,38 @@ public class CatalogEntryService {
 		entry.update(brandName, description, existingImage(imageId),
 				categoryIds == null ? null : categories(categoryIds), status);
 		return entryRepository.saveAndFlush(entry);
+	}
+
+	/**
+	 * Deletes an archived entry together with its offers and what they own (slots and options). The
+	 * Inventory articles and the recipes they reference are not touched.
+	 *
+	 * @param expectedVersion the version the client read
+	 * @throws CatalogEntryNotFoundException if the entry does not exist
+	 * @throws StaleCatalogEntryException if the entry changed since the expected version
+	 * @throws DeletionNotAllowedException if the entry is not ARCHIVED
+	 */
+	@Transactional
+	public void delete(UUID id, long expectedVersion) {
+		CatalogEntry entry = entryRepository.findWithLockById(id)
+				.orElseThrow(() -> new CatalogEntryNotFoundException(id));
+		long currentVersion = entry.getVersion() == null ? 0 : entry.getVersion();
+		if (currentVersion != expectedVersion) {
+			throw new StaleCatalogEntryException(id);
+		}
+		if (entry.getStatus() != EntryStatus.ARCHIVED) {
+			throw new DeletionNotAllowedException("Only an ARCHIVED catalog entry can be deleted");
+		}
+		try {
+			offerRepository.deleteAll(offerRepository.findByEntryId(id));
+			offerRepository.flush();
+			entryRepository.delete(entry);
+			entryRepository.flush();
+		}
+		catch (DataIntegrityViolationException _) {
+			// An offer was added to the entry after its offers were read.
+			throw new DeletionNotAllowedException("The entry changed while it was being deleted; try again");
+		}
 	}
 
 	/** Not transactional: it runs in the transaction of the caller. */

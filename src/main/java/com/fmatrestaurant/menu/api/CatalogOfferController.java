@@ -10,6 +10,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -74,6 +75,14 @@ public class CatalogOfferController {
 			@RequestHeader(HttpHeaders.IF_MATCH) String ifMatch, @RequestBody OfferInput request) {
 		CatalogOffer offer = offerService.update(offerId, Revisions.strongVersion(ifMatch), request);
 		return ResponseEntity.ok().eTag(etag(offer)).body(new DataResponse<>(OfferDetail.of(offer)));
+	}
+
+	/** Deletes an INACTIVE offer; when the preconditions are not met, it answers 409. */
+	@DeleteMapping("/offers/{offerId}")
+	public ResponseEntity<Void> delete(@PathVariable UUID offerId,
+			@RequestHeader(HttpHeaders.IF_MATCH) String ifMatch) {
+		offerService.delete(offerId, Revisions.strongVersion(ifMatch));
+		return ResponseEntity.noContent().build();
 	}
 
 	/** Strong, as the contract requires for If-Match; it changes with every change of the composition. */

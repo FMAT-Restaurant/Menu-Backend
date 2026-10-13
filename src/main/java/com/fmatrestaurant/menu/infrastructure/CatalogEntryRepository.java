@@ -4,11 +4,13 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -17,12 +19,20 @@ import com.fmatrestaurant.menu.domain.CatalogEntry;
 import com.fmatrestaurant.menu.domain.Category;
 import com.fmatrestaurant.menu.domain.EntryStatus;
 
+import jakarta.persistence.LockModeType;
 import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
 
 public interface CatalogEntryRepository extends JpaRepository<CatalogEntry, UUID>,
 		JpaSpecificationExecutor<CatalogEntry> {
+
+	/**
+	 * Loads the entry and locks its row until the end of the transaction, so the deletions of an entry
+	 * and of its offers are checked one at a time.
+	 */
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	Optional<CatalogEntry> findWithLockById(UUID id);
 
 	/** Counts distinct entries in the menu for each requested category. */
 	@Query("""

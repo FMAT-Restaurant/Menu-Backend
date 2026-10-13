@@ -21,6 +21,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fmatrestaurant.menu.domain.CatalogEntry;
 import com.fmatrestaurant.menu.domain.CatalogOffer;
 import com.fmatrestaurant.menu.domain.CompositionSlot;
+import com.fmatrestaurant.menu.domain.EntryStatus;
 import com.fmatrestaurant.menu.domain.InvalidFieldException;
 import com.fmatrestaurant.menu.domain.InventoryItem;
 import com.fmatrestaurant.menu.domain.OfferStatus;
@@ -124,6 +125,56 @@ public class CatalogOfferService {
 			offer.changeStatus(input.status());
 		}
 		return offerRepository.saveAndFlush(offer);
+	}
+
+	/**
+	 * Deletes an inactive offer, with its slots and options. If its entry is ACTIVE, the entry must keep
+	 * at least one other ACTIVE offer; this is checked even though the offer is already inactive.
+	 *
+	 * <p>The entry row stays locked while the preconditions are checked, so two deletions of offers of
+	 * the same entry cannot both rely on an eligibility that the other one removes.
+	 *
+	 * @param expectedVersion the version the client read
+	 * @throws CatalogOfferNotFoundException if the offer does not exist
+	 * @throws StaleCatalogOfferException if the offer changed since the expected version
+	 * @throws DeletionNotAllowedException if the offer is ACTIVE, or the entry would be left ACTIVE
+	 *         without an ACTIVE offer
+	 */
+	@Transactional
+	public void delete(UUID id, long expectedVersion) {
+		UUID entryId = offerRepository.findEntryIdById(id).orElseThrow(() -> new CatalogOfferNotFoundException(id));
+		CatalogEntry entry = entryRepository.findWithLockById(entryId)
+				.orElseThrow(() -> new CatalogOfferNotFoundException(id));
+		CatalogOffer offer = offerRepository.findForDeletionById(id)
+				.orElseThrow(() -> new CatalogOfferNotFoundException(id));
+		long currentVersion = offer.getVersion() == null ? 0 : offer.getVersion();
+		if (currentVersion != expectedVersion) {
+			throw new StaleCatalogOfferException(id);
+		}
+		if (offer.getStatus() != OfferStatus.INACTIVE) {
+			throw new DeletionNotAllowedException("Only an INACTIVE offer can be deleted");
+		}
+		if (entry.getStatus() == EntryStatus.ACTIVE) {
+			requireAnotherActiveOffer(entryId, id);
+		}
+		offerRepository.delete(offer);
+		offerRepository.flush();
+	}
+
+	/**
+	 * Checks that another offer of the entry is ACTIVE. The version of that offer is incremented, and its row
+	 * stays locked, so a concurrent change based on its previous version, such as inactivating it, is
+	 * rejected instead of leaving the entry without an ACTIVE offer once this one is deleted.
+	 */
+	private void requireAnotherActiveOffer(UUID entryId, UUID deletedOfferId) {
+		CatalogOffer active = offerRepository.findByEntryId(entryId).stream()
+				.filter(other -> !other.getId().equals(deletedOfferId) && other.getStatus() == OfferStatus.ACTIVE)
+				.findFirst()
+				.orElseThrow(() -> new DeletionNotAllowedException(
+						"An ACTIVE entry must keep at least one other ACTIVE offer; inactivate or archive the entry first"));
+		if (offerRepository.incrementVersion(active.getId(), active.getVersion()) != 1) {
+			throw new DeletionNotAllowedException("The offers of the entry changed while the deletion was checked; try again");
+		}
 	}
 
 	/**
