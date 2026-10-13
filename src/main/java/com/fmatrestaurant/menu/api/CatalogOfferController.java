@@ -91,7 +91,7 @@ public class CatalogOfferController {
 	}
 
 	public record OfferSummary(UUID id, UUID entryId, String entryName,
-			@JsonInclude(NON_NULL) String presentationTag, BigDecimal basePrice, OfferStatus status,
+			String presentationTag, BigDecimal basePrice, OfferStatus status,
 			ImageResponse image, int slotCount) {
 
 		static OfferSummary of(CatalogOffer offer) {
@@ -102,7 +102,7 @@ public class CatalogOfferController {
 
 	}
 
-	public record OfferDetail(UUID id, UUID entryId, @JsonInclude(NON_NULL) String presentationTag,
+	public record OfferDetail(UUID id, UUID entryId, String presentationTag,
 			BigDecimal basePrice, OfferStatus status, ImageResponse image, Composition composition) {
 
 		static OfferDetail of(CatalogOffer offer) {

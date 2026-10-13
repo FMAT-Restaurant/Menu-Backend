@@ -27,8 +27,6 @@ class CatalogOfferTest {
 		assertEquals(new BigDecimal("180.50"), offer.getBasePrice());
 		assertEquals(imageId, offer.getImageId());
 		assertEquals(entry, offer.getEntry());
-		assertNull(new CatalogOffer(entry, " ", BigDecimal.ZERO, imageId, List.of(slot(OfferStatus.ACTIVE)))
-				.getPresentationTag());
 	}
 
 	@Test
@@ -36,12 +34,14 @@ class CatalogOfferTest {
 		UUID imageId = UUID.randomUUID();
 		List<CompositionSlot> slots = List.of(slot(OfferStatus.ACTIVE));
 
-		assertPath("/basePrice", () -> new CatalogOffer(entry, null, null, imageId, slots));
-		assertPath("/basePrice", () -> new CatalogOffer(entry, null, new BigDecimal("-1"), imageId, slots));
-		assertPath("/imageId", () -> new CatalogOffer(entry, null, BigDecimal.ONE, null, slots));
-		assertPath("/entryId", () -> new CatalogOffer(null, null, BigDecimal.ONE, imageId, slots));
-		assertPath("/composition/slots", () -> new CatalogOffer(entry, null, BigDecimal.ONE, imageId, List.of()));
+		assertPath("/basePrice", () -> new CatalogOffer(entry, "Combo", null, imageId, slots));
+		assertPath("/basePrice", () -> new CatalogOffer(entry, "Combo", new BigDecimal("-1"), imageId, slots));
+		assertPath("/imageId", () -> new CatalogOffer(entry, "Combo", BigDecimal.ONE, null, slots));
+		assertPath("/entryId", () -> new CatalogOffer(null, "Combo", BigDecimal.ONE, imageId, slots));
+		assertPath("/composition/slots", () -> new CatalogOffer(entry, "Combo", BigDecimal.ONE, imageId, List.of()));
 		assertPath("/presentationTag", () -> new CatalogOffer(entry, "x".repeat(256), BigDecimal.ONE, imageId, slots));
+		assertPath("/presentationTag", () -> new CatalogOffer(entry, null, BigDecimal.ONE, imageId, slots));
+		assertPath("/presentationTag", () -> new CatalogOffer(entry, " ", BigDecimal.ONE, imageId, slots));
 	}
 
 	@Test
@@ -106,9 +106,9 @@ class CatalogOfferTest {
 		assertEquals("Combo", offer.getPresentationTag());
 		assertEquals(BigDecimal.TEN, offer.getBasePrice());
 
-		offer.update("", BigDecimal.ONE, null);
-		assertNull(offer.getPresentationTag());
-		assertEquals(BigDecimal.ONE, offer.getBasePrice());
+		assertPath("/presentationTag", () -> offer.update(" ", BigDecimal.ONE, null));
+		assertEquals("Combo", offer.getPresentationTag());
+		assertEquals(BigDecimal.TEN, offer.getBasePrice());
 	}
 
 	@Test
@@ -185,7 +185,7 @@ class CatalogOfferTest {
 	}
 
 	private CatalogOffer offer(CompositionSlot slot) {
-		return new CatalogOffer(entry, null, BigDecimal.TEN, UUID.randomUUID(), List.of(slot));
+		return new CatalogOffer(entry, "Individual", BigDecimal.TEN, UUID.randomUUID(), List.of(slot));
 	}
 
 	private static CompositionSlot slot(OfferStatus optionStatus) {

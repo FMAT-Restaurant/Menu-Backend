@@ -155,15 +155,7 @@ class CatalogOfferApiIntegrationTest {
 		String individual = JsonPath.read(response, "$.data.id");
 		String family = create(offerBody("Family", "320"));
 		UUID otherEntry = entryRepository.save(new CatalogEntry(1L, "Lemonade", "Fresh", imageId, List.of())).getId();
-		String untagged = JsonPath.read(createOffer(otherEntry, offerBody(null, "40"))
-				.andExpect(status().isCreated())
-				.andExpect(jsonPath("$.data.presentationTag").doesNotExist())
-				.andReturn().getResponse().getContentAsString(), "$.data.id");
-		// A missing tag is left out of both the detail and the summary.
-		mockMvc.perform(get(OFFERS + "/" + untagged)).andExpect(jsonPath("$.data.presentationTag").doesNotExist());
-		mockMvc.perform(get(OFFERS).param("entryId", otherEntry.toString()))
-				.andExpect(jsonPath("$.data[0].id").value(untagged))
-				.andExpect(jsonPath("$.data[0].presentationTag").doesNotExist());
+		createOffer(otherEntry, offerBody("Glass", "40")).andExpect(status().isCreated());
 
 		mockMvc.perform(get(OFFERS + "/" + individual))
 				.andExpect(status().isOk())
@@ -177,6 +169,7 @@ class CatalogOfferApiIntegrationTest {
 				.andExpect(jsonPath("$.data[*].presentationTag", contains("Family", "Individual")))
 				.andExpect(jsonPath("$.data[0].id").value(family))
 				.andExpect(jsonPath("$.data[0].entryName").value("Hawaiian burger"))
+				.andExpect(jsonPath("$.data[0].presentationTag").value("Family"))
 				.andExpect(jsonPath("$.data[0].slotCount").value(1))
 				.andExpect(jsonPath("$.data[0].status").value("INACTIVE"))
 				.andExpect(jsonPath("$.meta.total").value(2));
@@ -209,6 +202,10 @@ class CatalogOfferApiIntegrationTest {
 				{"basePrice": 10, "imageId": "%s", "composition": {"slots": null}}""".formatted(imageId)),
 				"/composition/slots");
 		expectViolation(createOffer(entryId, offerBody("Individual", "-1")), "/basePrice");
+		// The tag is required: missing, blank or null are rejected.
+		expectViolation(createOffer(entryId, offerBody("Individual", "180").replace("\"presentationTag\": \"Individual\", ",
+				"")), "/presentationTag");
+		expectViolation(createOffer(entryId, offerBody(" ", "180")), "/presentationTag");
 		expectViolation(createOffer(entryId, offerWith(option(POTATOES.id(), "g")
 				.replace("\"inventoryItemId\": \"" + POTATOES.id() + "\", ", ""))),
 				"/composition/slots/0/options/0/inventoryItemId");
@@ -443,6 +440,8 @@ class CatalogOfferApiIntegrationTest {
 				"/composition/slots/0/options");
 		expectRejected(id, etag, "{\"presentationTag\": \"Changed\", \"composition\": null}", "/composition");
 		expectRejected(id, etag, "{\"presentationTag\": \"Changed\", \"basePrice\": null}", "/basePrice");
+		expectRejected(id, etag, "{\"presentationTag\": \"  \"}", "/presentationTag");
+		expectRejected(id, etag, "{\"presentationTag\": null}", "/presentationTag");
 		expectRejected(id, etag, "{\"presentationTag\": \"Changed\", \"imageId\": null}", "/imageId");
 		expectRejected(id, etag, "{\"presentationTag\": \"Changed\", \"entryId\": \"" + entryId + "\"}", "/entryId");
 		expectRejected(id, etag, "{\"composition\": {\"extra\": 1}}", "/composition/extra");
@@ -620,11 +619,10 @@ class CatalogOfferApiIntegrationTest {
 
 	/** Shaped like the contract example of POST: the server assigns every id and status. */
 	private String offerBody(String tag, String price) {
-		String tagField = tag == null ? "" : "\"presentationTag\": \"" + tag + "\", ";
 		return """
-				{%s"basePrice": %s, "imageId": "%s", "composition": {"slots": [
+				{"presentationTag": "%s", "basePrice": %s, "imageId": "%s", "composition": {"slots": [
 				  {"name": "Side", "quantity": 1, "course": "entrada", "options": [%s]}]}}
-				""".formatted(tagField, price, imageId, option(POTATOES.id(), "g"));
+				""".formatted(tag, price, imageId, option(POTATOES.id(), "g"));
 	}
 
 	private String offerWith(String... options) {

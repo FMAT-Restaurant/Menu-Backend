@@ -21,7 +21,7 @@ import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 
 /**
- * Sellable presentation of a catalog entry (BR-MENU-005). It has its own optional presentation
+ * Sellable presentation of a catalog entry (BR-MENU-005). It has its own required presentation
  * tag, base price (BR-MENU-007), image and composition of one or more slots (BR-MENU-006).
  *
  * <p>Its status is derived: ACTIVE only while an administrator enabled it and at least one slot is
@@ -47,7 +47,7 @@ public class CatalogOffer {
 	@JoinColumn(name = "entry_id", nullable = false)
 	private CatalogEntry entry;
 
-	@Column(name = "presentation_tag", length = PRESENTATION_TAG_MAX_LENGTH)
+	@Column(name = "presentation_tag", nullable = false, length = PRESENTATION_TAG_MAX_LENGTH)
 	private String presentationTag;
 
 	// ponytail: OPEN-001 leaves currency, precision and rounding open, so the price is kept as sent.
@@ -73,7 +73,6 @@ public class CatalogOffer {
 	/**
 	 * Creates an offer of the entry. Every new offer starts {@link OfferStatus#INACTIVE}.
 	 *
-	 * @param presentationTag optional; blank means no tag
 	 * @throws InvalidFieldException if a value is missing or invalid, or there are no slots
 	 */
 	public CatalogOffer(CatalogEntry entry, String presentationTag, BigDecimal basePrice, UUID imageId,
@@ -95,8 +94,8 @@ public class CatalogOffer {
 	}
 
 	/**
-	 * Applies the given changes; a {@code null} value keeps the current one and a blank tag removes
-	 * it. If any value is invalid, nothing is modified.
+	 * Applies the given changes; a {@code null} value keeps the current one. If any value is invalid,
+	 * nothing is modified.
 	 *
 	 * @throws InvalidFieldException if a value is invalid
 	 */
@@ -148,9 +147,6 @@ public class CatalogOffer {
 	}
 
 	private static String presentationTag(String tag) {
-		if (tag == null || tag.isBlank()) {
-			return null;
-		}
 		return Fields.text("/presentationTag", "presentation tag", tag, PRESENTATION_TAG_MAX_LENGTH);
 	}
 
