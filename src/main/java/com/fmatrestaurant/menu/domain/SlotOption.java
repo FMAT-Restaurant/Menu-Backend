@@ -15,7 +15,7 @@ import jakarta.persistence.Table;
 /**
  * Contextual appearance of a content inside a slot (BR-MENU-012, BR-MENU-015). It has exactly one
  * content source (BR-MENU-017); for now only direct Inventory content, with a positive quantity
- * and a unit compatible with the article (BR-MENU-018, INV-MENU-005).
+ * and a unit compatible with the article as Inventory returned it (BR-MENU-018, INV-MENU-005).
  *
  * <p>The quantity is the physical amount of the article, not the selection rounds of the slot
  * (BR-MENU-010).
@@ -51,7 +51,7 @@ public class SlotOption {
 	@Column(name = "inventory_item_id", nullable = false)
 	private UUID inventoryItemId;
 
-	/** Name of the article when it was referenced, so reads do not depend on Inventory. */
+	/** Name of the article as Inventory returned it when it was referenced. */
 	@Column(name = "source_name", nullable = false, length = SOURCE_NAME_MAX_LENGTH)
 	private String sourceName;
 
@@ -67,7 +67,7 @@ public class SlotOption {
 	}
 
 	/**
-	 * Creates an option whose content is the Inventory item data received by Menu.
+	 * Creates an option whose content is the Inventory article, as Inventory returned it.
 	 *
 	 * @throws InvalidFieldException if a value is missing or invalid, or the unit is not the one of the article
 	 */
@@ -76,7 +76,7 @@ public class SlotOption {
 			throw new InvalidFieldException("/status", "The option status is required");
 		}
 		if (item == null) {
-			throw new InvalidFieldException("/source", "The inventory item data is required");
+			throw new InvalidFieldException("/inventoryItemId", "The inventory item is required");
 		}
 		this.displayName = Fields.text("/displayName", "option display name", displayName, DISPLAY_NAME_MAX_LENGTH);
 		this.quantity = quantity(quantity);
@@ -88,9 +88,9 @@ public class SlotOption {
 	}
 
 	/**
-	 * Applies the given changes; a {@code null} value keeps the current one. A new article includes
-	 * its received data so Menu can keep the source snapshot and check unit compatibility locally.
-	 * If any value is invalid, nothing is modified.
+	 * Applies the given changes; a {@code null} value keeps the current one. When the article or the
+	 * unit change, {@code item} is the article as Inventory returned it, so the unit is checked against
+	 * its current unit. If any value is invalid, nothing is modified.
 	 *
 	 * @throws InvalidFieldException if a value is invalid or the unit is not the one of the article
 	 */
@@ -131,20 +131,20 @@ public class SlotOption {
 
 	private static UUID itemId(InventoryItem item) {
 		if (item.id() == null) {
-			throw new InvalidFieldException("/source/id", "The inventory item id is required");
+			throw new InvalidFieldException("/inventoryItemId", "The inventory item id is required");
 		}
 		return item.id();
 	}
 
 	private static String itemName(InventoryItem item) {
-		return Fields.text("/source/name", "inventory item name", item.name(), SOURCE_NAME_MAX_LENGTH);
+		return Fields.text("/inventoryItemId", "inventory item name", item.name(), SOURCE_NAME_MAX_LENGTH);
 	}
 
 	private static String itemUnit(InventoryItem item) {
-		return Fields.text("/source/unit", "inventory item unit", item.unit(), UNIT_MAX_LENGTH);
+		return Fields.text("/inventoryItemId", "inventory item unit", item.unit(), UNIT_MAX_LENGTH);
 	}
 
-	/** OPEN-006 defines no conversions, so the option unit must match the received item's unit. */
+	/** OPEN-006 defines no conversions, so the option unit must match the unit of the article. */
 	private static String unit(String unit, String itemUnit) {
 		String value = Fields.text("/unit", "unit", unit, UNIT_MAX_LENGTH);
 		if (!value.equals(itemUnit)) {

@@ -78,7 +78,7 @@ public class CatalogEntryController {
 	@PatchMapping("/{entryId}")
 	public ResponseEntity<DataResponse<CatalogEntryDetail>> update(@PathVariable UUID entryId,
 			@RequestHeader(HttpHeaders.IF_MATCH) String ifMatch, @RequestBody CatalogEntryRequest request) {
-		CatalogEntry entry = entryService.update(entryId, Revisions.version(ifMatch), request.brandName(),
+		CatalogEntry entry = entryService.update(entryId, Revisions.strongVersion(ifMatch), request.brandName(),
 				request.description(), request.status(), request.categoryIds(), request.imageId());
 		return ResponseEntity.ok().eTag(etag(entry)).body(new DataResponse<>(CatalogEntryDetail.of(entry)));
 	}
@@ -87,12 +87,13 @@ public class CatalogEntryController {
 	@DeleteMapping("/{entryId}")
 	public ResponseEntity<Void> delete(@PathVariable UUID entryId,
 			@RequestHeader(HttpHeaders.IF_MATCH) String ifMatch) {
-		entryService.delete(entryId, Revisions.version(ifMatch));
+		entryService.delete(entryId, Revisions.strongVersion(ifMatch));
 		return ResponseEntity.noContent().build();
 	}
 
+	/** Strong, as the contract requires for If-Match. */
 	private static String etag(CatalogEntry entry) {
-		return Revisions.weak(entry.getVersion());
+		return Revisions.strong(entry.getVersion());
 	}
 
 	/** Body of POST and PATCH; on PATCH, missing values keep the current ones. */

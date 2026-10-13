@@ -45,7 +45,7 @@ public class CatalogOfferController {
 		this.offerService = offerService;
 	}
 
-	/** The initial status is always INACTIVE and the server assigns every id. */
+	/** The initial status is always INACTIVE, its options start ACTIVE and the server assigns every id. */
 	@PostMapping("/entries/{entryId}/offers")
 	public ResponseEntity<DataResponse<OfferDetail>> create(@PathVariable UUID entryId,
 			@RequestBody OfferInput request) {
@@ -117,32 +117,31 @@ public class CatalogOfferController {
 	}
 
 	/**
-	 * Every slot takes part in the selection, so {@code required} is always {@code true}. A missing
-	 * course is left out, as the contract types it as a string.
+	 * The derived status is always included, as PATCH requires it. A missing course is left out, as the
+	 * contract types it as a string.
 	 */
-	public record Slot(UUID slotId, String name, boolean required, OfferStatus status, int quantity,
+	public record Slot(UUID slotId, String name, OfferStatus status, int quantity,
 			@JsonInclude(NON_NULL) String course, List<Option> options) {
 
 		static Slot of(CompositionSlot slot) {
-			return new Slot(slot.getId(), slot.getName(), true, slot.getStatus(), slot.getQuantity(), slot.getCourse(),
+			return new Slot(slot.getId(), slot.getName(), slot.getStatus(), slot.getQuantity(), slot.getCourse(),
 					slot.getOptions().stream().map(Option::of).toList());
 		}
 
 	}
 
-	public record Option(UUID optionId, SourceType sourceType, UUID recipeId, UUID inventoryItemId, OfferStatus status,
-			String displayName, BigDecimal quantity, String unit, Source source) {
+	/**
+	 * An INVENTORY_ITEM option ({@code additionalProperties: false}): only the fields of its source type.
+	 * The status is always included, as PATCH requires it.
+	 */
+	public record Option(UUID optionId, SourceType sourceType, UUID inventoryItemId, BigDecimal quantity, String unit,
+			OfferStatus status, String displayName) {
 
 		static Option of(SlotOption option) {
-			return new Option(option.getId(), option.getSourceType(), null, option.getInventoryItemId(),
-					option.getStatus(), option.getDisplayName(), option.getQuantity(), option.getUnit(),
-					new Source(option.getInventoryItemId(), option.getSourceName()));
+			return new Option(option.getId(), option.getSourceType(), option.getInventoryItemId(),
+					option.getQuantity(), option.getUnit(), option.getStatus(), option.getDisplayName());
 		}
 
-	}
-
-	/** Read-only reference to the content source. */
-	public record Source(UUID id, String name) {
 	}
 
 	public record OfferListResponse(List<OfferSummary> data, PageMeta meta) {

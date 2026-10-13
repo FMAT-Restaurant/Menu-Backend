@@ -108,7 +108,7 @@ class CatalogEntryApiIntegrationTest {
 	void createsAnInactiveEntryWithItsImageAndCategories() throws Exception {
 		String location = createEntry(body("Hawaiian burger", imageId, burgers, burgers, drinks))
 				.andExpect(status().isCreated())
-				.andExpect(header().string(HttpHeaders.ETAG, "W/\"rev-0\""))
+				.andExpect(header().string(HttpHeaders.ETAG, "\"rev-0\""))
 				.andExpect(jsonPath("$.data.brandName").value("Hawaiian burger"))
 				.andExpect(jsonPath("$.data.description").value("Tasty"))
 				.andExpect(jsonPath("$.data.status").value("INACTIVE"))
@@ -121,7 +121,7 @@ class CatalogEntryApiIntegrationTest {
 
 		mockMvc.perform(get(ENTRIES + "/" + id))
 				.andExpect(status().isOk())
-				.andExpect(header().string(HttpHeaders.ETAG, "W/\"rev-0\""))
+				.andExpect(header().string(HttpHeaders.ETAG, "\"rev-0\""))
 				.andExpect(jsonPath("$.data.status").value("INACTIVE"))
 				.andExpect(jsonPath("$.data.categoryIds", hasSize(2)));
 		mockMvc.perform(get(IMAGES + "/" + imageId))
@@ -193,20 +193,20 @@ class CatalogEntryApiIntegrationTest {
 		String id = create("Burger", burgers);
 		UUID newImage = upload(png(30, 30));
 
-		patchEntry(id, "W/\"rev-0\"", "{\"description\": \"New\", \"categoryIds\": [\"" + drinks + "\"]}")
+		patchEntry(id, "\"rev-0\"", "{\"description\": \"New\", \"categoryIds\": [\"" + drinks + "\"]}")
 				.andExpect(status().isOk())
-				.andExpect(header().string(HttpHeaders.ETAG, "W/\"rev-1\""))
+				.andExpect(header().string(HttpHeaders.ETAG, "\"rev-1\""))
 				.andExpect(jsonPath("$.data.brandName").value("Burger"))
 				.andExpect(jsonPath("$.data.description").value("New"))
 				.andExpect(jsonPath("$.data.status").value("INACTIVE"))
 				.andExpect(jsonPath("$.data.image.id").value(imageId.toString()))
 				.andExpect(jsonPath("$.data.categoryIds", contains(drinks.toString())));
-		patchEntry(id, "W/\"rev-1\"", "{\"imageId\": \"" + newImage + "\"}")
+		patchEntry(id, "\"rev-1\"", "{\"imageId\": \"" + newImage + "\"}")
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.image.id").value(newImage.toString()))
 				.andExpect(jsonPath("$.data.description").value("New"))
 				.andExpect(jsonPath("$.data.categoryIds", contains(drinks.toString())));
-		patchEntry(id, "W/\"rev-2\"", "{\"categoryIds\": []}")
+		patchEntry(id, "\"rev-2\"", "{\"categoryIds\": []}")
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.categoryIds", hasSize(0)));
 	}
@@ -215,17 +215,17 @@ class CatalogEntryApiIntegrationTest {
 	void rejectedPatchLeavesTheEntryUnchanged() throws Exception {
 		String id = create("Burger", burgers);
 
-		patchEntry(id, "W/\"rev-0\"", "{\"brandName\": \"New\", \"imageId\": \"" + UUID.randomUUID() + "\"}")
+		patchEntry(id, "\"rev-0\"", "{\"brandName\": \"New\", \"imageId\": \"" + UUID.randomUUID() + "\"}")
 				.andExpect(status().isUnprocessableContent())
 				.andExpect(jsonPath(VIOLATION_PATH).value("/imageId"));
-		patchEntry(id, "W/\"rev-0\"", "{\"brandName\": \"New\", \"categoryIds\": [\"" + foreign + "\"]}")
+		patchEntry(id, "\"rev-0\"", "{\"brandName\": \"New\", \"categoryIds\": [\"" + foreign + "\"]}")
 				.andExpect(status().isUnprocessableContent())
 				.andExpect(jsonPath(VIOLATION_PATH).value("/categoryIds"));
-		patchEntry(id, "W/\"rev-0\"", "{\"brandName\": \"New\", \"status\": \"DELETED\"}")
+		patchEntry(id, "\"rev-0\"", "{\"brandName\": \"New\", \"status\": \"DELETED\"}")
 				.andExpect(status().isUnprocessableContent());
 
 		mockMvc.perform(get(ENTRIES + "/" + id))
-				.andExpect(header().string(HttpHeaders.ETAG, "W/\"rev-0\""))
+				.andExpect(header().string(HttpHeaders.ETAG, "\"rev-0\""))
 				.andExpect(jsonPath("$.data.brandName").value("Burger"))
 				.andExpect(jsonPath("$.data.image.id").value(imageId.toString()))
 				.andExpect(jsonPath("$.data.categoryIds", contains(burgers.toString())));
@@ -258,18 +258,23 @@ class CatalogEntryApiIntegrationTest {
 	void concurrentChangesNeedTheCurrentEtag() throws Exception {
 		String id = create("Burger", burgers);
 
-		patchEntry(id, "W/\"rev-0\"", "{\"brandName\": \"First\"}").andExpect(status().isOk());
-		patchEntry(id, "W/\"rev-0\"", "{\"brandName\": \"Second\"}")
+		patchEntry(id, "\"rev-0\"", "{\"brandName\": \"First\"}").andExpect(status().isOk());
+		patchEntry(id, "\"rev-0\"", "{\"brandName\": \"Second\"}")
 				.andExpect(status().isPreconditionFailed())
 				.andExpect(jsonPath("$.error.message").exists());
 		patchEntry(id, "\"something else\"", "{\"brandName\": \"Third\"}")
+				.andExpect(status().isPreconditionFailed());
+		// The comparison is strong: a weak validator of the current revision does not match.
+		patchEntry(id, "W/\"rev-1\"", "{\"brandName\": \"Third\"}")
+				.andExpect(status().isPreconditionFailed());
+		patchEntry(id, "\"rev-9223372036854775808\"", "{\"brandName\": \"Third\"}")
 				.andExpect(status().isPreconditionFailed());
 		mockMvc.perform(patch(ENTRIES + "/" + id).contentType(MediaType.APPLICATION_JSON)
 				.content("{\"brandName\": \"Fourth\"}"))
 				.andExpect(status().isPreconditionRequired());
 
 		mockMvc.perform(get(ENTRIES + "/" + id))
-				.andExpect(header().string(HttpHeaders.ETAG, "W/\"rev-1\""))
+				.andExpect(header().string(HttpHeaders.ETAG, "\"rev-1\""))
 				.andExpect(jsonPath("$.data.brandName").value("First"));
 	}
 
@@ -289,7 +294,7 @@ class CatalogEntryApiIntegrationTest {
 			entryRepository.findById(id).orElseThrow();
 			fastRequest.executeWithoutResult(_ -> entryService.update(id, 0, "First", null, null, null, null));
 			try {
-				patchEntry(id.toString(), "W/\"rev-0\"", "{\"brandName\": \"Second\"}")
+				patchEntry(id.toString(), "\"rev-0\"", "{\"brandName\": \"Second\"}")
 						.andExpect(status().isPreconditionFailed())
 						.andExpect(jsonPath("$.error.message").exists());
 			} catch (Exception e) {
@@ -299,7 +304,7 @@ class CatalogEntryApiIntegrationTest {
 		});
 
 		mockMvc.perform(get(ENTRIES + "/" + id))
-				.andExpect(header().string(HttpHeaders.ETAG, "W/\"rev-1\""))
+				.andExpect(header().string(HttpHeaders.ETAG, "\"rev-1\""))
 				.andExpect(jsonPath("$.data.brandName").value("First"));
 	}
 
@@ -307,10 +312,10 @@ class CatalogEntryApiIntegrationTest {
 	void patchWithoutRealChangesKeepsTheVersion() throws Exception {
 		String id = create("Burger", burgers);
 
-		patchEntry(id, "W/\"rev-0\"", "{\"status\": \"INACTIVE\", \"categoryIds\": [\"" + burgers + "\", \""
+		patchEntry(id, "\"rev-0\"", "{\"status\": \"INACTIVE\", \"categoryIds\": [\"" + burgers + "\", \""
 				+ burgers + "\"]}")
 				.andExpect(status().isOk())
-				.andExpect(header().string(HttpHeaders.ETAG, "W/\"rev-0\""))
+				.andExpect(header().string(HttpHeaders.ETAG, "\"rev-0\""))
 				.andExpect(jsonPath("$.data.categoryIds", contains(burgers.toString())));
 	}
 
@@ -340,7 +345,7 @@ class CatalogEntryApiIntegrationTest {
 				.andExpect(status().isNotFound())
 				.andExpect(jsonPath("$.error.message").exists());
 		mockMvc.perform(get(ENTRIES + "/not-a-uuid")).andExpect(status().isNotFound());
-		patchEntry(UUID.randomUUID().toString(), "W/\"rev-0\"", "{}").andExpect(status().isNotFound());
+		patchEntry(UUID.randomUUID().toString(), "\"rev-0\"", "{}").andExpect(status().isNotFound());
 		mockMvc.perform(get(IMAGES + "/" + UUID.randomUUID())).andExpect(status().isNotFound());
 	}
 
@@ -413,7 +418,7 @@ class CatalogEntryApiIntegrationTest {
 	}
 
 	private ResultActions changeStatus(String id, int version, String status) throws Exception {
-		return patchEntry(id, "W/\"rev-" + version + "\"", "{\"status\": \"" + status + "\"}");
+		return patchEntry(id, "\"rev-" + version + "\"", "{\"status\": \"" + status + "\"}");
 	}
 
 	private UUID upload(byte[] png) throws Exception {
