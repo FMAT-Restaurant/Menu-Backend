@@ -20,7 +20,9 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import javax.imageio.ImageIO;
 
@@ -467,7 +469,11 @@ class CatalogDeletionApiIntegrationTest {
 				throw new AssertionError("The concurrent request did not wait for the locks of the deletion");
 			}
 			try {
-				Thread.sleep(10);
+				// Waits a moment for the request itself; finishing before it is blocked fails above.
+				request.get(10, TimeUnit.MILLISECONDS);
+			}
+			catch (TimeoutException | ExecutionException _) {
+				// Still running, or failed: checked again above.
 			}
 			catch (InterruptedException e) {
 				Thread.currentThread().interrupt();

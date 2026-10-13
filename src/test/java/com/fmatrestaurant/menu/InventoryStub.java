@@ -5,12 +5,12 @@ import java.io.UncheckedIOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
-import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
@@ -30,7 +30,7 @@ public final class InventoryStub {
 	/** One server for every suite; each test resets it. */
 	public static final InventoryStub INSTANCE = new InventoryStub();
 
-	/** Shorter than the delay of {@link #answerSlowly()}, so a slow answer is a timeout. */
+	/** A slow answer waits until the next {@link #reset()}, so it always exceeds this timeout. */
 	private static final String TIMEOUT = "1s";
 
 	private final HttpServer server;
@@ -43,7 +43,8 @@ public final class InventoryStub {
 
 	private volatile String failureBody;
 
-	private volatile boolean slow;
+	/** Open (count 0) while requests are answered right away; {@link #answerSlowly()} closes it. */
+	private volatile CountDownLatch slowAnswers = new CountDownLatch(0);
 
 	private InventoryStub() {
 		try {
@@ -69,7 +70,8 @@ public final class InventoryStub {
 		items.clear();
 		requests.clear();
 		failureStatus = 0;
-		slow = false;
+		// Also releases the slow answers still waiting, so they do not outlive their test.
+		slowAnswers.countDown();
 	}
 
 	public InventoryItem add(String name, String unit) {
@@ -87,9 +89,9 @@ public final class InventoryStub {
 		failureBody = body;
 	}
 
-	/** Every following request is answered after the timeout of the client. */
+	/** Every following request waits until the next {@link #reset()}, after the timeout of the client. */
 	public void answerSlowly() {
-		slow = true;
+		slowAnswers = new CountDownLatch(1);
 	}
 
 	/** Method, path and query of each request received, in order. */
@@ -105,12 +107,10 @@ public final class InventoryStub {
 		String query = exchange.getRequestURI().getRawQuery();
 		requests.add(exchange.getRequestMethod() + " " + exchange.getRequestURI().getPath()
 				+ (query == null ? "" : "?" + query));
-		if (slow) {
-			try {
-				Thread.sleep(Duration.ofSeconds(2));
-			} catch (InterruptedException _) {
-				Thread.currentThread().interrupt();
-			}
+		try {
+			slowAnswers.await();
+		} catch (InterruptedException _) {
+			Thread.currentThread().interrupt();
 		}
 		if (failureStatus != 0) {
 			send(exchange, failureStatus, failureBody);

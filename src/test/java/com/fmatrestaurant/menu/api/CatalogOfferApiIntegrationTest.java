@@ -395,68 +395,72 @@ class CatalogOfferApiIntegrationTest {
 	}
 
 	@Test
-	void anInvalidUpdateIsRejectedAsAWhole() throws Exception {
-		String id = create(offerWith(option(POTATOES.id(), "g"), option(JUICE.id(), "ml")));
-		String other = create(offerBody("Other", "10"));
-		String json = read(id);
-		String slot = JsonPath.read(json, "$.data.composition.slots[0].slotId");
-		String fries = JsonPath.read(json, "$.data.composition.slots[0].options[0].optionId");
-		String foreignSlot = JsonPath.read(read(other), "$.data.composition.slots[0].slotId");
-		String etag = etag(id);
-
+	void anUpdateWithAnInvalidCompositionIsRejectedAsAWhole() throws Exception {
+		Rejectable offer = offerToReject();
+		String foreignSlot = JsonPath.read(read(create(offerBody("Other", "10"))), "$.data.composition.slots[0].slotId");
+		String slot = offer.slot();
+		String fries = offer.option();
 		String prefix = "{\"presentationTag\": \"Changed\", \"composition\": {\"slots\": [";
 		String inSlot = prefix + "{\"slotId\": \"" + slot + "\", \"options\": [";
-		expectRejected(id, etag, prefix + "{\"slotId\": \"" + UUID.randomUUID() + "\"}]}}",
-				"/composition/slots/0/slotId");
-		expectRejected(id, etag, prefix + "{\"slotId\": \"" + foreignSlot + "\"}]}}", "/composition/slots/0/slotId");
-		expectRejected(id, etag, prefix + "{\"slotId\": \"" + slot + "\"}, {\"slotId\": \"" + slot + "\"}]}}",
+
+		// Unknown, foreign or repeated ids, and empty lists.
+		expectRejected(offer, prefix + "{\"slotId\": \"" + UUID.randomUUID() + "\"}]}}", "/composition/slots/0/slotId");
+		expectRejected(offer, prefix + "{\"slotId\": \"" + foreignSlot + "\"}]}}", "/composition/slots/0/slotId");
+		expectRejected(offer, prefix + "{\"slotId\": \"" + slot + "\"}, {\"slotId\": \"" + slot + "\"}]}}",
 				"/composition/slots/1/slotId");
-		expectRejected(id, etag, prefix + "]}}", "/composition/slots");
-		expectRejected(id, etag, prefix + "{\"slotId\": \"" + slot + "\", \"options\": []}]}}",
+		expectRejected(offer, prefix + "]}}", "/composition/slots");
+		expectRejected(offer, prefix + "{\"slotId\": \"" + slot + "\", \"options\": []}]}}",
 				"/composition/slots/0/options");
-		expectRejected(id, etag, inSlot + existing(fries, "") + ", " + existing(fries, "") + "]}]}}",
+		expectRejected(offer, inSlot + existing(fries, "") + ", " + existing(fries, "") + "]}]}}",
 				"/composition/slots/0/options/1/optionId");
-		expectRejected(id, etag, inSlot + existing(fries, ", \"unit\": \"kg\"") + "]}]}}",
-				"/composition/slots/0/options/0/unit");
-		expectRejected(id, etag, inSlot + existing(fries, ", \"inventoryItemId\": \"" + UUID.randomUUID() + "\"")
-				+ "]}]}}", "/composition/slots/0/options/0/inventoryItemId");
-		expectRejected(id, etag, inSlot + existing(fries, ", \"source\": {\"id\": \"" + POTATOES.id() + "\"}")
-				+ "]}]}}", "/composition/slots/0/options/0/source");
-		expectRejected(id, etag, inSlot + existing(fries, ", \"quantity\": -1") + "]}]}}",
-				"/composition/slots/0/options/0/quantity");
-		expectRejected(id, etag, inSlot + existing(fries, ", \"displayName\": null") + "]}]}}",
-				"/composition/slots/0/options/0/displayName");
-		expectRejected(id, etag, inSlot + "{\"optionId\": \"" + fries + "\", \"quantity\": 5}]}]}}",
+		// Required fields of each member.
+		expectRejected(offer, inSlot + "{\"optionId\": \"" + fries + "\", \"quantity\": 5}]}]}}",
 				"/composition/slots/0/options/0/sourceType");
-		expectRejected(id, etag, inSlot + existing(fries, "").replace("INVENTORY_ITEM", "RECIPE") + "]}]}}",
+		expectRejected(offer, inSlot + existing(fries, "").replace("INVENTORY_ITEM", "RECIPE") + "]}]}}",
 				"/composition/slots/0/options/0/sourceType");
-		expectRejected(id, etag, inSlot + option(POTATOES.id(), "g") + "]}]}}",
-				"/composition/slots/0/options/0/status");
-		expectRejected(id, etag, prefix + "{\"slotId\": \"" + slot + "\"}, {\"quantity\": 1, \"options\": ["
+		expectRejected(offer, inSlot + option(POTATOES.id(), "g") + "]}]}}", "/composition/slots/0/options/0/status");
+		expectRejected(offer, prefix + "{\"slotId\": \"" + slot + "\"}, {\"quantity\": 1, \"options\": ["
 				+ newOption(POTATOES.id(), "g") + "]}]}}", "/composition/slots/1/name");
-		expectRejected(id, etag, prefix + "{\"slotId\": \"" + slot + "\", \"name\": null}]}}",
-				"/composition/slots/0/name");
-		expectRejected(id, etag, prefix + "{\"slotId\": \"" + slot + "\", \"options\": null}]}}",
-				"/composition/slots/0/options");
-		expectRejected(id, etag, "{\"presentationTag\": \"Changed\", \"composition\": null}", "/composition");
-		expectRejected(id, etag, "{\"presentationTag\": \"Changed\", \"basePrice\": null}", "/basePrice");
-		expectRejected(id, etag, "{\"presentationTag\": \"  \"}", "/presentationTag");
-		expectRejected(id, etag, "{\"presentationTag\": null}", "/presentationTag");
-		expectRejected(id, etag, "{\"presentationTag\": \"Changed\", \"imageId\": null}", "/imageId");
-		expectRejected(id, etag, "{\"presentationTag\": \"Changed\", \"entryId\": \"" + entryId + "\"}", "/entryId");
-		expectRejected(id, etag, "{\"composition\": {\"extra\": 1}}", "/composition/extra");
-		expectRejected(id, etag, prefix + "{\"slotId\": \"" + slot + "\", \"status\": \"ACTIVE\"}]}}",
+		// Fields that the contract does not define.
+		expectRejected(offer, "{\"composition\": {\"extra\": 1}}", "/composition/extra");
+		expectRejected(offer, prefix + "{\"slotId\": \"" + slot + "\", \"status\": \"ACTIVE\"}]}}",
 				"/composition/slots/0/status");
-		expectRejected(id, etag, prefix + "{\"slotId\": \"" + slot + "\", \"required\": true}]}}",
+		expectRejected(offer, prefix + "{\"slotId\": \"" + slot + "\", \"required\": true}]}}",
 				"/composition/slots/0/required");
-		expectRejected(id, etag, inSlot + existing(fries, ", \"recipeId\": \"" + UUID.randomUUID() + "\"") + "]}]}}",
+		expectRejected(offer, inSlot + existing(fries, ", \"recipeId\": \"" + UUID.randomUUID() + "\"") + "]}]}}",
 				"/composition/slots/0/options/0/recipeId");
-		expectRejected(id, etag, "{\"presentationTag\": \"Changed\", \"imageId\": \"" + UUID.randomUUID() + "\"}",
-				"/imageId");
-		mockMvc.perform(get(OFFERS + "/" + id))
-				.andExpect(header().string(HttpHeaders.ETAG, etag))
-				.andExpect(jsonPath("$.data.presentationTag").value("Individual"))
-				.andExpect(jsonPath("$.data.composition.slots[0].options", hasSize(2)));
+		expectRejected(offer, inSlot + existing(fries, ", \"source\": {\"id\": \"" + POTATOES.id() + "\"}") + "]}]}}",
+				"/composition/slots/0/options/0/source");
+		expectUnchanged(offer);
+	}
+
+	@Test
+	void anUpdateWithAnInvalidValueIsRejectedAsAWhole() throws Exception {
+		Rejectable offer = offerToReject();
+		String prefix = "{\"presentationTag\": \"Changed\", \"composition\": {\"slots\": [";
+		String inSlot = prefix + "{\"slotId\": \"" + offer.slot() + "\", \"options\": [";
+
+		expectRejected(offer, inSlot + existing(offer.option(), ", \"unit\": \"kg\"") + "]}]}}",
+				"/composition/slots/0/options/0/unit");
+		expectRejected(offer, inSlot + existing(offer.option(), ", \"inventoryItemId\": \"" + UUID.randomUUID() + "\"")
+				+ "]}]}}", "/composition/slots/0/options/0/inventoryItemId");
+		expectRejected(offer, inSlot + existing(offer.option(), ", \"quantity\": -1") + "]}]}}",
+				"/composition/slots/0/options/0/quantity");
+		expectRejected(offer, "{\"presentationTag\": \"  \"}", "/presentationTag");
+		expectRejected(offer, "{\"presentationTag\": \"Changed\", \"imageId\": \"" + UUID.randomUUID() + "\"}", "/imageId");
+		expectRejected(offer, "{\"presentationTag\": \"Changed\", \"entryId\": \"" + entryId + "\"}", "/entryId");
+		// null is rejected wherever the contract does not allow it.
+		expectRejected(offer, inSlot + existing(offer.option(), ", \"displayName\": null") + "]}]}}",
+				"/composition/slots/0/options/0/displayName");
+		expectRejected(offer, prefix + "{\"slotId\": \"" + offer.slot() + "\", \"name\": null}]}}",
+				"/composition/slots/0/name");
+		expectRejected(offer, prefix + "{\"slotId\": \"" + offer.slot() + "\", \"options\": null}]}}",
+				"/composition/slots/0/options");
+		expectRejected(offer, "{\"presentationTag\": \"Changed\", \"composition\": null}", "/composition");
+		expectRejected(offer, "{\"presentationTag\": \"Changed\", \"basePrice\": null}", "/basePrice");
+		expectRejected(offer, "{\"presentationTag\": null}", "/presentationTag");
+		expectRejected(offer, "{\"presentationTag\": \"Changed\", \"imageId\": null}", "/imageId");
+		expectUnchanged(offer);
 	}
 
 	@Test
@@ -573,6 +577,29 @@ class CatalogOfferApiIntegrationTest {
 	private void expectRejected(String id, String etag, String json, String path) throws Exception {
 		expectViolation(patchOffer(id, etag, json), path);
 		assertEquals(etag, etag(id));
+	}
+
+	/** An offer with two options in one slot, whose rejected updates must leave it as it was. */
+	private Rejectable offerToReject() throws Exception {
+		String id = create(offerWith(option(POTATOES.id(), "g"), option(JUICE.id(), "ml")));
+		String json = read(id);
+		return new Rejectable(id, etag(id), JsonPath.read(json, "$.data.composition.slots[0].slotId"),
+				JsonPath.read(json, "$.data.composition.slots[0].options[0].optionId"));
+	}
+
+	/** Neither the data nor the revision of the offer changed. */
+	private void expectUnchanged(Rejectable offer) throws Exception {
+		mockMvc.perform(get(OFFERS + "/" + offer.id()))
+				.andExpect(header().string(HttpHeaders.ETAG, offer.etag()))
+				.andExpect(jsonPath("$.data.presentationTag").value("Individual"))
+				.andExpect(jsonPath("$.data.composition.slots[0].options", hasSize(2)));
+	}
+
+	private void expectRejected(Rejectable offer, String json, String path) throws Exception {
+		expectRejected(offer.id(), offer.etag(), json, path);
+	}
+
+	private record Rejectable(String id, String etag, String slot, String option) {
 	}
 
 	private static void expectViolation(ResultActions result, String path) throws Exception {
