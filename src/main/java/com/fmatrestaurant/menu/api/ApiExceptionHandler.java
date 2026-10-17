@@ -26,8 +26,10 @@ import com.fmatrestaurant.menu.application.CatalogOfferNotFoundException;
 import com.fmatrestaurant.menu.application.CategoryNotFoundException;
 import com.fmatrestaurant.menu.application.DeletionNotAllowedException;
 import com.fmatrestaurant.menu.application.ImageNotFoundException;
+import com.fmatrestaurant.menu.application.RecipeNotFoundException;
 import com.fmatrestaurant.menu.application.StaleCatalogEntryException;
 import com.fmatrestaurant.menu.application.StaleCatalogOfferException;
+import com.fmatrestaurant.menu.application.StaleRecipeException;
 import com.fmatrestaurant.menu.domain.Image;
 import com.fmatrestaurant.menu.domain.InvalidCategoryException;
 import com.fmatrestaurant.menu.domain.InvalidFieldException;
@@ -47,7 +49,8 @@ public class ApiExceptionHandler {
     CatalogEntryNotFoundException.class,
     CatalogOfferNotFoundException.class,
     CategoryNotFoundException.class,
-    ImageNotFoundException.class
+    ImageNotFoundException.class,
+    RecipeNotFoundException.class
   })
   ResponseEntity<ErrorEnvelope> notFound() {
       return error(HttpStatus.NOT_FOUND, NOT_FOUND);
@@ -108,7 +111,7 @@ public class ApiExceptionHandler {
 		return invalid("/file", "The image must not exceed " + Image.MAX_BYTES / (1024 * 1024) + " MiB");
 	}
 
-	@ExceptionHandler({ StaleCatalogEntryException.class, StaleCatalogOfferException.class,
+	@ExceptionHandler({ StaleCatalogEntryException.class, StaleCatalogOfferException.class, StaleRecipeException.class,
 			OptimisticLockingFailureException.class })
 	ResponseEntity<ErrorEnvelope> stale() {
 		return error(HttpStatus.PRECONDITION_FAILED, "The resource has changed since it was read.");

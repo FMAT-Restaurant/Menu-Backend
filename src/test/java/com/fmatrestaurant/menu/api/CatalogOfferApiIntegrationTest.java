@@ -216,7 +216,7 @@ class CatalogOfferApiIntegrationTest {
 		expectViolation(createOffer(entryId, offerWith(option(POTATOES.id(), "g").replace("200", "0"))),
 				"/composition/slots/0/options/0/quantity");
 		expectViolation(createOffer(entryId, offerWith(option(POTATOES.id(), "g").replace("INVENTORY_ITEM", "RECIPE"))),
-				"/composition/slots/0/options/0/sourceType");
+				"/composition/slots/0/options/0/inventoryItemId");
 		expectViolation(createOffer(entryId, offerBody("Individual", "180").replace("entrada", "snack")),
 				"/composition/slots/0/course");
 		expectViolation(createOffer(entryId, offerBody("Individual", "180").replace("\"quantity\": 1", "\"quantity\": 1.5")),

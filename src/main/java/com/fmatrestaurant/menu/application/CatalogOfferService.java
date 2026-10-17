@@ -35,6 +35,7 @@ import com.fmatrestaurant.menu.infrastructure.CatalogEntryRepository;
 import com.fmatrestaurant.menu.infrastructure.CatalogOfferRepository;
 import com.fmatrestaurant.menu.infrastructure.ImageRepository;
 import com.fmatrestaurant.menu.infrastructure.InventoryClient;
+import com.fmatrestaurant.menu.infrastructure.RecipeRevisionRepository;
 
 /**
  * Offer and composition use cases (REQ-MENU-OFFER-001 to REQ-MENU-OFFER-004, REQ-MENU-COMP-001 to
@@ -54,12 +55,16 @@ public class CatalogOfferService {
 
 	private final InventoryClient inventoryClient;
 
+	private final RecipeRevisionRepository recipeRevisionRepository;
+
 	public CatalogOfferService(CatalogOfferRepository offerRepository, CatalogEntryRepository entryRepository,
-			ImageRepository imageRepository, InventoryClient inventoryClient) {
+			ImageRepository imageRepository, InventoryClient inventoryClient,
+			RecipeRevisionRepository recipeRevisionRepository) {
 		this.offerRepository = offerRepository;
 		this.entryRepository = entryRepository;
 		this.imageRepository = imageRepository;
 		this.inventoryClient = inventoryClient;
+		this.recipeRevisionRepository = recipeRevisionRepository;
 	}
 
 	/**
@@ -283,16 +288,30 @@ public class CatalogOfferService {
 			notAllowed("/optionId", input.optionId());
 			notAllowed("/status", input.status());
 		}
-		// RECIPE is not a SourceType yet, so the body is rejected when it is read.
 		if (input.sourceType() == null) {
 			throw new InvalidFieldException("/sourceType", "The source type is required");
 		}
 		UUID id = input.optionId();
 		if (id == null) {
+			if (input.sourceType() == SourceType.RECIPE) {
+				rejectInventoryFields(input);
+				requireRecipeRevision(input.recipeId(), input.recipeRevision());
+				return new SlotOption(input.displayName(), create ? OfferStatus.ACTIVE : input.status(),
+						input.recipeId(), input.recipeRevision());
+			}
+			rejectRecipeFields(input);
 			return new SlotOption(input.displayName(), create ? OfferStatus.ACTIVE : input.status(),
 					inventoryItem(input.inventoryItemId(), items), input.quantity(), input.unit());
 		}
 		SlotOption option = existing(byId, seen, id, "/optionId", "option", "slot");
+		if (input.sourceType() != option.getSourceType()) {
+			throw new InvalidFieldException("/sourceType", "The source type of an option cannot change");
+		}
+		if (option.getSourceType() == SourceType.RECIPE) {
+			updateRecipeOption(option, input);
+			return option;
+		}
+		rejectRecipeFields(input);
 		InventoryItem item = null;
 		if (input.inventoryItemId() != null || input.unit() != null) {
 			item = inventoryItem(input.inventoryItemId() != null ? input.inventoryItemId() : option.getInventoryItemId(),
@@ -300,6 +319,40 @@ public class CatalogOfferService {
 		}
 		option.update(input.displayName(), input.status(), item, input.quantity(), input.unit());
 		return option;
+	}
+
+	/** A recipe option has no Inventory content; to change its recipe, the revision is sent too. */
+	private void updateRecipeOption(SlotOption option, OptionInput input) {
+		rejectInventoryFields(input);
+		if (input.recipeId() != null || input.recipeRevision() != null) {
+			requireRecipeRevision(input.recipeId(), input.recipeRevision());
+		}
+		option.updateRecipe(input.displayName(), input.status(), input.recipeId(), input.recipeRevision());
+	}
+
+	private static void rejectInventoryFields(OptionInput input) {
+		notAllowed("/inventoryItemId", input.inventoryItemId());
+		notAllowed("/quantity", input.quantity());
+		notAllowed("/unit", input.unit());
+	}
+
+	private static void rejectRecipeFields(OptionInput input) {
+		notAllowed("/recipeId", input.recipeId());
+		notAllowed("/recipeRevision", input.recipeRevision());
+	}
+
+	/** The revision must exist and belong to the recipe, so the option can resolve its definition. */
+	private void requireRecipeRevision(UUID recipeId, Integer recipeRevision) {
+		if (recipeId == null) {
+			throw new InvalidFieldException("/recipeId", "The recipe id is required");
+		}
+		if (recipeRevision == null) {
+			throw new InvalidFieldException("/recipeRevision", "The recipe revision is required");
+		}
+		if (!recipeRevisionRepository.existsByRecipeIdAndRevision(recipeId, recipeRevision)) {
+			throw new InvalidFieldException("/recipeRevision",
+					"The recipe " + recipeId + " has no revision " + recipeRevision);
+		}
 	}
 
 	private static <T> T existing(Map<UUID, T> byId, Set<UUID> seen, UUID id, String path, String label,
@@ -514,6 +567,22 @@ public class CatalogOfferService {
 		@JsonProperty
 		@JsonSetter(nulls = Nulls.FAIL)
 		private String unit;
+
+		@JsonProperty
+		@JsonSetter(nulls = Nulls.FAIL)
+		private UUID recipeId;
+
+		@JsonProperty
+		@JsonSetter(nulls = Nulls.FAIL)
+		private Integer recipeRevision;
+
+		public UUID recipeId() {
+			return recipeId;
+		}
+
+		public Integer recipeRevision() {
+			return recipeRevision;
+		}
 
 		public UUID optionId() {
 			return optionId;
