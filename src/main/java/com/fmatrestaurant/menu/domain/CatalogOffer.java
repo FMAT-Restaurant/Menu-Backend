@@ -64,7 +64,7 @@ public class CatalogOffer {
 	@OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
 	@JoinColumn(name = "offer_id", nullable = false)
 	@OrderColumn(name = "position")
-	private final List<CompositionSlot> slots = new ArrayList<>();
+	private List<CompositionSlot> slots = new ArrayList<>();
 
 	protected CatalogOffer() {
 		// Required by JPA.
@@ -114,7 +114,7 @@ public class CatalogOffer {
 	 *
 	 * @throws InvalidFieldException if there are no slots
 	 */
-	public final void replaceSlots(List<CompositionSlot> newSlots) {
+	public void replaceSlots(List<CompositionSlot> newSlots) {
 		if (newSlots == null || newSlots.isEmpty()) {
 			throw new InvalidFieldException("/composition/slots", "The composition must have at least one slot");
 		}
