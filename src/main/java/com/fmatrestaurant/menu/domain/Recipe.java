@@ -29,6 +29,10 @@ public class Recipe {
 	@Column(name = "current_revision", nullable = false)
 	private int currentRevision;
 
+	/** Removed from the library, while its published revisions remain available as history. */
+	@Column(nullable = false)
+	private boolean deleted;
+
 	/** A new recipe starts at revision 1. */
 	public Recipe() {
 		this.currentRevision = 1;
@@ -50,6 +54,14 @@ public class Recipe {
 
 	public int getCurrentRevision() {
 		return currentRevision;
+	}
+
+	public boolean isDeleted() {
+		return deleted;
+	}
+
+	public void delete() {
+		this.deleted = true;
 	}
 
 }

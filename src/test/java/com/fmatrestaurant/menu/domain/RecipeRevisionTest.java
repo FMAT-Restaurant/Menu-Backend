@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 
@@ -14,7 +13,7 @@ class RecipeRevisionTest {
 	private final Recipe recipe = new Recipe();
 
 	private static List<ComponentIngredient> ingredients() {
-		UUID item = UUID.randomUUID();
+		String item = "INV-beef-001";
 		return List.of(new ComponentIngredient(new InventoryItem(item, "Beef patty", "unit"), BigDecimal.TWO));
 	}
 

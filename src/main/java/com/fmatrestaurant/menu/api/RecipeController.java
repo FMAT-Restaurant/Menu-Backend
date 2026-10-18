@@ -8,6 +8,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -69,13 +70,22 @@ public class RecipeController {
 	public ResponseEntity<DataResponse<RecipeDetail>> update(@PathVariable UUID recipeId,
 			@RequestHeader(HttpHeaders.IF_MATCH) String ifMatch, @RequestBody RecipeRequest request) {
 		RecipeRevision recipe = recipeService.update(recipeId, Revisions.strongVersion(ifMatch), request.name(),
-				request.description(), request.instructions(), supplies(request.supplies()));
+				request.description(), request.instructions(),
+				request.supplies() == null ? null : supplies(request.supplies()));
 		return ResponseEntity.ok().eTag(etag(recipe)).body(new DataResponse<>(RecipeDetail.of(recipe)));
+	}
+
+	/** Removes an unused recipe from the library, preserving its published revisions. */
+	@DeleteMapping("/{recipeId}")
+	public ResponseEntity<Void> delete(@PathVariable UUID recipeId,
+			@RequestHeader(HttpHeaders.IF_MATCH) String ifMatch) {
+		long version = recipeService.delete(recipeId, Revisions.strongVersion(ifMatch));
+		return ResponseEntity.noContent().eTag(Revisions.strong(version)).build();
 	}
 
 	private static List<SupplyData> supplies(List<SupplyRequest> supplies) {
 		if (supplies == null) {
-			return null;
+			return List.of();
 		}
 		return supplies.stream()
 				.map(supply -> supply == null ? null : new SupplyData(supply.inventoryItemId(), supply.quantity()))
@@ -93,13 +103,13 @@ public class RecipeController {
 	}
 
 	/** An ingredient as sent: the article, which Inventory confirms, and the quantity. */
-	public record SupplyRequest(UUID inventoryItemId, BigDecimal quantity) {
+	public record SupplyRequest(String inventoryItemId, BigDecimal quantity) {
 	}
 
-	public record InventoryItemData(UUID id, String name, String unit) {
+	public record InventoryItemData(String id, String name, String unit) {
 	}
 
-	public record Supply(UUID inventoryItemId, BigDecimal quantity, InventoryItemData inventoryItem) {
+	public record Supply(String inventoryItemId, BigDecimal quantity, InventoryItemData inventoryItem) {
 
 		static Supply of(ComponentIngredient ingredient) {
 			return new Supply(ingredient.getInventoryItemId(), ingredient.getQuantity(),
@@ -126,7 +136,6 @@ public class RecipeController {
 					recipe.getDescription(), recipe.getInstructions(),
 					recipe.getIngredients().stream().map(Supply::of).toList());
 		}
-
 	}
 
 	public record RecipeListResponse(List<RecipeSummary> data, PageMeta meta) {

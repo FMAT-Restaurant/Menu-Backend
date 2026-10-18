@@ -12,7 +12,7 @@ import org.junit.jupiter.api.Test;
 
 class CatalogOfferTest {
 
-	private static final InventoryItem POTATOES = new InventoryItem(UUID.randomUUID(), "Potatoes", "g");
+	private static final InventoryItem POTATOES = new InventoryItem("INV-" + UUID.randomUUID(), "Potatoes", "g");
 
 	private final CatalogEntry entry = new CatalogEntry(1L, "Burger", "Tasty", UUID.randomUUID(), List.of());
 
@@ -149,15 +149,15 @@ class CatalogOfferTest {
 		assertPath("/status", () -> new SlotOption("Fries", null, POTATOES, BigDecimal.ONE, "g"));
 		assertPath("/inventoryItemId", () -> new SlotOption("Fries", OfferStatus.ACTIVE, null, BigDecimal.ONE, "g"));
 		assertPath("/inventoryItemId", () -> new SlotOption("Fries", OfferStatus.ACTIVE,
-				new InventoryItem(UUID.randomUUID(), " ", "g"), BigDecimal.ONE, "g"));
+				new InventoryItem("INV-" + UUID.randomUUID(), " ", "g"), BigDecimal.ONE, "g"));
 		assertPath("/inventoryItemId", () -> new SlotOption("Fries", OfferStatus.ACTIVE,
-				new InventoryItem(UUID.randomUUID(), "Potatoes", null), BigDecimal.ONE, "g"));
+				new InventoryItem("INV-" + UUID.randomUUID(), "Potatoes", null), BigDecimal.ONE, "g"));
 	}
 
 	@Test
 	void optionUpdateKeepsMissingValuesAndChecksANewArticle() {
 		SlotOption option = new SlotOption("Fries", OfferStatus.ACTIVE, POTATOES, new BigDecimal("200"), "g");
-		InventoryItem juice = new InventoryItem(UUID.randomUUID(), "Juice", "ml");
+		InventoryItem juice = new InventoryItem("INV-" + UUID.randomUUID(), "Juice", "ml");
 
 		assertPath("/unit", () -> option.update("Juice", null, juice, null, null));
 		assertEquals("Fries", option.getDisplayName());

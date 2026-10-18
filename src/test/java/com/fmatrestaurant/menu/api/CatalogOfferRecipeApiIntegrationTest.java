@@ -60,9 +60,9 @@ class CatalogOfferRecipeApiIntegrationTest {
 
 	private static final String VIOLATION_PATH = "$.error.details.violations[0].path";
 
-	private static final InventoryItem BEEF = new InventoryItem(UUID.randomUUID(), "Beef patty", "unit");
+	private static final InventoryItem BEEF = new InventoryItem("INV-beef-001", "Beef patty", "unit");
 
-	private static final InventoryItem POTATOES = new InventoryItem(UUID.randomUUID(), "Potatoes", "g");
+	private static final InventoryItem POTATOES = new InventoryItem("INV-potatoes-001", "Potatoes", "g");
 
 	private static final InventoryStub INVENTORY = InventoryStub.INSTANCE;
 
@@ -143,7 +143,7 @@ class CatalogOfferRecipeApiIntegrationTest {
 		createOffer(entryId, body)
 				.andExpect(status().isCreated())
 				.andExpect(jsonPath("$.data.composition.slots[0].options[0].sourceType").value("INVENTORY_ITEM"))
-				.andExpect(jsonPath("$.data.composition.slots[0].options[0].inventoryItemId").value(POTATOES.id().toString()))
+				.andExpect(jsonPath("$.data.composition.slots[0].options[0].inventoryItemId").value(POTATOES.id()))
 				.andExpect(jsonPath("$.data.composition.slots[0].options[0].recipeId").doesNotExist())
 				.andExpect(jsonPath("$.data.composition.slots[0].options[0].recipeRevision").doesNotExist())
 				.andExpect(jsonPath("$.data.composition.slots[0].options[1].sourceType").value("RECIPE"))

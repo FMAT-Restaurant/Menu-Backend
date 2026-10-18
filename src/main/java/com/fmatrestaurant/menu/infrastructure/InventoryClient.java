@@ -2,12 +2,12 @@ package com.fmatrestaurant.menu.infrastructure;
 
 import java.net.http.HttpClient;
 import java.time.Duration;
-import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -16,7 +16,7 @@ import org.springframework.web.client.RestClientException;
 import com.fmatrestaurant.menu.domain.InventoryItem;
 
 /**
- * Synchronous client of the external Inventory service ({@code GET /inventory/items}). Menu only reads
+ * Synchronous client of the Inventory service ({@code GET /inventory/items/{id}}). Menu only reads
  * articles; it never creates, changes or deletes them.
  *
  * <p>Every failure (timeout, connection, a non-2xx answer such as 401, 403 or 429, or an invalid body) is
@@ -24,9 +24,6 @@ import com.fmatrestaurant.menu.domain.InventoryItem;
  */
 @Component
 public class InventoryClient {
-
-	/** Articles requested per page while searching for an id. */
-	static final int PAGE_SIZE = 100;
 
 	private final RestClient restClient;
 
@@ -44,45 +41,36 @@ public class InventoryClient {
 	}
 
 	/**
-	 * The article whose id is exactly the given one, searched through every page of the listing.
+	 * The article with the given id, if it exists. If Inventory cannot be reached or does not answer as its contract defines, a {@link RestClientException} is thrown.
 	 *
-	 * @return empty only when no page contains the article
+	 * @return empty only when no article with the given id exists; never when Inventory cannot be reached or does not answer as its contract defines
 	 * @throws RestClientException if Inventory cannot be reached or does not answer as its contract defines
 	 */
-	// ponytail: the contract only defines a paged text search, so this reads every page until the id is
-	// found; use a lookup by id once Inventory documents one.
-	public Optional<InventoryItem> find(UUID id) {
-		int totalPages = 1;
-		for (int page = 1; page <= totalPages; page++) {
-			ItemPage result = restClient.get()
-					.uri("/inventory/items?page={page}&pageSize={pageSize}", page, PAGE_SIZE)
-					.retrieve()
-					.body(ItemPage.class);
-			if (result == null || result.data() == null || result.meta() == null
-					|| result.meta().totalPages() == null) {
-				throw new RestClientException("Inventory answered without data or meta");
-			}
-			for (InventoryItem item : result.data()) {
-				if (item == null || item.id() == null || blank(item.name()) || blank(item.unit())) {
-					throw new RestClientException("Inventory answered an article without id, name or unit");
-				}
-				if (item.id().equals(id)) {
-					return Optional.of(item);
-				}
-			}
-			totalPages = result.meta().totalPages();
+	public Optional<InventoryItem> find(String id) {
+		if (blank(id)) {
+			throw new IllegalArgumentException("id cannot be blank");
 		}
-		return Optional.empty();
+		ResponseEntity<InventoryResponse> response = restClient.get()
+				.uri("/inventory/items/{id}", id)
+				.retrieve().toEntity(InventoryResponse.class);
+		if (response.getStatusCode() == HttpStatus.NO_CONTENT) {
+			return Optional.empty();
+		}
+		InventoryResponse result = response.getBody();
+		if (result == null || result.data() == null) {
+			throw new RestClientException("Inventory response must contain data");
+		}
+		InventoryItem item = result.data();
+		if (!id.equals(item.id()) || blank(item.name()) || blank(item.unit())) {
+			throw new RestClientException("Inventory item must contain the requested id, name and unit");
+		}
+		return Optional.of(item);
+	}
+
+	public record InventoryResponse(InventoryItem data) {
 	}
 
 	private static boolean blank(String value) {
 		return value == null || value.isBlank();
 	}
-
-	record ItemPage(List<InventoryItem> data, Meta meta) {
-	}
-
-	record Meta(Integer totalPages) {
-	}
-
 }

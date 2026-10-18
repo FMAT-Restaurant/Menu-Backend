@@ -18,12 +18,13 @@ import com.fmatrestaurant.menu.domain.InvalidFieldException;
 import com.fmatrestaurant.menu.domain.InventoryItem;
 import com.fmatrestaurant.menu.domain.Recipe;
 import com.fmatrestaurant.menu.domain.RecipeRevision;
+import com.fmatrestaurant.menu.infrastructure.CatalogOfferRepository;
 import com.fmatrestaurant.menu.infrastructure.InventoryClient;
 import com.fmatrestaurant.menu.infrastructure.RecipeRepository;
 import com.fmatrestaurant.menu.infrastructure.RecipeRevisionRepository;
 
 /**
- * Use cases of the recipe library (REQ-MENU-REC-001 to REQ-MENU-REC-003). Every edition of a recipe
+ * Use cases of the recipe library (REQ-MENU-REC-001 to REQ-MENU-REC-003, REQ-MENU-REC-005). Every edition of a recipe
  * publishes a new revision and leaves the previous ones untouched.
  *
  * <p>Each write runs in a transaction and validates the whole result, so a rejected request leaves
@@ -39,15 +40,18 @@ public class RecipeService {
 
 	private final InventoryClient inventoryClient;
 
+	private final CatalogOfferRepository offerRepository;
+
 	public RecipeService(RecipeRepository recipeRepository, RecipeRevisionRepository revisionRepository,
-			InventoryClient inventoryClient) {
+			InventoryClient inventoryClient, CatalogOfferRepository offerRepository) {
 		this.recipeRepository = recipeRepository;
 		this.revisionRepository = revisionRepository;
 		this.inventoryClient = inventoryClient;
+		this.offerRepository = offerRepository;
 	}
 
 	/** An ingredient as received: the article it references and the quantity. */
-	public record SupplyData(UUID inventoryItemId, BigDecimal quantity) {
+	public record SupplyData(String inventoryItemId, BigDecimal quantity) {
 	}
 
 	/**
@@ -135,8 +139,34 @@ public class RecipeService {
 		return revisionRepository.saveAndFlush(next);
 	}
 
+	/**
+	 * Removes the current definition from the library (REQ-MENU-REC-005, BR-MENU-031), preserving
+	 * every published revision. The recipe row stays locked while references are checked and until commit.
+	 *
+	 * @return the version after deletion, for the response ETag
+	 * @throws RecipeNotFoundException if the recipe is missing or already deleted
+	 * @throws StaleRecipeException if the expected version is stale
+	 * @throws RecipeInUseException if any offer references any revision, regardless of status
+	 */
+	@Transactional
+	public long delete(UUID recipeId, long expectedVersion) {
+		Recipe recipe = recipeRepository.findForDeletionById(recipeId)
+				.orElseThrow(() -> new RecipeNotFoundException(recipeId));
+		long currentVersion = recipe.getVersion() == null ? 0 : recipe.getVersion();
+		if (currentVersion != expectedVersion) {
+			throw new StaleRecipeException(recipeId);
+		}
+		List<UUID> offerIds = offerRepository.findIdsReferencingRecipe(recipeId);
+		if (!offerIds.isEmpty()) {
+			throw new RecipeInUseException(offerIds);
+		}
+		recipe.delete();
+		return recipeRepository.saveAndFlush(recipe).getVersion();
+	}
+
 	private Recipe find(UUID recipeId) {
-		return recipeRepository.findById(recipeId).orElseThrow(() -> new RecipeNotFoundException(recipeId));
+		return recipeRepository.findById(recipeId).filter(recipe -> !recipe.isDeleted())
+				.orElseThrow(() -> new RecipeNotFoundException(recipeId));
 	}
 
 	private RecipeRevision current(Recipe recipe) {
@@ -149,7 +179,7 @@ public class RecipeService {
 		if (supplies == null || supplies.isEmpty()) {
 			throw new InvalidFieldException("/supplies", "A recipe must have at least one ingredient");
 		}
-		Map<UUID, InventoryItem> items = new HashMap<>();
+		Map<String, InventoryItem> items = new HashMap<>();
 		List<ComponentIngredient> result = new ArrayList<>();
 		for (int i = 0; i < supplies.size(); i++) {
 			SupplyData supply = supplies.get(i);
@@ -166,8 +196,8 @@ public class RecipeService {
 		return result;
 	}
 
-	private InventoryItem inventoryItem(UUID id, Map<UUID, InventoryItem> items) {
-		if (id == null) {
+	private InventoryItem inventoryItem(String id, Map<String, InventoryItem> items) {
+		if (id == null || id.isBlank()) {
 			throw new InvalidFieldException("/inventoryItemId", "The inventory item id is required");
 		}
 		return items.computeIfAbsent(id, key -> inventoryClient.find(key).orElseThrow(

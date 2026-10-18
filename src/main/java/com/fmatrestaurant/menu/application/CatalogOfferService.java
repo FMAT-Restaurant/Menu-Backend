@@ -35,6 +35,7 @@ import com.fmatrestaurant.menu.infrastructure.CatalogEntryRepository;
 import com.fmatrestaurant.menu.infrastructure.CatalogOfferRepository;
 import com.fmatrestaurant.menu.infrastructure.ImageRepository;
 import com.fmatrestaurant.menu.infrastructure.InventoryClient;
+import com.fmatrestaurant.menu.infrastructure.RecipeRepository;
 import com.fmatrestaurant.menu.infrastructure.RecipeRevisionRepository;
 
 /**
@@ -57,14 +58,17 @@ public class CatalogOfferService {
 
 	private final RecipeRevisionRepository recipeRevisionRepository;
 
+	private final RecipeRepository recipeRepository;
+
 	public CatalogOfferService(CatalogOfferRepository offerRepository, CatalogEntryRepository entryRepository,
 			ImageRepository imageRepository, InventoryClient inventoryClient,
-			RecipeRevisionRepository recipeRevisionRepository) {
+			RecipeRevisionRepository recipeRevisionRepository, RecipeRepository recipeRepository) {
 		this.offerRepository = offerRepository;
 		this.entryRepository = entryRepository;
 		this.imageRepository = imageRepository;
 		this.inventoryClient = inventoryClient;
 		this.recipeRevisionRepository = recipeRevisionRepository;
+		this.recipeRepository = recipeRepository;
 	}
 
 	/**
@@ -210,7 +214,7 @@ public class CatalogOfferService {
 	 * @param items the Inventory articles already confirmed in this operation, by id
 	 */
 	private List<CompositionSlot> slots(List<CompositionSlot> current, List<SlotInput> inputs, boolean create,
-			Map<UUID, InventoryItem> items) {
+			Map<String, InventoryItem> items) {
 		if (inputs == null || inputs.isEmpty()) {
 			throw new InvalidFieldException("/composition/slots", "The composition must have at least one slot");
 		}
@@ -229,16 +233,13 @@ public class CatalogOfferService {
 	}
 
 	private CompositionSlot slot(Map<UUID, CompositionSlot> byId, Set<UUID> seen, SlotInput input, boolean create,
-			Map<UUID, InventoryItem> items) {
+			Map<String, InventoryItem> items) {
 		if (input == null) {
 			throw new InvalidFieldException("", "The slot is required");
 		}
 		input.rejectUnknownFields();
 		if (create) {
 			notAllowed("/slotId", input.slotId());
-			if (input.courseSent() && input.course() == null) {
-				throw new InvalidFieldException("/course", "The value must not be null");
-			}
 		}
 		UUID id = input.slotId();
 		if (id == null) {
@@ -257,7 +258,7 @@ public class CatalogOfferService {
 	}
 
 	private List<SlotOption> options(List<SlotOption> current, List<OptionInput> inputs, boolean create,
-			Map<UUID, InventoryItem> items) {
+			Map<String, InventoryItem> items) {
 		if (inputs == null || inputs.isEmpty()) {
 			throw new InvalidFieldException("/options", "A slot must have at least one option");
 		}
@@ -279,7 +280,7 @@ public class CatalogOfferService {
 	 * other changes keep the stored reference without consulting it.
 	 */
 	private SlotOption option(Map<UUID, SlotOption> byId, Set<UUID> seen, OptionInput input, boolean create,
-			Map<UUID, InventoryItem> items) {
+			Map<String, InventoryItem> items) {
 		if (input == null) {
 			throw new InvalidFieldException("", "The option is required");
 		}
@@ -311,6 +312,11 @@ public class CatalogOfferService {
 			updateRecipeOption(option, input);
 			return option;
 		}
+		updateInventoryOption(option, input, items);
+		return option;
+	}
+
+	private void updateInventoryOption(SlotOption option, OptionInput input, Map<String, InventoryItem> items) {
 		rejectRecipeFields(input);
 		InventoryItem item = null;
 		if (input.inventoryItemId() != null || input.unit() != null) {
@@ -318,7 +324,6 @@ public class CatalogOfferService {
 					items);
 		}
 		option.update(input.displayName(), input.status(), item, input.quantity(), input.unit());
-		return option;
 	}
 
 	/** A recipe option has no Inventory content; to change its recipe, the revision is sent too. */
@@ -341,7 +346,7 @@ public class CatalogOfferService {
 		notAllowed("/recipeRevision", input.recipeRevision());
 	}
 
-	/** The revision must exist and belong to the recipe, so the option can resolve its definition. */
+	/** The revision must exist, and a shared lock keeps its recipe in the library until commit. */
 	private void requireRecipeRevision(UUID recipeId, Integer recipeRevision) {
 		if (recipeId == null) {
 			throw new InvalidFieldException("/recipeId", "The recipe id is required");
@@ -349,9 +354,13 @@ public class CatalogOfferService {
 		if (recipeRevision == null) {
 			throw new InvalidFieldException("/recipeRevision", "The recipe revision is required");
 		}
+		boolean inLibrary = recipeRepository.findForReferenceById(recipeId).isPresent();
 		if (!recipeRevisionRepository.existsByRecipeIdAndRevision(recipeId, recipeRevision)) {
 			throw new InvalidFieldException("/recipeRevision",
 					"The recipe " + recipeId + " has no revision " + recipeRevision);
+		}
+		if (!inLibrary) {
+			throw new InvalidFieldException("/recipeId", "The recipe is not in the library");
 		}
 	}
 
@@ -378,8 +387,8 @@ public class CatalogOfferService {
 	 * The article as Inventory returns it, consulted once per id in each operation. Its unit is the one
 	 * the option unit is checked against.
 	 */
-	private InventoryItem inventoryItem(UUID id, Map<UUID, InventoryItem> items) {
-		if (id == null) {
+	private InventoryItem inventoryItem(String id, Map<String, InventoryItem> items) {
+		if (id == null || id.isBlank()) {
 			throw new InvalidFieldException("/inventoryItemId", "The inventory item id is required");
 		}
 		return items.computeIfAbsent(id, key -> inventoryClient.find(key).orElseThrow(
@@ -497,7 +506,7 @@ public class CatalogOfferService {
 		@JsonSetter(nulls = Nulls.FAIL)
 		private BigDecimal quantity;
 
-		/** Sent as {@code null}, it removes the course on PATCH. */
+		/** Optional on creation; sent as {@code null}, it removes the course on PATCH. */
 		private String course;
 
 		private boolean courseSent;
@@ -558,7 +567,7 @@ public class CatalogOfferService {
 
 		@JsonProperty
 		@JsonSetter(nulls = Nulls.FAIL)
-		private UUID inventoryItemId;
+		private String inventoryItemId;
 
 		@JsonProperty
 		@JsonSetter(nulls = Nulls.FAIL)
@@ -600,7 +609,7 @@ public class CatalogOfferService {
 			return sourceType;
 		}
 
-		public UUID inventoryItemId() {
+		public String inventoryItemId() {
 			return inventoryItemId;
 		}
 

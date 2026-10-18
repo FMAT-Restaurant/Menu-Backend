@@ -34,6 +34,10 @@ public class SlotOption {
 	/** Maximum length of the source name, matching the database column. */
 	public static final int SOURCE_NAME_MAX_LENGTH = 255;
 
+	private static final String DISPLAY_NAME_LABEL = "option display name";
+
+	private static final String DISPLAY_NAME_PATH = "/displayName";
+
 	@Id
 	@GeneratedValue(strategy = GenerationType.UUID)
 	private UUID id;
@@ -49,8 +53,8 @@ public class SlotOption {
 	@Column(name = "source_type", nullable = false, length = 32)
 	private SourceType sourceType;
 
-	@Column(name = "inventory_item_id")
-	private UUID inventoryItemId;
+	@Column(name = "inventory_item_id", columnDefinition = "text")
+	private String inventoryItemId;
 
 	/** Name of the article as Inventory returned it when it was referenced. */
 	@Column(name = "source_name", length = SOURCE_NAME_MAX_LENGTH)
@@ -86,7 +90,7 @@ public class SlotOption {
 		if (item == null) {
 			throw new InvalidFieldException("/inventoryItemId", "The inventory item is required");
 		}
-		this.displayName = Fields.text("/displayName", "option display name", displayName, DISPLAY_NAME_MAX_LENGTH);
+		this.displayName = Fields.text(DISPLAY_NAME_PATH, DISPLAY_NAME_LABEL, displayName, DISPLAY_NAME_MAX_LENGTH);
 		this.quantity = quantity(quantity);
 		this.inventoryItemId = itemId(item);
 		this.sourceName = itemName(item);
@@ -104,9 +108,9 @@ public class SlotOption {
 	 */
 	public void update(String displayName, OfferStatus status, InventoryItem item, BigDecimal quantity, String unit) {
 		String newDisplayName = displayName == null ? this.displayName
-				: Fields.text("/displayName", "option display name", displayName, DISPLAY_NAME_MAX_LENGTH);
+				: Fields.text(DISPLAY_NAME_PATH, DISPLAY_NAME_LABEL, displayName, DISPLAY_NAME_MAX_LENGTH);
 		BigDecimal newQuantity = quantity == null ? this.quantity : quantity(quantity);
-		UUID newInventoryItemId = item == null ? this.inventoryItemId : itemId(item);
+		String newInventoryItemId = item == null ? this.inventoryItemId : itemId(item);
 		String newSourceName = item == null ? this.sourceName : itemName(item);
 		String sourceUnit = item == null ? this.unit : itemUnit(item);
 		String newUnit = this.unit;
@@ -137,7 +141,7 @@ public class SlotOption {
 		if (status == null) {
 			throw new InvalidFieldException("/status", "The option status is required");
 		}
-		this.displayName = Fields.text("/displayName", "option display name", displayName, DISPLAY_NAME_MAX_LENGTH);
+		this.displayName = Fields.text(DISPLAY_NAME_PATH, DISPLAY_NAME_LABEL, displayName, DISPLAY_NAME_MAX_LENGTH);
 		this.recipeId = recipeId(recipeId);
 		this.recipeRevision = recipeRevision(recipeRevision);
 		this.status = status;
@@ -153,7 +157,7 @@ public class SlotOption {
 	 */
 	public void updateRecipe(String displayName, OfferStatus status, UUID recipeId, Integer recipeRevision) {
 		String newDisplayName = displayName == null ? this.displayName
-				: Fields.text("/displayName", "option display name", displayName, DISPLAY_NAME_MAX_LENGTH);
+				: Fields.text(DISPLAY_NAME_PATH, DISPLAY_NAME_LABEL, displayName, DISPLAY_NAME_MAX_LENGTH);
 		UUID newRecipeId = this.recipeId;
 		Integer newRecipeRevision = this.recipeRevision;
 		if (recipeId != null || recipeRevision != null) {
@@ -195,8 +199,8 @@ public class SlotOption {
 		return quantity;
 	}
 
-	private static UUID itemId(InventoryItem item) {
-		if (item.id() == null) {
+	private static String itemId(InventoryItem item) {
+		if (item.id() == null || item.id().isBlank()) {
 			throw new InvalidFieldException("/inventoryItemId", "The inventory item id is required");
 		}
 		return item.id();
@@ -236,7 +240,7 @@ public class SlotOption {
 		return sourceType;
 	}
 
-	public UUID getInventoryItemId() {
+	public String getInventoryItemId() {
 		return inventoryItemId;
 	}
 

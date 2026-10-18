@@ -39,3 +39,6 @@ out/
 
 ### macOS ###
 **/.DS_Store
+
+# Credenciales personales del perfil local
+/src/main/resources/application-local.properties

@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
@@ -61,8 +62,12 @@ public final class InventoryStub {
 	/** Points the Inventory client of the application to this server. */
 	public static void register(DynamicPropertyRegistry registry) {
 		registry.add("menu.inventory.base-url",
-				() -> "http://localhost:" + INSTANCE.server.getAddress().getPort() + "/api/v1");
+				INSTANCE::baseUrl);
 		registry.add("menu.inventory.timeout", () -> TIMEOUT);
+	}
+
+	public String baseUrl() {
+		return "http://localhost:" + server.getAddress().getPort() + "/api/v1";
 	}
 
 	/** No articles, no recorded requests and normal answers. */
@@ -75,7 +80,7 @@ public final class InventoryStub {
 	}
 
 	public InventoryItem add(String name, String unit) {
-		return add(new InventoryItem(UUID.randomUUID(), name, unit));
+		return add(new InventoryItem("INV-" + UUID.randomUUID(), name, unit));
 	}
 
 	public InventoryItem add(InventoryItem item) {
@@ -116,18 +121,39 @@ public final class InventoryStub {
 			send(exchange, failureStatus, failureBody);
 			return;
 		}
+		String itemPrefix = "/api/v1/inventory/items/";
+		if ("GET".equals(exchange.getRequestMethod())
+				&& exchange.getRequestURI().getPath().startsWith(itemPrefix)) {
+			String id = exchange.getRequestURI().getPath().substring(itemPrefix.length());
+			InventoryItem item = items.stream().filter(candidate -> id.equals(candidate.id())).findFirst().orElse(null);
+			if (item == null) {
+				send(exchange, 204, "");
+			} else {
+				send(exchange, 200, "{\"data\": {\"id\": \"%s\", \"name\": \"%s\", \"unit\": \"%s\"}}"
+						.formatted(item.id(), item.name(), item.unit()));
+			}
+			return;
+		}
+		if (!"GET".equals(exchange.getRequestMethod())
+				|| !"/api/v1/inventory/items".equals(exchange.getRequestURI().getPath())) {
+			send(exchange, 501, "{\"error\": {\"message\": \"Endpoint not modeled\"}}");
+			return;
+		}
 		Map<String, String> params = params(query);
+		String search = params.getOrDefault("q", "").toLowerCase(java.util.Locale.ROOT);
+		List<InventoryItem> matches = items.stream()
+				.filter(item -> item.name().toLowerCase(java.util.Locale.ROOT).contains(search)).toList();
 		int page = Integer.parseInt(params.getOrDefault("page", "1"));
 		int pageSize = Integer.parseInt(params.getOrDefault("pageSize", "12"));
-		int from = Math.min((page - 1) * pageSize, items.size());
-		int to = Math.min(from + pageSize, items.size());
-		int totalPages = (items.size() + pageSize - 1) / pageSize;
-		String data = items.subList(from, to).stream()
+		int from = (int) Math.min((long) (page - 1) * pageSize, matches.size());
+		int to = (int) Math.min((long) from + pageSize, matches.size());
+		int totalPages = (int) ((matches.size() + (long) pageSize - 1) / pageSize);
+		String data = matches.subList(from, to).stream()
 				.map(item -> "{\"id\": \"%s\", \"name\": \"%s\", \"unit\": \"%s\"}"
 						.formatted(item.id(), item.name(), item.unit()))
 				.collect(Collectors.joining(", "));
 		send(exchange, 200, "{\"data\": [%s], \"meta\": {\"page\": %d, \"pageSize\": %d, \"total\": %d, \"totalPages\": %d}}"
-				.formatted(data, page, pageSize, items.size(), totalPages));
+				.formatted(data, page, pageSize, matches.size(), totalPages));
 	}
 
 	private static Map<String, String> params(String query) {
@@ -135,7 +161,7 @@ public final class InventoryStub {
 		if (query != null) {
 			for (String pair : query.split("&")) {
 				String[] parts = pair.split("=", 2);
-				params.put(parts[0], parts.length > 1 ? parts[1] : "");
+				params.put(parts[0], parts.length > 1 ? URLDecoder.decode(parts[1], StandardCharsets.UTF_8) : "");
 			}
 		}
 		return params;

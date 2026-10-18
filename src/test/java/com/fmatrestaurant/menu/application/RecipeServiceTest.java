@@ -1,10 +1,10 @@
 package com.fmatrestaurant.menu.application;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -35,6 +35,7 @@ import com.fmatrestaurant.menu.domain.InventoryItem;
 import com.fmatrestaurant.menu.domain.Recipe;
 import com.fmatrestaurant.menu.domain.RecipeRevision;
 import com.fmatrestaurant.menu.infrastructure.InventoryClient;
+import com.fmatrestaurant.menu.infrastructure.CatalogOfferRepository;
 import com.fmatrestaurant.menu.infrastructure.RecipeRepository;
 import com.fmatrestaurant.menu.infrastructure.RecipeRevisionRepository;
 
@@ -42,9 +43,9 @@ class RecipeServiceTest {
 
 	private static final UUID RECIPE_ID = UUID.randomUUID();
 
-	private static final UUID BEEF = UUID.randomUUID();
+	private static final String BEEF = "INV-beef-001";
 
-	private static final UUID BUN = UUID.randomUUID();
+	private static final String BUN = "INV-bun-001";
 
 	private static final long VERSION = 3;
 
@@ -61,7 +62,8 @@ class RecipeServiceTest {
 		recipeRepository = mock(RecipeRepository.class);
 		revisionRepository = mock(RecipeRevisionRepository.class);
 		inventoryClient = mock(InventoryClient.class);
-		service = new RecipeService(recipeRepository, revisionRepository, inventoryClient);
+		service = new RecipeService(recipeRepository, revisionRepository, inventoryClient,
+				mock(CatalogOfferRepository.class));
 		when(inventoryClient.find(BEEF)).thenReturn(Optional.of(inventoryItem(BEEF)));
 		when(inventoryClient.find(BUN)).thenReturn(Optional.of(inventoryItem(BUN)));
 		when(recipeRepository.save(any(Recipe.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -128,7 +130,7 @@ class RecipeServiceTest {
 
 	@Test
 	void createRejectsAnArticleThatDoesNotExistInInventory() {
-		UUID unknown = UUID.randomUUID();
+		String unknown = "unknown-item";
 		when(inventoryClient.find(unknown)).thenReturn(Optional.empty());
 
 		InvalidFieldException exception = assertThrows(InvalidFieldException.class,
@@ -167,11 +169,11 @@ class RecipeServiceTest {
 
 	@Test
 	void updateDoesNotConsultInventoryWhenTheIngredientsAreNotSent() {
-		existing(1, "Burger");
+		existing(1);
 
 		service.update(RECIPE_ID, VERSION, "Better burger", null, null, null);
 
-		verify(inventoryClient, never()).find(any(UUID.class));
+		verify(inventoryClient, never()).find(any(String.class));
 	}
 
 	@Test
@@ -184,7 +186,7 @@ class RecipeServiceTest {
 	@SuppressWarnings("unchecked")
 	void listAsksForTheRequestedPageOrderedByName() {
 		RecipeRevision revision = new RecipeRevision(new Recipe(), 1, "Burger", "Classic", "Grill",
-				List.of(ingredient(BEEF, "2")));
+				List.of(ingredient()));
 		Page<RecipeRevision> page = new PageImpl<>(List.of(revision));
 		when(revisionRepository.findAll(any(Specification.class), any(Pageable.class))).thenReturn(page);
 
@@ -195,13 +197,13 @@ class RecipeServiceTest {
 		verify(revisionRepository).findAll(any(Specification.class), pageable.capture());
 		assertEquals(1, pageable.getValue().getPageNumber());
 		assertEquals(5, pageable.getValue().getPageSize());
-		assertTrue(pageable.getValue().getSort().getOrderFor("name") != null);
-		assertTrue(pageable.getValue().getSort().getOrderFor("id") != null);
+        assertNotNull(pageable.getValue().getSort().getOrderFor("name"));
+        assertNotNull(pageable.getValue().getSort().getOrderFor("id"));
 	}
 
 	@Test
 	void getReturnsTheCurrentRevision() {
-		RecipeRevision current = existing(2, "Burger");
+		RecipeRevision current = existing(2);
 
 		assertSame(current, service.get(RECIPE_ID));
 	}
@@ -216,7 +218,7 @@ class RecipeServiceTest {
 	@Test
 	void getRevisionReturnsAnEarlierRevision() {
 		RecipeRevision first = new RecipeRevision(new Recipe(), 1, "Old burger", "Classic", "Grill",
-				List.of(ingredient(BEEF, "2")));
+				List.of(ingredient()));
 		when(revisionRepository.findByRecipeIdAndRevision(RECIPE_ID, 1)).thenReturn(Optional.of(first));
 
 		assertSame(first, service.getRevision(RECIPE_ID, 1));
@@ -242,7 +244,7 @@ class RecipeServiceTest {
 
 	@Test
 	void updateRejectsAStaleVersionWithoutPublishing() {
-		existing(1, "Burger");
+		existing(1);
 
 		assertThrows(StaleRecipeException.class,
 				() -> service.update(RECIPE_ID, VERSION + 1, "Better burger", null, null, null));
@@ -253,7 +255,7 @@ class RecipeServiceTest {
 
 	@Test
 	void updateWithoutChangesPublishesNothing() {
-		RecipeRevision current = existing(1, "Burger");
+		RecipeRevision current = existing(1);
 
 		RecipeRevision result = service.update(RECIPE_ID, VERSION, null, null, null, null);
 
@@ -264,7 +266,7 @@ class RecipeServiceTest {
 
 	@Test
 	void updatePublishesTheNextRevisionKeepingWhatWasNotSent() {
-		RecipeRevision current = existing(1, "Burger");
+		RecipeRevision current = existing(1);
 
 		RecipeRevision next = service.update(RECIPE_ID, VERSION, "Better burger", null, null, null);
 
@@ -284,7 +286,7 @@ class RecipeServiceTest {
 
 	@Test
 	void updateReplacesTheIngredientsWhenTheyAreSent() {
-		existing(1, "Burger");
+		existing(1);
 
 		RecipeRevision next = service.update(RECIPE_ID, VERSION, null, "Updated", "Grill longer",
 				List.of(supply(BUN, "1")));
@@ -297,7 +299,7 @@ class RecipeServiceTest {
 
 	@Test
 	void updateRejectsInvalidIngredientsWithoutPublishing() {
-		RecipeRevision current = existing(1, "Burger");
+		RecipeRevision current = existing(1);
 
 		assertEquals("/supplies", assertThrows(InvalidFieldException.class,
 				() -> service.update(RECIPE_ID, VERSION, null, null, null, List.of())).getPath());
@@ -311,7 +313,7 @@ class RecipeServiceTest {
 
 	@Test
 	void updateRejectsInvalidTextsWithoutPublishing() {
-		RecipeRevision current = existing(1, "Burger");
+		RecipeRevision current = existing(1);
 
 		InvalidFieldException exception = assertThrows(InvalidFieldException.class,
 				() -> service.update(RECIPE_ID, VERSION, " ", null, null, null));
@@ -322,29 +324,29 @@ class RecipeServiceTest {
 	}
 
 	/** A recipe as loaded by JPA, at the given revision, with its current revision. */
-	private RecipeRevision existing(int currentRevision, String name) {
+	private RecipeRevision existing(int currentRevision) {
 		Recipe recipe = new Recipe();
 		for (int i = 1; i < currentRevision; i++) {
 			recipe.publishNextRevision();
 		}
 		ReflectionTestUtils.setField(recipe, "id", RECIPE_ID);
 		ReflectionTestUtils.setField(recipe, "version", VERSION);
-		RecipeRevision current = new RecipeRevision(recipe, currentRevision, name, "Classic", "Grill and serve",
-				List.of(ingredient(BEEF, "2")));
+		RecipeRevision current = new RecipeRevision(recipe, currentRevision, "Burger", "Classic", "Grill and serve",
+				List.of(ingredient()));
 		when(recipeRepository.findById(RECIPE_ID)).thenReturn(Optional.of(recipe));
 		when(revisionRepository.findByRecipeIdAndRevision(RECIPE_ID, currentRevision)).thenReturn(Optional.of(current));
 		return current;
 	}
 
-	private static SupplyData supply(UUID item, String quantity) {
+	private static SupplyData supply(String item, String quantity) {
 		return new SupplyData(item, new BigDecimal(quantity));
 	}
 
-	private static ComponentIngredient ingredient(UUID item, String quantity) {
-		return new ComponentIngredient(inventoryItem(item), new BigDecimal(quantity));
+	private static ComponentIngredient ingredient() {
+		return new ComponentIngredient(inventoryItem(RecipeServiceTest.BEEF), new BigDecimal("2"));
 	}
 
-	private static InventoryItem inventoryItem(UUID item) {
+	private static InventoryItem inventoryItem(String item) {
 		return new InventoryItem(item, "Item " + item, "unit");
 	}
 

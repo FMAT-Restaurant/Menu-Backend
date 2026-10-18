@@ -134,7 +134,7 @@ public class CatalogOfferController {
 	 * An INVENTORY_ITEM option ({@code additionalProperties: false}): only the fields of its source type.
 	 * The status is always included, as PATCH requires it.
 	 */
-	public record Option(UUID optionId, SourceType sourceType, @JsonInclude(NON_NULL) UUID inventoryItemId,
+	public record Option(UUID optionId, SourceType sourceType, @JsonInclude(NON_NULL) String inventoryItemId,
 			@JsonInclude(NON_NULL) BigDecimal quantity, @JsonInclude(NON_NULL) String unit,
 			@JsonInclude(NON_NULL) UUID recipeId, @JsonInclude(NON_NULL) Integer recipeRevision, OfferStatus status,
 			String displayName) {

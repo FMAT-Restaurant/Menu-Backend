@@ -1,6 +1,7 @@
 package com.fmatrestaurant.menu.api;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -44,9 +45,9 @@ class RecipeApiIntegrationTest {
 
 	private static final String VIOLATION_PATH = "$.error.details.violations[0].path";
 
-	private static final UUID BEEF = UUID.randomUUID();
+	private static final String BEEF = "INV-beef-001";
 
-	private static final UUID BUN = UUID.randomUUID();
+	private static final String BUN = "000042";
 
 	private static final InventoryStub INVENTORY = InventoryStub.INSTANCE;
 
@@ -84,7 +85,7 @@ class RecipeApiIntegrationTest {
 				.andExpect(jsonPath("$.data.description").value("Classic"))
 				.andExpect(jsonPath("$.data.instructions").value("Grill and serve"))
 				.andExpect(jsonPath("$.data.supplies.length()").value(1))
-				.andExpect(jsonPath("$.data.supplies[0].inventoryItemId").value(BEEF.toString()))
+				.andExpect(jsonPath("$.data.supplies[0].inventoryItemId").value(BEEF))
 				.andExpect(jsonPath("$.data.supplies[0].quantity").value(2))
 				.andExpect(jsonPath("$.data.supplies[0].inventoryItem.name").value("Beef patty"))
 				.andExpect(jsonPath("$.data.supplies[0].inventoryItem.unit").value("unit"));
@@ -97,14 +98,32 @@ class RecipeApiIntegrationTest {
 	void keepsTheOrderAndTheDecimalQuantitiesOfTheIngredients() throws Exception {
 		createRecipe(recipe("Burger", supply(BUN, "1"), supply(BEEF, "150.5")))
 				.andExpect(status().isCreated())
-				.andExpect(jsonPath("$.data.supplies[0].inventoryItemId").value(BUN.toString()))
-				.andExpect(jsonPath("$.data.supplies[1].inventoryItemId").value(BEEF.toString()))
+				.andExpect(jsonPath("$.data.supplies[0].inventoryItemId").value(BUN))
+				.andExpect(jsonPath("$.data.supplies[1].inventoryItemId").value(BEEF))
 				.andExpect(jsonPath("$.data.supplies[1].quantity").value(150.5));
+	}
+
+	@Test
+	void preservesLongOpaqueIdsWhenReadingAndPublishingANewRevision() throws Exception {
+		String item = "inventory:article/" + "x".repeat(300);
+		INVENTORY.add(new InventoryItem(item, "Special ingredient", "unit"));
+		String id = create(recipe("Burger", supply(item, "2")));
+
+		mockMvc.perform(get(RECIPES + "/" + id))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.supplies[0].inventoryItemId").value(item))
+				.andExpect(jsonPath("$.data.supplies[0].inventoryItem.id").value(item));
+		patchRecipe(id, "\"rev-0\"", "{\"name\": \"Updated burger\"}")
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.supplies[0].inventoryItemId").value(item));
 	}
 
 	@Test
 	void rejectsInvalidRecipesAndStoresNothing() throws Exception {
 		String valid = recipe("Burger", supply(BEEF, "2"));
+
+		expectViolation(createRecipe(recipe("Burger", supply(" ", "1"))),
+				"/supplies/0/inventoryItemId");
 
 		expectViolation(createRecipe(recipe("Burger")), "/supplies");
 		expectViolation(createRecipe(valid.replace("\"name\": \"Burger\", ", "")), "/name");
@@ -114,7 +133,7 @@ class RecipeApiIntegrationTest {
 				"/supplies/0/quantity");
 		expectViolation(createRecipe(valid.replace("\"inventoryItemId\": \"" + BEEF + "\", ", "")),
 				"/supplies/0/inventoryItemId");
-		expectViolation(createRecipe(recipe("Burger", supply(UUID.randomUUID(), "1"))),
+		expectViolation(createRecipe(recipe("Burger", supply("unknown-item", "1"))),
 				"/supplies/0/inventoryItemId");
 
 		assertEquals(0, recipeRepository.count());
@@ -135,7 +154,7 @@ class RecipeApiIntegrationTest {
 	void editingAnArticleThatDoesNotExistPublishesNothing() throws Exception {
 		String id = create(recipe("Burger", supply(BEEF, "2")));
 
-		expectViolation(patchRecipe(id, "\"rev-0\"", "{\"supplies\": [" + supply(UUID.randomUUID(), "1") + "]}"),
+		expectViolation(patchRecipe(id, "\"rev-0\"", "{\"supplies\": [" + supply("unknown-item", "1") + "]}"),
 				"/supplies/0/inventoryItemId");
 
 		assertEquals(1, revisionRepository.count());
@@ -210,7 +229,7 @@ class RecipeApiIntegrationTest {
 				.andExpect(jsonPath("$.data.description").value("Classic"))
 				.andExpect(jsonPath("$.data.instructions").value("Grill and serve"))
 				.andExpect(jsonPath("$.data.supplies.length()").value(1))
-				.andExpect(jsonPath("$.data.supplies[0].inventoryItemId").value(BEEF.toString()));
+				.andExpect(jsonPath("$.data.supplies[0].inventoryItemId").value(BEEF));
 
 		RecipeRevision first = revisionRepository.findByRecipeIdAndRevision(UUID.fromString(id), 1).orElseThrow();
 		RecipeRevision second = revisionRepository.findByRecipeIdAndRevision(UUID.fromString(id), 2).orElseThrow();
@@ -231,7 +250,7 @@ class RecipeApiIntegrationTest {
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.revision").value(2))
 				.andExpect(jsonPath("$.data.supplies.length()").value(1))
-				.andExpect(jsonPath("$.data.supplies[0].inventoryItemId").value(BUN.toString()));
+				.andExpect(jsonPath("$.data.supplies[0].inventoryItemId").value(BUN));
 
 		RecipeRevision first = revisionRepository.findByRecipeIdAndRevision(UUID.fromString(id), 1).orElseThrow();
 		assertEquals(BEEF, first.getIngredients().getFirst().getInventoryItemId());
@@ -293,7 +312,7 @@ class RecipeApiIntegrationTest {
 		String id = create(recipe("Burger", supply(BEEF, "2")));
 		String listEtag = mockMvc.perform(get(RECIPES)).andExpect(status().isOk())
 				.andExpect(header().exists(HttpHeaders.ETAG)).andReturn().getResponse().getHeader(HttpHeaders.ETAG);
-
+		assertNotNull(listEtag, "ETag header is missing from GET response");
 		mockMvc.perform(get(RECIPES + "/" + id).header(HttpHeaders.IF_NONE_MATCH, "\"rev-0\""))
 				.andExpect(status().isNotModified());
 		mockMvc.perform(get(RECIPES).header(HttpHeaders.IF_NONE_MATCH, listEtag))
@@ -331,7 +350,7 @@ class RecipeApiIntegrationTest {
 				+ "\"supplies\": [" + String.join(", ", supplies) + "]}";
 	}
 
-	private static String supply(UUID item, String quantity) {
+	private static String supply(String item, String quantity) {
 		return "{\"inventoryItemId\": \"" + item + "\", \"quantity\": " + quantity + "}";
 	}
 

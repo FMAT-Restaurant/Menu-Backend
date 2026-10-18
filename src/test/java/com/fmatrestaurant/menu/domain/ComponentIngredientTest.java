@@ -5,13 +5,12 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.math.BigDecimal;
-import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 
 class ComponentIngredientTest {
 
-	private static final UUID ITEM = UUID.randomUUID();
+	private static final String ITEM = "INV-item-001";
 
 	private static final InventoryItem BEEF = new InventoryItem(ITEM, "Beef patty", "unit");
 

@@ -26,6 +26,7 @@ import com.fmatrestaurant.menu.application.CatalogOfferNotFoundException;
 import com.fmatrestaurant.menu.application.CategoryNotFoundException;
 import com.fmatrestaurant.menu.application.DeletionNotAllowedException;
 import com.fmatrestaurant.menu.application.ImageNotFoundException;
+import com.fmatrestaurant.menu.application.RecipeInUseException;
 import com.fmatrestaurant.menu.application.RecipeNotFoundException;
 import com.fmatrestaurant.menu.application.StaleCatalogEntryException;
 import com.fmatrestaurant.menu.application.StaleCatalogOfferException;
@@ -115,6 +116,12 @@ public class ApiExceptionHandler {
 			OptimisticLockingFailureException.class })
 	ResponseEntity<ErrorEnvelope> stale() {
 		return error(HttpStatus.PRECONDITION_FAILED, "The resource has changed since it was read.");
+	}
+
+	@ExceptionHandler(RecipeInUseException.class)
+	ResponseEntity<ErrorEnvelope> recipeInUse(RecipeInUseException e) {
+		return ResponseEntity.status(HttpStatus.CONFLICT)
+				.body(new ErrorEnvelope(new ErrorBody(e.getMessage(), Map.of("offerIds", e.getOfferIds()))));
 	}
 
 	/** The current state does not allow the deletion; the contract does not document this answer yet. */

@@ -18,6 +18,13 @@ La definición del dominio, los requisitos y las decisiones de arquitectura vive
 Esa documentación es la referencia para el diseño y la implementación de este backend.
 
 ## Documentación relacionada
+
+La eliminación de recetas (`DELETE /api/v1/menu/recipes/{recipeId}`, REQ-MENU-REC-005) exige
+`If-Match` y rechaza con `409` cualquier referencia desde una opción de una oferta existente,
+sin filtrar por estado ni revisión. La baja retira la receta de la biblioteca; conserva sus
+revisiones publicadas y sus ingredientes. En bases existentes, ejecutar
+[`docs/sql/recipe-deletion.sql`](docs/sql/recipe-deletion.sql) antes de iniciar esta versión.
+Las bases nuevas crean la columna mediante los mapeos JPA.
  
 | Recurso | Descripción |
 | ------- | ----------- |
@@ -52,30 +59,41 @@ Esa documentación es la referencia para el diseño y la implementación de este
 ```bash
 git clone https://github.com/FMAT-Restaurant/Menu-Backend.git
 cd Menu-Backend
+# Copiar .env.example a .env y definir POSTGRES_PASSWORD antes de arrancar.
 docker compose up --build
 ```
 
 [`compose.yaml`](compose.yaml) construye la imagen del API con el [`Dockerfile`](Dockerfile) (Eclipse Temurin 25.0.4.1) y la levanta junto a PostgreSQL 18.6 y RabbitMQ 4.3.6. El API espera a que ambos estén listos.
 
 - La configuración es externa: el API recibe la conexión por variables de entorno (`SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD`). `application.properties` no tiene datos de conexión.
-- Los valores por defecto (`menu` / `menu` / `menu`, puertos 8080 y 5432) se sobrescriben con variables o con un archivo `.env` (ignorado por git): `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_PORT`, `RABBITMQ_USER`, `RABBITMQ_PASSWORD`, `RABBITMQ_VHOST`, `RABBITMQ_PORT`, `API_PORT`.
+- Copiar `.env.example` a `.env` (`Copy-Item .env.example .env` en PowerShell, solo si aún no existe) y definir `POSTGRES_PASSWORD`; Compose rechaza una contraseña vacía o ausente. La base y el usuario predeterminados son `menu`, con puertos 8080 y 5432. Se configuran mediante variables o el archivo `.env` (ignorado por git): `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_PORT`, `RABBITMQ_USER`, `RABBITMQ_PASSWORD`, `RABBITMQ_VHOST`, `RABBITMQ_PORT`, `API_PORT`.
+- Compose lee `.env` y pasa los valores declarados en `environment` a cada contenedor. Spring no importa ese archivo ni necesita tenerlo dentro de la imagen. Para ejecutar fuera de Docker, usar el perfil `local` descrito abajo.
+- `POSTGRES_PASSWORD` solo inicializa la contraseña al crear una base nueva. Si ya existe el volumen, cambiar esta variable no modifica la contraseña guardada; debe actualizarse con `\password` desde `psql` y coincidir con la configuración de la API.
 - Los datos se guardan en el volumen `postgres-data`. `docker compose down -v` los borra.
 - Este archivo es solo para desarrollo local; no define la topología de despliegue.
 
-### Opción 2: API desde el IDE o con Gradle
+### Opción 2: API local con el perfil `local` (sin Docker)
 
-```bash
-docker compose up -d postgres rabbitmq
-export SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/menu
-export SPRING_DATASOURCE_USERNAME=menu
-export SPRING_DATASOURCE_PASSWORD=menu
-export SPRING_RABBITMQ_HOST=localhost
-export SPRING_RABBITMQ_PORT=5672
-export SPRING_RABBITMQ_VIRTUALHOST=/
-export SPRING_RABBITMQ_USERNAME=menu
-export SPRING_RABBITMQ_PASSWORD=menu
-./gradlew bootRun      # En Windows: gradlew.bat bootRun (con set en lugar de export)
-```
+Requiere JDK 25, PostgreSQL local y una base existente con permisos para el usuario configurado. RabbitMQ debe estar instalado y configurado localmente si se usa mensajería; la conexión es perezosa.
+
+1. Desde la raíz del proyecto, copiar `application-local.properties.example` a `src/main/resources/application-local.properties` (solo si aún no existe):
+
+   ```powershell
+   Copy-Item application-local.properties.example application-local.properties
+   ```
+
+2. Completar la URL, el usuario y la contraseña de PostgreSQL en `src/main/resources/application-local.properties`. Ajustar RabbitMQ e Inventario según el entorno. La plantilla usa el inventario de prueba del propio backend; se puede apuntar al servicio externo en su lugar.
+3. Iniciar desde la raíz con el perfil local:
+
+   ```powershell
+   .\gradlew.bat bootRun --args="--spring.profiles.active=local"
+   ```
+
+Spring combina `src/main/resources/application.properties` con el archivo externo `src/main/resources/application-local.properties` al activar `local`. El archivo personal está excluido de Git y del contexto de Docker; su plantilla sí se versiona. No se copia al JAR ni a la imagen.
+
+`.env` se reserva para Compose. `POSTGRES_URL` y `POSTGRES_USERNAME` del antiguo flujo local no son utilizados por Spring ni por este Compose: la conexión local se define en `src/main/resources/application-local.properties`; Compose usa `POSTGRES_DB`, `POSTGRES_USER` y `POSTGRES_PASSWORD`. No activar `local` al ejecutar la API en Docker.
+
+Las variables `SPRING_DATASOURCE_*` o `SPRING_RABBITMQ_*` heredadas pueden prevalecer sobre el archivo local; quitarlas del entorno si se quiere usar los valores del perfil. Hibernate `update` se configura solo para desarrollo (en el archivo local y en Compose); no es una estrategia de migraciones para producción.
 
 En ambos casos:
 
@@ -112,7 +130,21 @@ Otros comandos útiles:
 
 ### Artículos de Inventario
 
-El front consulta el servicio externo de Inventario y envía el artículo seleccionado al guardar una oferta. Cada opción incluye `source: {id, name, unit}` y `unit`; Menu exige que ambas unidades coincidan porque OPEN-006 no define conversiones. Menu almacena la referencia y una copia del nombre y la unidad recibidos para responder consultas de ofertas sin depender de Inventario. Menu no administra artículos ni existencias.
+El controlador `InventoryMockController` expone un inventario fijo dentro de este backend:
+
+- `GET /api/v1/inventory/items`: página `{data, meta}` de 10 artículos hardcoded con UUID válidos. Acepta `q` (búsqueda por nombre sin distinguir mayúsculas), `page` (desde 1) y `pageSize` (positivo, 12 por defecto), y consultas condicionales `If-None-Match` con ETag y respuesta `304`.
+- Se conservan `/inventory/items` y `/inventory/items/` como alias locales.
+- `GET /inventory/items/{id}` (también bajo `/api/v1`) es una extensión del mock, no incluida en el contrato externo: devuelve `{data: {id, name, unit}}` o `204` si no existe. Ejemplo: `/inventory/items/2c21767f-0f9a-4e9f-adc7-2730556c1801`.
+
+Para usarlo desde el cliente de este mismo backend, asignar `INVENTORY_BASE_URL=http://localhost:8080/api/v1` (ajustando el puerto si corresponde). El mock no necesita token, no usa base de datos ni llama al servicio externo. No se modifica el `.env` automáticamente.
+
+`InventoryClient.find` hace una sola consulta a `GET /inventory/items/{id}` y consume `{data: {id, name, unit}}`, validando que el ID recibido coincida exactamente con el solicitado. Devuelve vacío únicamente ante `204`; errores HTTP (incluido `404`) o respuestas incompletas se propagan como fallo de Inventario. Esta ruta por ID es una extensión local y debe estar disponible con esa misma respuesta en el servicio de Inventario configurado. El contrato publicado define UUID; el cliente conserva compatibilidad con identificadores opacos como strings.
+
+Las recetas y las opciones de inventario de las ofertas reciben `inventoryItemId` como string opaco (por ejemplo, `INV-beef-001` o `000042`), sin exigir formato UUID. Menu confirma el artículo y su unidad mediante el cliente HTTP de Inventario y conserva el identificador exacto, el nombre y la unidad. Los identificadores propios de Menu siguen siendo UUID.
+
+Las columnas `component_ingredient.inventory_item_id` y `slot_option.inventory_item_id` son de tipo PostgreSQL `text`. En una base existente, detener el backend y ejecutar [inventory-item-id-to-text.sql](docs/sql/inventory-item-id-to-text.sql) antes de iniciar esta versión. El script convierte los UUID existentes a su representación textual y conserva los valores nulos de las opciones de receta. Las bases nuevas se crean con el tipo correcto mediante Hibernate.
+
+El contrato servido en `src/main/resources/static/openapi.yaml` incluye este cambio; debe sincronizarse con la fuente de documentación al integrar esta versión.
 
 ## Decisiones pendientes
 

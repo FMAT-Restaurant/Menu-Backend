@@ -32,6 +32,7 @@ import com.fmatrestaurant.menu.application.CategoryService;
 import com.fmatrestaurant.menu.domain.CatalogEntry;
 import com.fmatrestaurant.menu.domain.Category;
 import com.fmatrestaurant.menu.infrastructure.CatalogEntryRepository;
+import com.fmatrestaurant.menu.infrastructure.CatalogOfferRepository;
 import com.fmatrestaurant.menu.infrastructure.CategoryRepository;
 import com.jayway.jsonpath.JsonPath;
 
@@ -57,6 +58,9 @@ class CategoryApiIntegrationTest {
 	private CatalogEntryRepository entryRepository;
 
 	@Autowired
+	private CatalogOfferRepository offerRepository;
+
+	@Autowired
 	private CategoryService categoryService;
 
 	@Autowired
@@ -64,6 +68,7 @@ class CategoryApiIntegrationTest {
 
 	@BeforeEach
 	void setUp() {
+		offerRepository.deleteAll();
 		entryRepository.deleteAll();
 		categoryRepository.deleteAll();
 	}

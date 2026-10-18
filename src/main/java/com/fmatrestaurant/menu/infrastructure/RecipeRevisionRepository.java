@@ -27,9 +27,10 @@ public interface RecipeRevisionRepository extends JpaRepository<RecipeRevision, 
 	 * @param q text searched, case-insensitively, in the name and the description; ignored when blank
 	 */
 	static Specification<RecipeRevision> currentMatching(String q) {
-		return (root, query, cb) -> {
+		return (root, _, cb) -> {
 			List<Predicate> predicates = new ArrayList<>();
 			predicates.add(cb.equal(root.get("revision"), root.get("recipe").get("currentRevision")));
+			predicates.add(cb.isFalse(root.get("recipe").get("deleted")));
 			if (q != null && !q.isBlank()) {
 				String pattern = "%" + q.strip().toLowerCase(Locale.ROOT)
 						.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";

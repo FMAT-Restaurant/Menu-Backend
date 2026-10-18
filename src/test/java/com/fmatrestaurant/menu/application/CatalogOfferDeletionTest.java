@@ -29,6 +29,7 @@ import com.fmatrestaurant.menu.infrastructure.CatalogOfferRepository;
 import com.fmatrestaurant.menu.infrastructure.ImageRepository;
 import com.fmatrestaurant.menu.infrastructure.InventoryClient;
 import com.fmatrestaurant.menu.infrastructure.RecipeRevisionRepository;
+import com.fmatrestaurant.menu.infrastructure.RecipeRepository;
 
 class CatalogOfferDeletionTest {
 
@@ -49,13 +50,13 @@ class CatalogOfferDeletionTest {
 		entryRepository = mock(CatalogEntryRepository.class);
 		offerRepository = mock(CatalogOfferRepository.class);
 		service = new CatalogOfferService(offerRepository, entryRepository, mock(ImageRepository.class),
-				mock(InventoryClient.class), mock(RecipeRevisionRepository.class));
+				mock(InventoryClient.class), mock(RecipeRevisionRepository.class), mock(RecipeRepository.class));
 	}
 
 	@Test
 	void deletesAnInactiveOfferOfAnInactiveEntry() {
 		CatalogEntry entry = entry(EntryStatus.INACTIVE);
-		CatalogOffer offer = loaded(entry, OFFER_ID, false);
+		CatalogOffer offer = loaded(entry, false);
 		when(offerRepository.findByEntryId(ENTRY_ID)).thenReturn(List.of(offer));
 
 		service.delete(OFFER_ID, VERSION);
@@ -66,7 +67,7 @@ class CatalogOfferDeletionTest {
 	@Test
 	void deletesAnInactiveOfferOfAnArchivedEntryWithoutOtherOffers() {
 		CatalogEntry entry = entry(EntryStatus.ARCHIVED);
-		CatalogOffer offer = loaded(entry, OFFER_ID, false);
+		CatalogOffer offer = loaded(entry, false);
 		when(offerRepository.findByEntryId(ENTRY_ID)).thenReturn(List.of(offer));
 
 		service.delete(OFFER_ID, VERSION);
@@ -77,7 +78,7 @@ class CatalogOfferDeletionTest {
 	@Test
 	void deletesAnInactiveOfferOfAnActiveEntryThatKeepsAnotherActiveOffer() {
 		CatalogEntry entry = entry(EntryStatus.ACTIVE);
-		CatalogOffer offer = loaded(entry, OFFER_ID, false);
+		CatalogOffer offer = loaded(entry, false);
 		CatalogOffer other = offer(entry, UUID.randomUUID(), true);
 		when(offerRepository.findByEntryId(ENTRY_ID)).thenReturn(List.of(offer, other));
 		when(offerRepository.incrementVersion(other.getId(), VERSION)).thenReturn(1);
@@ -91,7 +92,7 @@ class CatalogOfferDeletionTest {
 	@Test
 	void rejectsWhenTheOtherActiveOfferChangedWhileItWasChecked() {
 		CatalogEntry entry = entry(EntryStatus.ACTIVE);
-		CatalogOffer offer = loaded(entry, OFFER_ID, false);
+		CatalogOffer offer = loaded(entry, false);
 		CatalogOffer other = offer(entry, UUID.randomUUID(), true);
 		when(offerRepository.findByEntryId(ENTRY_ID)).thenReturn(List.of(offer, other));
 		when(offerRepository.incrementVersion(other.getId(), VERSION)).thenReturn(0);
@@ -106,7 +107,7 @@ class CatalogOfferDeletionTest {
 	@Test
 	void rejectsAnActiveOffer() {
 		CatalogEntry entry = entry(EntryStatus.INACTIVE);
-		loaded(entry, OFFER_ID, true);
+		loaded(entry, true);
 
 		DeletionNotAllowedException exception = assertThrows(DeletionNotAllowedException.class,
 				() -> service.delete(OFFER_ID, VERSION));
@@ -118,7 +119,7 @@ class CatalogOfferDeletionTest {
 	@Test
 	void rejectsLeavingAnActiveEntryWithoutAnotherActiveOffer() {
 		CatalogEntry entry = entry(EntryStatus.ACTIVE);
-		CatalogOffer offer = loaded(entry, OFFER_ID, false);
+		CatalogOffer offer = loaded(entry, false);
 		CatalogOffer inactiveOther = offer(entry, UUID.randomUUID(), false);
 		when(offerRepository.findByEntryId(ENTRY_ID)).thenReturn(List.of(offer, inactiveOther));
 
@@ -130,7 +131,7 @@ class CatalogOfferDeletionTest {
 	@Test
 	void rejectsLeavingAnActiveEntryWithoutOffers() {
 		CatalogEntry entry = entry(EntryStatus.ACTIVE);
-		CatalogOffer offer = loaded(entry, OFFER_ID, false);
+		CatalogOffer offer = loaded(entry, false);
 		when(offerRepository.findByEntryId(ENTRY_ID)).thenReturn(List.of(offer));
 
 		assertThrows(DeletionNotAllowedException.class, () -> service.delete(OFFER_ID, VERSION));
@@ -141,7 +142,7 @@ class CatalogOfferDeletionTest {
 	@Test
 	void rejectsAStaleVersionWithoutDeletingAnything() {
 		CatalogEntry entry = entry(EntryStatus.INACTIVE);
-		loaded(entry, OFFER_ID, false);
+		loaded(entry, false);
 
 		assertThrows(StaleCatalogOfferException.class, () -> service.delete(OFFER_ID, VERSION + 1));
 
@@ -151,7 +152,7 @@ class CatalogOfferDeletionTest {
 	@Test
 	void checksTheVersionBeforeTheStatus() {
 		CatalogEntry entry = entry(EntryStatus.INACTIVE);
-		loaded(entry, OFFER_ID, true);
+		loaded(entry, true);
 
 		assertThrows(StaleCatalogOfferException.class, () -> service.delete(OFFER_ID, VERSION + 1));
 	}
@@ -183,16 +184,16 @@ class CatalogOfferDeletionTest {
 	}
 
 	/** An offer as the repository returns it for the deletion, with the version JPA assigns. */
-	private CatalogOffer loaded(CatalogEntry entry, UUID id, boolean active) {
-		CatalogOffer offer = offer(entry, id, active);
-		when(offerRepository.findEntryIdById(id)).thenReturn(Optional.of(entry.getId()));
-		when(offerRepository.findForDeletionById(id)).thenReturn(Optional.of(offer));
+	private CatalogOffer loaded(CatalogEntry entry, boolean active) {
+		CatalogOffer offer = offer(entry, CatalogOfferDeletionTest.OFFER_ID, active);
+		when(offerRepository.findEntryIdById(CatalogOfferDeletionTest.OFFER_ID)).thenReturn(Optional.of(entry.getId()));
+		when(offerRepository.findForDeletionById(CatalogOfferDeletionTest.OFFER_ID)).thenReturn(Optional.of(offer));
 		return offer;
 	}
 
 	private static CatalogOffer offer(CatalogEntry entry, UUID id, boolean active) {
 		SlotOption option = new SlotOption("Fries", OfferStatus.ACTIVE,
-				new InventoryItem(UUID.randomUUID(), "Potatoes", "g"), new BigDecimal("200"), "g");
+				new InventoryItem("INV-" + UUID.randomUUID(), "Potatoes", "g"), new BigDecimal("200"), "g");
 		CompositionSlot slot = new CompositionSlot("Side", BigDecimal.ONE, null, List.of(option));
 		CatalogOffer offer = new CatalogOffer(entry, "Individual", BigDecimal.TEN, UUID.randomUUID(), List.of(slot));
 		if (active) {

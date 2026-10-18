@@ -64,7 +64,7 @@ public class CatalogOffer {
 	@OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
 	@JoinColumn(name = "offer_id", nullable = false)
 	@OrderColumn(name = "position")
-	private List<CompositionSlot> slots = new ArrayList<>();
+	private final List<CompositionSlot> slots = new ArrayList<>();
 
 	protected CatalogOffer() {
 		// Required by JPA.
@@ -90,7 +90,7 @@ public class CatalogOffer {
 		this.presentationTag = presentationTag(presentationTag);
 		this.basePrice = basePrice(basePrice);
 		this.imageId = imageId;
-		replaceSlots(slots);
+		this.replaceSlots(slots);
 	}
 
 	/**
@@ -114,7 +114,7 @@ public class CatalogOffer {
 	 *
 	 * @throws InvalidFieldException if there are no slots
 	 */
-	public void replaceSlots(List<CompositionSlot> newSlots) {
+	public final void replaceSlots(List<CompositionSlot> newSlots) {
 		if (newSlots == null || newSlots.isEmpty()) {
 			throw new InvalidFieldException("/composition/slots", "The composition must have at least one slot");
 		}
@@ -179,10 +179,6 @@ public class CatalogOffer {
 
 	public UUID getImageId() {
 		return imageId;
-	}
-
-	public boolean isEnabled() {
-		return enabled;
 	}
 
 	public List<CompositionSlot> getSlots() {

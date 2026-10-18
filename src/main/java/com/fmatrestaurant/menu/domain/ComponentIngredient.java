@@ -32,8 +32,8 @@ public class ComponentIngredient {
 	@GeneratedValue(strategy = GenerationType.UUID)
 	private UUID id;
 
-	@Column(name = "inventory_item_id", nullable = false)
-	private UUID inventoryItemId;
+	@Column(name = "inventory_item_id", nullable = false, columnDefinition = "text")
+	private String inventoryItemId;
 
 	@Column(name = "item_name", nullable = false, length = NAME_MAX_LENGTH)
 	private String itemName;
@@ -55,7 +55,7 @@ public class ComponentIngredient {
 	 * @throws InvalidFieldException if a value is missing or invalid
 	 */
 	public ComponentIngredient(InventoryItem item, BigDecimal quantity) {
-		if (item == null || item.id() == null) {
+		if (item == null || item.id() == null || item.id().isBlank()) {
 			throw new InvalidFieldException("/inventoryItemId", "The inventory item id is required");
 		}
 		if (quantity == null) {
@@ -84,7 +84,7 @@ public class ComponentIngredient {
 		return id;
 	}
 
-	public UUID getInventoryItemId() {
+	public String getInventoryItemId() {
 		return inventoryItemId;
 	}
 
