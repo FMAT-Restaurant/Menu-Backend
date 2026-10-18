@@ -3,6 +3,7 @@ package com.fmatrestaurant.menu.api;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -91,6 +92,7 @@ class CategoryApiIntegrationTest {
 				.andExpect(header().exists(HttpHeaders.ETAG))
 				.andExpect(jsonPath("$.data[0].version").value(0))
 				.andReturn().getResponse().getHeader(HttpHeaders.ETAG);
+		assertNotNull(collectionEtag, "ETag header is missing from GET response");
 		mockMvc.perform(get(CATEGORIES).header(HttpHeaders.IF_NONE_MATCH, collectionEtag))
 				.andExpect(status().isNotModified());
 		mockMvc.perform(patch(CATEGORIES + "/" + id).contentType(MediaType.APPLICATION_JSON)

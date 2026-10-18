@@ -1,5 +1,6 @@
 package com.fmatrestaurant.menu.api;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -41,7 +42,7 @@ class InventoryMockControllerTest {
 				new ServletWebRequest(new MockHttpServletRequest())).getBody();
 		assertNotNull(body);
 		for (var item : body.data()) {
-			UUID.fromString(item.id());
+			assertDoesNotThrow(() -> UUID.fromString(item.id()));
 			mvc.perform(get("/inventory/items/{id}", item.id()))
 					.andExpect(status().isOk())
 					.andExpect(jsonPath("$.data.id").value(item.id()))
