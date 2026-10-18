@@ -19,6 +19,8 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
+import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fmatrestaurant.menu.application.CatalogEntryNotFoundException;
@@ -46,16 +48,16 @@ public class ApiExceptionHandler {
 
 	private static final String NOT_FOUND = "The requested resource was not found.";
 
-	@ExceptionHandler({
-    CatalogEntryNotFoundException.class,
-    CatalogOfferNotFoundException.class,
-    CategoryNotFoundException.class,
-    ImageNotFoundException.class,
-    RecipeNotFoundException.class
-  })
-  ResponseEntity<ErrorEnvelope> notFound() {
-      return error(HttpStatus.NOT_FOUND, NOT_FOUND);
-  }
+	@ExceptionHandler({ CatalogEntryNotFoundException.class, CatalogOfferNotFoundException.class,
+			CategoryNotFoundException.class, ImageNotFoundException.class, RecipeNotFoundException.class })
+	ResponseEntity<ErrorEnvelope> notFound(RuntimeException e) {
+		return error(HttpStatus.NOT_FOUND, e.getMessage());
+	}
+
+	@ExceptionHandler({ NoHandlerFoundException.class, NoResourceFoundException.class })
+	ResponseEntity<ErrorEnvelope> routeNotFound() {
+		return error(HttpStatus.NOT_FOUND, NOT_FOUND);
+	}
 
 	@ExceptionHandler(InvalidFieldException.class)
 	ResponseEntity<ErrorEnvelope> invalidField(InvalidFieldException e) {

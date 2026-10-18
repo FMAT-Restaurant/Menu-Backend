@@ -2,6 +2,9 @@
 spring.datasource.url=jdbc:postgresql://localhost:5432/menu
 spring.datasource.username=tony
 spring.datasource.password=
+# Additional browser origins, comma-separated. Localhost on any port is enabled separately.
+# menu.cors.allowed-origins=https://menu.example.com,https://admin.example.com
+# menu.cors.allow-localhost=false
 spring.jpa.hibernate.ddl-auto=update
 
 # Mocked inventory service. Menu will call this service to check items and their units before saving options.

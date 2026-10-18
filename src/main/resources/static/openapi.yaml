@@ -1848,6 +1848,7 @@ components:
       description: Datos JSON para crear una oferta y definir su composición inicial. La imagen se carga previamente mediante POST /api/v1/media/images y esta solicitud asocia su identificador; la carga y la asociación son operaciones separadas. No se envían archivos ni URLs en esta solicitud. Los UUID de los slots y las opciones los genera el servidor; no deben incluirse en este cuerpo. El servidor asigna INACTIVE al crear la oferta; su activación manual se realiza después mediante una actualización.
       additionalProperties: false
       required:
+        - presentationTag
         - basePrice
         - composition
         - imageId

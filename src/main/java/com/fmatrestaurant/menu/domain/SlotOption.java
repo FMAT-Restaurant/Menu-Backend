@@ -3,6 +3,8 @@ package com.fmatrestaurant.menu.domain;
 import java.math.BigDecimal;
 import java.util.UUID;
 
+import org.hibernate.annotations.Check;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -23,6 +25,11 @@ import jakarta.persistence.Table;
  */
 @Entity
 @Table(name = "slot_option")
+@Check(name = "ck_slot_option_source", constraints = "(source_type = 'INVENTORY_ITEM' "
+		+ "and inventory_item_id is not null and quantity is not null and quantity > 0 and unit is not null "
+		+ "and recipe_id is null and recipe_revision is null) or (source_type = 'RECIPE' "
+		+ "and recipe_id is not null and recipe_revision is not null and recipe_revision >= 1 "
+		+ "and inventory_item_id is null and quantity is null and unit is null and source_name is null)")
 public class SlotOption {
 
 	/** Maximum length of the display name, matching the database column. */
