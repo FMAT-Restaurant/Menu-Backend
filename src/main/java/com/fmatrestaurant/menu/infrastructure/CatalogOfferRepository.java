@@ -20,7 +20,7 @@ import jakarta.persistence.LockModeType;
 import jakarta.persistence.criteria.Predicate;
 
 public interface CatalogOfferRepository extends JpaRepository<CatalogOffer, UUID>,
-		JpaSpecificationExecutor<CatalogOffer> {
+		JpaSpecificationExecutor<CatalogOffer>, CatalogOfferHistory {
 
 	/**
 	 * Loads the offer for an update. Its version increases on commit even if only its slots or

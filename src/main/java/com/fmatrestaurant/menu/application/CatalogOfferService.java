@@ -94,7 +94,9 @@ public class CatalogOfferService {
 		CatalogOffer offer = new CatalogOffer(entry, input.presentationTag(), input.basePrice(), imageId,
 				slots(List.of(), slots, true, new HashMap<>()));
 		try {
-			return offerRepository.saveAndFlush(offer);
+			offerRepository.saveAndFlush(offer);
+			offerRepository.recordRevision(offer);
+			return offer;
 		}
 		catch (DataIntegrityViolationException _) {
 			// ponytail: the only constraint an offer can violate here is the foreign key to its entry, deleted
@@ -156,7 +158,9 @@ public class CatalogOfferService {
 		if (input.status() != null) {
 			offer.changeStatus(input.status());
 		}
-		return offerRepository.saveAndFlush(offer);
+		offerRepository.saveAndFlush(offer);
+		offerRepository.recordRevision(offer);
+		return offer;
 	}
 
 	/**

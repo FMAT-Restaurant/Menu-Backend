@@ -101,6 +101,34 @@ En ambos casos:
 - El contrato OpenAPI (esqueleto, sin endpoints todavía) se sirve en `http://localhost:8080/openapi.yaml`; el archivo es [`src/main/resources/static/openapi.yaml`](src/main/resources/static/openapi.yaml).
 - Ese archivo es una copia de [`docs/apis/menu/openapi.yaml`](https://github.com/FMAT-Restaurant/Menu-Documentation/blob/main/docs/apis/menu/openapi.yaml) del repositorio de documentación, que es la fuente de verdad (OpenAPI 3.2.1). Cualquier cambio al contrato se hace primero allá y luego se copia aquí. Las rutas y los servidores quedan pendientes de OPEN-010.
 
+### CORS y respuestas 404
+
+Los errores 404 mantienen el formato `{ "error": { "message": "..." } }`.
+Cuando falta una entidad, el mensaje identifica el tipo y el ID; para revisiones de recetas
+también identifica la revisión. Las rutas inexistentes y los UUID inválidos devuelven un
+404 JSON con `The requested resource was not found.`.
+
+CORS permite por defecto `http://localhost` y `https://localhost`, con o sin puerto,
+y rechaza los demás orígenes salvo que se configuren explícitamente. Para agregar uno o varios
+frontends, usar estas propiedades (por ejemplo en `src/main/resources/application-local.properties`):
+
+```properties
+menu.cors.allowed-origins=https://menu.example.com,https://admin.example.com
+menu.cors.allow-localhost=true
+```
+
+También se pueden definir `MENU_CORS_ALLOWED_ORIGINS` y `MENU_CORS_ALLOW_LOCALHOST` como
+variables de entorno. Compose las transmite desde `.env`. La lista debe contener orígenes
+HTTP(S) exactos separados por comas, sin rutas, barra final ni comodines; una configuración
+inválida impide el arranque. Una lista vacía permite únicamente localhost si está habilitado.
+En producción, establecer `MENU_CORS_ALLOW_LOCALHOST=false` y declarar los orígenes autorizados.
+
+La política global cubre errores y recursos estáticos. Permite `GET`, `HEAD`, `POST`, `PATCH`,
+`DELETE` y `OPTIONS`; acepta `Accept`, `Content-Type`, `Authorization`, `If-Match` e
+`If-None-Match`; expone `ETag` y `Location` al navegador. Los preflight se cachean una hora.
+No habilita credenciales de cookies cross-origin; el token explícito en `Authorization` sí está
+permitido. CORS no sustituye la autenticación ni restringe clientes sin cabecera `Origin`.
+
 ### Conexión con RabbitMQ
 
 La conectividad base usa Spring AMQP (`spring-boot-starter-amqp`), cuya versión gestiona Spring Boot. Esta tarea solo configura y comprueba la conexión: **no** hay productores, consumidores, exchanges, colas ni contratos de mensajes (siguen sin decidir).
