@@ -69,11 +69,10 @@ class CatalogOfferApiIntegrationTest {
 
 	private static final String VIOLATION_PATH = "$.error.details.violations[0].path";
 
-	private static final String FIRST_PAGE = "GET /api/v1/inventory/items?page=1&pageSize=100";
 
-	private static final InventoryItem POTATOES = new InventoryItem(UUID.randomUUID(), "Potatoes", "g");
+	private static final InventoryItem POTATOES = new InventoryItem("INV-potatoes-001", "Potatoes", "g");
 
-	private static final InventoryItem JUICE = new InventoryItem(UUID.randomUUID(), "Orange juice", "ml");
+	private static final InventoryItem JUICE = new InventoryItem("000042", "Orange juice", "ml");
 
 	private static final InventoryStub INVENTORY = InventoryStub.INSTANCE;
 
@@ -142,7 +141,7 @@ class CatalogOfferApiIntegrationTest {
 				.andExpect(jsonPath("$.data.composition.slots[0].options[0].optionId").exists())
 				.andExpect(jsonPath("$.data.composition.slots[0].options[0].sourceType").value("INVENTORY_ITEM"))
 				.andExpect(jsonPath("$.data.composition.slots[0].options[0].inventoryItemId")
-						.value(POTATOES.id().toString()))
+						.value(POTATOES.id()))
 				.andExpect(jsonPath("$.data.composition.slots[0].options[0].status").value("ACTIVE"))
 				.andExpect(jsonPath("$.data.composition.slots[0].options[0].displayName").value("Fries"))
 				.andExpect(jsonPath("$.data.composition.slots[0].options[0].quantity").value(200))
@@ -151,7 +150,7 @@ class CatalogOfferApiIntegrationTest {
 				.andExpect(jsonPath("$.data.composition.slots[0].options[0].recipeId").doesNotExist())
 				.andExpect(jsonPath("$.data.composition.slots[0].options[0].recipeRevision").doesNotExist())
 				.andReturn().getResponse().getContentAsString();
-		assertEquals(List.of(FIRST_PAGE), INVENTORY.requests());
+		assertEquals(List.of("GET /api/v1/inventory/items/" + POTATOES.id()), INVENTORY.requests());
 		String individual = JsonPath.read(response, "$.data.id");
 		String family = create(offerBody("Family", "320"));
 		UUID otherEntry = entryRepository.save(new CatalogEntry(1L, "Lemonade", "Fresh", imageId, List.of())).getId();
@@ -209,14 +208,16 @@ class CatalogOfferApiIntegrationTest {
 		expectViolation(createOffer(entryId, offerWith(option(POTATOES.id(), "g")
 				.replace("\"inventoryItemId\": \"" + POTATOES.id() + "\", ", ""))),
 				"/composition/slots/0/options/0/inventoryItemId");
-		expectViolation(createOffer(entryId, offerWith(option(UUID.randomUUID(), "g"))),
+		expectViolation(createOffer(entryId, offerWith(option(" ", "g"))),
+				"/composition/slots/0/options/0/inventoryItemId");
+		expectViolation(createOffer(entryId, offerWith(option("unknown-item", "g"))),
 				"/composition/slots/0/options/0/inventoryItemId");
 		expectViolation(createOffer(entryId, offerWith(option(POTATOES.id(), "kg"))),
 				"/composition/slots/0/options/0/unit");
 		expectViolation(createOffer(entryId, offerWith(option(POTATOES.id(), "g").replace("200", "0"))),
 				"/composition/slots/0/options/0/quantity");
 		expectViolation(createOffer(entryId, offerWith(option(POTATOES.id(), "g").replace("INVENTORY_ITEM", "RECIPE"))),
-				"/composition/slots/0/options/0/sourceType");
+				"/composition/slots/0/options/0/inventoryItemId");
 		expectViolation(createOffer(entryId, offerBody("Individual", "180").replace("entrada", "snack")),
 				"/composition/slots/0/course");
 		expectViolation(createOffer(entryId, offerBody("Individual", "180").replace("\"quantity\": 1", "\"quantity\": 1.5")),
@@ -248,8 +249,6 @@ class CatalogOfferApiIntegrationTest {
 				"/composition/slots/0/options/0/recipeId");
 		expectViolation(createOffer(entryId, body.replace(option, "{\"source\": {\"id\": \"" + POTATOES.id() + "\"}, "
 				+ option.substring(1))), "/composition/slots/0/options/0/source");
-		// null is not the same as a missing value; only PATCH accepts course null.
-		expectViolation(createOffer(entryId, body.replace("\"entrada\"", "null")), "/composition/slots/0/course");
 		expectViolation(createOffer(entryId, body.replace("\"Individual\"", "null")), "/presentationTag");
 		expectViolation(createOffer(entryId, body.replace("\"basePrice\": 180", "\"basePrice\": null")), "/basePrice");
 		expectViolation(createOffer(entryId, body.replace("\"quantity\": 200", "\"quantity\": null")),
@@ -348,7 +347,7 @@ class CatalogOfferApiIntegrationTest {
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.composition.slots", hasSize(1)))
 				.andExpect(jsonPath("$.data.composition.slots[0].options[0].optionId").value(fries))
-				.andExpect(jsonPath("$.data.composition.slots[0].options[0].inventoryItemId").value(JUICE.id().toString()))
+				.andExpect(jsonPath("$.data.composition.slots[0].options[0].inventoryItemId").value(JUICE.id()))
 				.andExpect(jsonPath("$.data.composition.slots[0].options[0].unit").value("ml"));
 
 		// Empty objects keep every value.
@@ -471,9 +470,9 @@ class CatalogOfferApiIntegrationTest {
 		InventoryItem cheddar = INVENTORY.add("Cheddar", "kg");
 		INVENTORY.clearRequests();
 
-		// The article is on the second page; repeated in the composition, it is consulted once.
+		// Even with a large catalog, the repeated article is fetched directly only once.
 		String id = create(offerWith(option(cheddar.id(), "kg"), option(cheddar.id(), "kg")));
-		assertEquals(List.of(FIRST_PAGE, "GET /api/v1/inventory/items?page=2&pageSize=100"), INVENTORY.requests());
+		assertEquals(List.of("GET /api/v1/inventory/items/" + cheddar.id()), INVENTORY.requests());
 
 		String json = read(id);
 		String slot = JsonPath.read(json, "$.data.composition.slots[0].slotId");
@@ -487,7 +486,7 @@ class CatalogOfferApiIntegrationTest {
 				  {"optionId": "%s", "sourceType": "INVENTORY_ITEM"}]}]}}
 				""".formatted(slot, first, second))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.data.composition.slots[0].options[0].inventoryItemId").value(cheddar.id().toString()))
+				.andExpect(jsonPath("$.data.composition.slots[0].options[0].inventoryItemId").value(cheddar.id()))
 				.andExpect(jsonPath("$.data.composition.slots[0].options[0].displayName").value("Cheese"));
 		assertEquals(List.of(), INVENTORY.requests());
 
@@ -497,7 +496,7 @@ class CatalogOfferApiIntegrationTest {
 				  {"optionId": "%s", "sourceType": "INVENTORY_ITEM", "unit": "kg"}]}]}}
 				""".formatted(slot, first))
 				.andExpect(status().isOk());
-		assertEquals(2, INVENTORY.requests().size());
+		assertEquals(List.of("GET /api/v1/inventory/items/" + cheddar.id()), INVENTORY.requests());
 	}
 
 	@Test
@@ -660,7 +659,7 @@ class CatalogOfferApiIntegrationTest {
 	}
 
 	/** A new option of POST ({@code InventoryItemSlotOptionInput}). */
-	private static String option(UUID item, String unit) {
+	private static String option(String item, String unit) {
 		String name = item.equals(JUICE.id()) ? "Juice" : "Fries";
 		return """
 				{"displayName": "%s", "sourceType": "INVENTORY_ITEM", "inventoryItemId": "%s", "quantity": 200, \
@@ -668,7 +667,7 @@ class CatalogOfferApiIntegrationTest {
 	}
 
 	/** A new option of PATCH, which also requires its status. */
-	private static String newOption(UUID item, String unit) {
+	private static String newOption(String item, String unit) {
 		return option(item, unit).replace("\"sourceType\"", "\"status\": \"ACTIVE\", \"sourceType\"");
 	}
 

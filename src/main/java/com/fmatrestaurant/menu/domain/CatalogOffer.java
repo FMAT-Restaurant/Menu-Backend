@@ -90,7 +90,7 @@ public class CatalogOffer {
 		this.presentationTag = presentationTag(presentationTag);
 		this.basePrice = basePrice(basePrice);
 		this.imageId = imageId;
-		replaceSlots(slots);
+		this.replaceSlots(slots);
 	}
 
 	/**
@@ -179,10 +179,6 @@ public class CatalogOffer {
 
 	public UUID getImageId() {
 		return imageId;
-	}
-
-	public boolean isEnabled() {
-		return enabled;
 	}
 
 	public List<CompositionSlot> getSlots() {

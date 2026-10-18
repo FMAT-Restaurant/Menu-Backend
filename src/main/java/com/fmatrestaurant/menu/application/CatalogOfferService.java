@@ -35,6 +35,8 @@ import com.fmatrestaurant.menu.infrastructure.CatalogEntryRepository;
 import com.fmatrestaurant.menu.infrastructure.CatalogOfferRepository;
 import com.fmatrestaurant.menu.infrastructure.ImageRepository;
 import com.fmatrestaurant.menu.infrastructure.InventoryClient;
+import com.fmatrestaurant.menu.infrastructure.RecipeRepository;
+import com.fmatrestaurant.menu.infrastructure.RecipeRevisionRepository;
 
 /**
  * Offer and composition use cases (REQ-MENU-OFFER-001 to REQ-MENU-OFFER-004, REQ-MENU-COMP-001 to
@@ -54,12 +56,19 @@ public class CatalogOfferService {
 
 	private final InventoryClient inventoryClient;
 
+	private final RecipeRevisionRepository recipeRevisionRepository;
+
+	private final RecipeRepository recipeRepository;
+
 	public CatalogOfferService(CatalogOfferRepository offerRepository, CatalogEntryRepository entryRepository,
-			ImageRepository imageRepository, InventoryClient inventoryClient) {
+			ImageRepository imageRepository, InventoryClient inventoryClient,
+			RecipeRevisionRepository recipeRevisionRepository, RecipeRepository recipeRepository) {
 		this.offerRepository = offerRepository;
 		this.entryRepository = entryRepository;
 		this.imageRepository = imageRepository;
 		this.inventoryClient = inventoryClient;
+		this.recipeRevisionRepository = recipeRevisionRepository;
+		this.recipeRepository = recipeRepository;
 	}
 
 	/**
@@ -205,7 +214,7 @@ public class CatalogOfferService {
 	 * @param items the Inventory articles already confirmed in this operation, by id
 	 */
 	private List<CompositionSlot> slots(List<CompositionSlot> current, List<SlotInput> inputs, boolean create,
-			Map<UUID, InventoryItem> items) {
+			Map<String, InventoryItem> items) {
 		if (inputs == null || inputs.isEmpty()) {
 			throw new InvalidFieldException("/composition/slots", "The composition must have at least one slot");
 		}
@@ -224,16 +233,13 @@ public class CatalogOfferService {
 	}
 
 	private CompositionSlot slot(Map<UUID, CompositionSlot> byId, Set<UUID> seen, SlotInput input, boolean create,
-			Map<UUID, InventoryItem> items) {
+			Map<String, InventoryItem> items) {
 		if (input == null) {
 			throw new InvalidFieldException("", "The slot is required");
 		}
 		input.rejectUnknownFields();
 		if (create) {
 			notAllowed("/slotId", input.slotId());
-			if (input.courseSent() && input.course() == null) {
-				throw new InvalidFieldException("/course", "The value must not be null");
-			}
 		}
 		UUID id = input.slotId();
 		if (id == null) {
@@ -252,7 +258,7 @@ public class CatalogOfferService {
 	}
 
 	private List<SlotOption> options(List<SlotOption> current, List<OptionInput> inputs, boolean create,
-			Map<UUID, InventoryItem> items) {
+			Map<String, InventoryItem> items) {
 		if (inputs == null || inputs.isEmpty()) {
 			throw new InvalidFieldException("/options", "A slot must have at least one option");
 		}
@@ -274,7 +280,7 @@ public class CatalogOfferService {
 	 * other changes keep the stored reference without consulting it.
 	 */
 	private SlotOption option(Map<UUID, SlotOption> byId, Set<UUID> seen, OptionInput input, boolean create,
-			Map<UUID, InventoryItem> items) {
+			Map<String, InventoryItem> items) {
 		if (input == null) {
 			throw new InvalidFieldException("", "The option is required");
 		}
@@ -283,23 +289,79 @@ public class CatalogOfferService {
 			notAllowed("/optionId", input.optionId());
 			notAllowed("/status", input.status());
 		}
-		// RECIPE is not a SourceType yet, so the body is rejected when it is read.
 		if (input.sourceType() == null) {
 			throw new InvalidFieldException("/sourceType", "The source type is required");
 		}
 		UUID id = input.optionId();
 		if (id == null) {
+			if (input.sourceType() == SourceType.RECIPE) {
+				rejectInventoryFields(input);
+				requireRecipeRevision(input.recipeId(), input.recipeRevision());
+				return new SlotOption(input.displayName(), create ? OfferStatus.ACTIVE : input.status(),
+						input.recipeId(), input.recipeRevision());
+			}
+			rejectRecipeFields(input);
 			return new SlotOption(input.displayName(), create ? OfferStatus.ACTIVE : input.status(),
 					inventoryItem(input.inventoryItemId(), items), input.quantity(), input.unit());
 		}
 		SlotOption option = existing(byId, seen, id, "/optionId", "option", "slot");
+		if (input.sourceType() != option.getSourceType()) {
+			throw new InvalidFieldException("/sourceType", "The source type of an option cannot change");
+		}
+		if (option.getSourceType() == SourceType.RECIPE) {
+			updateRecipeOption(option, input);
+			return option;
+		}
+		updateInventoryOption(option, input, items);
+		return option;
+	}
+
+	private void updateInventoryOption(SlotOption option, OptionInput input, Map<String, InventoryItem> items) {
+		rejectRecipeFields(input);
 		InventoryItem item = null;
 		if (input.inventoryItemId() != null || input.unit() != null) {
 			item = inventoryItem(input.inventoryItemId() != null ? input.inventoryItemId() : option.getInventoryItemId(),
 					items);
 		}
 		option.update(input.displayName(), input.status(), item, input.quantity(), input.unit());
-		return option;
+	}
+
+	/** A recipe option has no Inventory content; to change its recipe, the revision is sent too. */
+	private void updateRecipeOption(SlotOption option, OptionInput input) {
+		rejectInventoryFields(input);
+		if (input.recipeId() != null || input.recipeRevision() != null) {
+			requireRecipeRevision(input.recipeId(), input.recipeRevision());
+		}
+		option.updateRecipe(input.displayName(), input.status(), input.recipeId(), input.recipeRevision());
+	}
+
+	private static void rejectInventoryFields(OptionInput input) {
+		notAllowed("/inventoryItemId", input.inventoryItemId());
+		notAllowed("/quantity", input.quantity());
+		notAllowed("/unit", input.unit());
+	}
+
+	private static void rejectRecipeFields(OptionInput input) {
+		notAllowed("/recipeId", input.recipeId());
+		notAllowed("/recipeRevision", input.recipeRevision());
+	}
+
+	/** The revision must exist, and a shared lock keeps its recipe in the library until commit. */
+	private void requireRecipeRevision(UUID recipeId, Integer recipeRevision) {
+		if (recipeId == null) {
+			throw new InvalidFieldException("/recipeId", "The recipe id is required");
+		}
+		if (recipeRevision == null) {
+			throw new InvalidFieldException("/recipeRevision", "The recipe revision is required");
+		}
+		boolean inLibrary = recipeRepository.findForReferenceById(recipeId).isPresent();
+		if (!recipeRevisionRepository.existsByRecipeIdAndRevision(recipeId, recipeRevision)) {
+			throw new InvalidFieldException("/recipeRevision",
+					"The recipe " + recipeId + " has no revision " + recipeRevision);
+		}
+		if (!inLibrary) {
+			throw new InvalidFieldException("/recipeId", "The recipe is not in the library");
+		}
 	}
 
 	private static <T> T existing(Map<UUID, T> byId, Set<UUID> seen, UUID id, String path, String label,
@@ -325,8 +387,8 @@ public class CatalogOfferService {
 	 * The article as Inventory returns it, consulted once per id in each operation. Its unit is the one
 	 * the option unit is checked against.
 	 */
-	private InventoryItem inventoryItem(UUID id, Map<UUID, InventoryItem> items) {
-		if (id == null) {
+	private InventoryItem inventoryItem(String id, Map<String, InventoryItem> items) {
+		if (id == null || id.isBlank()) {
 			throw new InvalidFieldException("/inventoryItemId", "The inventory item id is required");
 		}
 		return items.computeIfAbsent(id, key -> inventoryClient.find(key).orElseThrow(
@@ -444,7 +506,7 @@ public class CatalogOfferService {
 		@JsonSetter(nulls = Nulls.FAIL)
 		private BigDecimal quantity;
 
-		/** Sent as {@code null}, it removes the course on PATCH. */
+		/** Optional on creation; sent as {@code null}, it removes the course on PATCH. */
 		private String course;
 
 		private boolean courseSent;
@@ -505,7 +567,7 @@ public class CatalogOfferService {
 
 		@JsonProperty
 		@JsonSetter(nulls = Nulls.FAIL)
-		private UUID inventoryItemId;
+		private String inventoryItemId;
 
 		@JsonProperty
 		@JsonSetter(nulls = Nulls.FAIL)
@@ -514,6 +576,22 @@ public class CatalogOfferService {
 		@JsonProperty
 		@JsonSetter(nulls = Nulls.FAIL)
 		private String unit;
+
+		@JsonProperty
+		@JsonSetter(nulls = Nulls.FAIL)
+		private UUID recipeId;
+
+		@JsonProperty
+		@JsonSetter(nulls = Nulls.FAIL)
+		private Integer recipeRevision;
+
+		public UUID recipeId() {
+			return recipeId;
+		}
+
+		public Integer recipeRevision() {
+			return recipeRevision;
+		}
 
 		public UUID optionId() {
 			return optionId;
@@ -531,7 +609,7 @@ public class CatalogOfferService {
 			return sourceType;
 		}
 
-		public UUID inventoryItemId() {
+		public String inventoryItemId() {
 			return inventoryItemId;
 		}
 

@@ -598,7 +598,7 @@ paths:
                         course: plato fuerte
                         options:
                           - sourceType: INVENTORY_ITEM
-                            inventoryItemId: 5c67b890-1a2b-4d3e-8f9a-0b1c2d3e4f5a
+                            inventoryItemId: INV-potatoes-001
                             quantity: 200
                             unit: g
                             displayName: Papas
@@ -672,7 +672,7 @@ paths:
                             options:
                               - optionId: 79a1bc24-0d4f-489b-9836-3a60b5c4ed12
                                 sourceType: INVENTORY_ITEM
-                                inventoryItemId: 5c67b890-1a2b-4d3e-8f9a-0b1c2d3e4f5a
+                                inventoryItemId: INV-potatoes-001
                                 quantity: 200
                                 unit: g
                                 displayName: Papas
@@ -773,7 +773,7 @@ paths:
                             options:
                               - optionId: 89cce4da-2f19-4d27-942d-b2ee82fb5402
                                 sourceType: INVENTORY_ITEM
-                                inventoryItemId: 5c67b890-1a2b-4d3e-8f9a-0b1c2d3e4f5a
+                                inventoryItemId: INV-potatoes-001
                                 quantity: 200
                                 unit: g
                                 displayName: Papas
@@ -827,7 +827,7 @@ paths:
                           - displayName: Papas
                             status: ACTIVE
                             sourceType: INVENTORY_ITEM
-                            inventoryItemId: 5c67b890-1a2b-4d3e-8f9a-0b1c2d3e4f5a
+                            inventoryItemId: INV-potatoes-001
                             quantity: 200
                             unit: g
               cambiarOrigen:
@@ -901,7 +901,7 @@ paths:
                                 displayName: Hamburguesa Hawaiana
                               - optionId: 89cce4da-2f19-4d27-942d-b2ee82fb5402
                                 sourceType: INVENTORY_ITEM
-                                inventoryItemId: 5c67b890-1a2b-4d3e-8f9a-0b1c2d3e4f5a
+                                inventoryItemId: INV-potatoes-001
                                 status: ACTIVE
                                 displayName: Papas
                                 quantity: 200
@@ -984,10 +984,10 @@ paths:
                         name: Hamburguesa Hawaiana
                         description: Carne, jamón, queso y piña.
                         supplies:
-                          - inventoryItemId: 2c21767f-0f9a-4e9f-adc7-2730556c1801
+                          - inventoryItemId: INV-beef-001
                             quantity: 200
                             inventoryItem:
-                              id: 2c21767f-0f9a-4e9f-adc7-2730556c1801
+                              id: INV-beef-001
                               name: Carne Molida Res 80/20
                               unit: g
                     meta:
@@ -1023,7 +1023,7 @@ paths:
                   description: Carne, jamón, queso y piña.
                   instructions: Asar carne, dorar jamón y piña. Montar en pan.
                   supplies:
-                    - inventoryItemId: 2c21767f-0f9a-4e9f-adc7-2730556c1801
+                    - inventoryItemId: INV-beef-001
                       quantity: 200
       responses:
         '201':
@@ -1045,10 +1045,10 @@ paths:
                       description: Carne, jamón, queso y piña.
                       instructions: Asar carne, dorar jamón y piña. Montar en pan.
                       supplies:
-                        - inventoryItemId: 2c21767f-0f9a-4e9f-adc7-2730556c1801
+                        - inventoryItemId: INV-beef-001
                           quantity: 200
                           inventoryItem:
-                            id: 2c21767f-0f9a-4e9f-adc7-2730556c1801
+                            id: INV-beef-001
                             name: Carne Molida Res 80/20
                             unit: g
         '401':
@@ -1097,10 +1097,10 @@ paths:
                       description: Carne, jamón, queso y piña.
                       instructions: Asar carne, dorar jamón y piña. Montar en pan.
                       supplies:
-                        - inventoryItemId: 2c21767f-0f9a-4e9f-adc7-2730556c1801
+                        - inventoryItemId: INV-beef-001
                           quantity: 200
                           inventoryItem:
-                            id: 2c21767f-0f9a-4e9f-adc7-2730556c1801
+                            id: INV-beef-001
                             name: Carne Molida Res 80/20
                             unit: g
         '304':
@@ -1135,7 +1135,7 @@ paths:
                   description: Carne, jamón, queso y piña.
                   instructions: Asar la carne; dorar el jamón y la piña; montar en pan.
                   supplies:
-                    - inventoryItemId: 2c21767f-0f9a-4e9f-adc7-2730556c1801
+                    - inventoryItemId: INV-beef-001
                       quantity: 200
       responses:
         '200':
@@ -1157,10 +1157,10 @@ paths:
                       description: Carne, jamón, queso y piña.
                       instructions: Asar la carne; dorar el jamón y la piña; montar en pan.
                       supplies:
-                        - inventoryItemId: 2c21767f-0f9a-4e9f-adc7-2730556c1801
+                        - inventoryItemId: INV-beef-001
                           quantity: 200
                           inventoryItem:
-                            id: 2c21767f-0f9a-4e9f-adc7-2730556c1801
+                            id: INV-beef-001
                             name: Carne Molida Res 80/20
                             unit: g
         '401':
@@ -1234,7 +1234,7 @@ paths:
                   summary: Artículo de inventario encontrado
                   value:
                     data:
-                      - id: 2c21767f-0f9a-4e9f-adc7-2730556c1801
+                      - id: INV-beef-001
                         name: Carne Molida Res 80/20
                         unit: g
                     meta:
@@ -1383,9 +1383,9 @@ components:
       properties:
         id:
           type: string
-          format: uuid
-          description: Identificador UUID del insumo.
-          example: 5c67b890-1a2b-4d3e-8f9a-0b1c2d3e4f5a
+          minLength: 1
+          description: Identificador de texto opaco del insumo, asignado por Inventario. Se conserva sin normalizar y no admite valores vacíos ni en blanco.
+          example: INV-potatoes-001
         name:
           type: string
           description: Nombre legible del insumo.
@@ -1395,7 +1395,7 @@ components:
           description: Unidad usada para expresar la cantidad del insumo.
           example: g
       example:
-        id: 5c67b890-1a2b-4d3e-8f9a-0b1c2d3e4f5a
+        id: INV-potatoes-001
         name: Carne Molida Res 80/20
         unit: g
     Error:
@@ -2085,7 +2085,7 @@ components:
             displayName: Hamburguesa hawaiana
     CompositionSlotInput:
       type: object
-      description: Datos para crear un slot de una composición; el servidor genera slotId.
+      description: Datos para crear un slot de una composición; el servidor genera slotId. course es opcional; omitirlo o enviarlo como null crea el slot sin curso.
       additionalProperties: false
       required:
         - name
@@ -2101,12 +2101,15 @@ components:
           description: Rango y precisión no definidos en la fuente.
           example: 1
         course:
-          type: string
+          type:
+            - string
+            - 'null'
           enum:
             - entrada
             - plato fuerte
             - postre
             - bebida
+            - null
           description: Curso al que pertenece el slot, si se especifica.
           example: plato fuerte
         options:
@@ -2165,10 +2168,10 @@ components:
         name: Hamburguesa Hawaiana
         description: Preparación de hamburguesa con piña asada y queso.
         supplies:
-          - inventoryItemId: 5c67b890-1a2b-4d3e-8f9a-0b1c2d3e4f5a
+          - inventoryItemId: INV-potatoes-001
             quantity: 200
             inventoryItem:
-              id: 5c67b890-1a2b-4d3e-8f9a-0b1c2d3e4f5a
+              id: INV-potatoes-001
               name: Carne Molida Res 80/20
               unit: g
     RecipeDetail:
@@ -2209,10 +2212,10 @@ components:
         description: Preparación de hamburguesa con piña asada y queso.
         instructions: Cocina la carne, asa la piña y sirve con queso en el pan.
         supplies:
-          - inventoryItemId: 5c67b890-1a2b-4d3e-8f9a-0b1c2d3e4f5a
+          - inventoryItemId: INV-potatoes-001
             quantity: 200
             inventoryItem:
-              id: 5c67b890-1a2b-4d3e-8f9a-0b1c2d3e4f5a
+              id: INV-potatoes-001
               name: Carne Molida Res 80/20
               unit: g
     RecipeCreateRequest:
@@ -2246,7 +2249,7 @@ components:
         description: Preparación de hamburguesa con piña asada y queso.
         instructions: Cocina la carne, asa la piña y sirve con queso en el pan.
         supplies:
-          - inventoryItemId: 5c67b890-1a2b-4d3e-8f9a-0b1c2d3e4f5a
+          - inventoryItemId: INV-potatoes-001
             quantity: 200
     RecipePatchRequest:
       type: object
@@ -2279,9 +2282,9 @@ components:
       properties:
         inventoryItemId:
           type: string
-          format: uuid
-          description: Identificador UUID del insumo utilizado.
-          example: 5c67b890-1a2b-4d3e-8f9a-0b1c2d3e4f5a
+          minLength: 1
+          description: Identificador de texto opaco del insumo utilizado, sin restricción de formato UUID.
+          example: INV-potatoes-001
         quantity:
           type: number
           description: Cantidad del insumo expresada en la unidad de inventario.
@@ -2289,10 +2292,10 @@ components:
         inventoryItem:
           $ref: '#/components/schemas/InventoryItem'
       example:
-        inventoryItemId: 5c67b890-1a2b-4d3e-8f9a-0b1c2d3e4f5a
+        inventoryItemId: INV-potatoes-001
         quantity: 200
         inventoryItem:
-          id: 5c67b890-1a2b-4d3e-8f9a-0b1c2d3e4f5a
+          id: INV-potatoes-001
           name: Carne Molida Res 80/20
           unit: g
     RecipeSupplyInput:
@@ -2304,15 +2307,15 @@ components:
       properties:
         inventoryItemId:
           type: string
-          format: uuid
-          description: Identificador UUID del insumo utilizado.
-          example: 5c67b890-1a2b-4d3e-8f9a-0b1c2d3e4f5a
+          minLength: 1
+          description: Identificador de texto opaco del insumo utilizado, sin restricción de formato UUID.
+          example: INV-potatoes-001
         quantity:
           type: number
           description: Cantidad del insumo expresada en la unidad de inventario.
           example: 200
       example:
-        inventoryItemId: 5c67b890-1a2b-4d3e-8f9a-0b1c2d3e4f5a
+        inventoryItemId: INV-potatoes-001
         quantity: 200
     RecipeListResponse:
       type: object
@@ -2448,9 +2451,9 @@ components:
           description: Indica que la opción se basa directamente en un insumo de inventario.
         inventoryItemId:
           type: string
-          format: uuid
-          description: Identificador UUID del insumo de inventario de origen.
-          example: 5c67b890-1a2b-4d3e-8f9a-0b1c2d3e4f5a
+          minLength: 1
+          description: Identificador de texto opaco del insumo de inventario de origen, sin restricción de formato UUID.
+          example: INV-potatoes-001
         quantity:
           type: number
           exclusiveMinimum: 0
@@ -2467,7 +2470,7 @@ components:
           example: Queso cheddar
       example:
         sourceType: INVENTORY_ITEM
-        inventoryItemId: 5c67b890-1a2b-4d3e-8f9a-0b1c2d3e4f5a
+        inventoryItemId: INV-potatoes-001
         quantity: 150
         unit: g
         displayName: Queso cheddar
@@ -2534,9 +2537,9 @@ components:
           description: Indica que la opción se basa directamente en un insumo de inventario.
         inventoryItemId:
           type: string
-          format: uuid
-          description: Identificador UUID del insumo de inventario de origen.
-          example: 5c67b890-1a2b-4d3e-8f9a-0b1c2d3e4f5a
+          minLength: 1
+          description: Identificador de texto opaco del insumo de inventario de origen, sin restricción de formato UUID.
+          example: INV-potatoes-001
         quantity:
           type: number
           exclusiveMinimum: 0
@@ -2555,7 +2558,7 @@ components:
       example:
         optionId: b2c3d4e5-f678-489a-bcde-f0123456789a
         sourceType: INVENTORY_ITEM
-        inventoryItemId: 5c67b890-1a2b-4d3e-8f9a-0b1c2d3e4f5a
+        inventoryItemId: INV-potatoes-001
         quantity: 150
         unit: g
         displayName: Queso cheddar
@@ -2619,7 +2622,7 @@ components:
           $ref: '#/components/schemas/OfferStatus'
         inventoryItemId:
           type: string
-          format: uuid
+          minLength: 1
         quantity:
           type: number
           exclusiveMinimum: 0

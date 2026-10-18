@@ -76,3 +76,7 @@ tasks.register('prepareSonarLibraries') {
 	description = 'Prepara las dependencias de producción y pruebas para SonarScanner CLI.'
 	dependsOn tasks.named('prepareSonarMainLibraries'), tasks.named('prepareSonarTestLibraries')
 }
+
+tasks.withType(JavaCompile).configureEach {
+	options.compilerArgs.add("-Xlint:all")
+}

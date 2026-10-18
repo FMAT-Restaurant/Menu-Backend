@@ -1,0 +1,16 @@
+# Activate with --spring.profiles.active=local. Spring Boot will automatically load this file when the "local" profile is active.
+spring.datasource.url=jdbc:postgresql://localhost:5432/menu
+spring.datasource.username=tony
+spring.datasource.password=
+spring.jpa.hibernate.ddl-auto=update
+
+# Mocked inventory service. Menu will call this service to check items and their units before saving options.
+menu.inventory.base-url=http://localhost:8080/api/v1
+menu.inventory.token=
+
+# RabbitMQ configuration for local development. Menu will use this to send messages to the queue.
+spring.rabbitmq.host=localhost
+spring.rabbitmq.port=5672
+spring.rabbitmq.virtual-host=/
+spring.rabbitmq.username=guest
+spring.rabbitmq.password=guest

@@ -1,0 +1,5 @@
+simulation: inventory-string-identifiers
+routing: path
+mocks:
+  - routeKey: inventory
+    path: ../mocks/inventory/config.yaml

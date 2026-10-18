@@ -51,6 +51,11 @@ public interface CatalogOfferRepository extends JpaRepository<CatalogOffer, UUID
 
 	List<CatalogOffer> findByEntryId(UUID entryId);
 
+	/** All persisted offers referencing the recipe, regardless of offer or option status or revision. */
+	@Query("select distinct o.id from CatalogOffer o join o.slots s join s.options opt "
+			+ "where opt.recipeId = :recipeId order by o.id")
+	List<UUID> findIdsReferencingRecipe(@Param("recipeId") UUID recipeId);
+
 	/** Pairs of entry id and number of offers, only for entries that have offers. */
 	@Query("select o.entry.id, count(o) from CatalogOffer o where o.entry.id in :entryIds group by o.entry.id")
 	List<Object[]> countByEntryIds(Collection<UUID> entryIds);
@@ -60,7 +65,7 @@ public interface CatalogOfferRepository extends JpaRepository<CatalogOffer, UUID
 	 * @param excludeOfferId leaves this offer out
 	 */
 	static Specification<CatalogOffer> search(UUID entryId, UUID excludeOfferId) {
-		return (root, query, cb) -> {
+		return (root, _, cb) -> {
 			List<Predicate> predicates = new ArrayList<>();
 			if (entryId != null) {
 				predicates.add(cb.equal(root.get("entry").get("id"), entryId));

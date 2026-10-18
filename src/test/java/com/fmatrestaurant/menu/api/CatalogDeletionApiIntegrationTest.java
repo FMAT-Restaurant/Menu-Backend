@@ -3,6 +3,7 @@ package com.fmatrestaurant.menu.api;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -70,7 +71,7 @@ class CatalogDeletionApiIntegrationTest {
 
 	private static final String OFFERS = "/api/v1/menu/offers";
 
-	private static final InventoryItem POTATOES = new InventoryItem(UUID.randomUUID(), "Potatoes", "g");
+	private static final InventoryItem POTATOES = new InventoryItem("INV-" + UUID.randomUUID(), "Potatoes", "g");
 
 	private static final InventoryStub INVENTORY = InventoryStub.INSTANCE;
 
@@ -292,7 +293,7 @@ class CatalogDeletionApiIntegrationTest {
 		String deletedEtag = offerEtag(deleted);
 
 		TransactionTemplate transaction = new TransactionTemplate(transactionManager);
-		assertThrows(OptimisticLockingFailureException.class, () -> transaction.executeWithoutResult(tx -> {
+		assertThrows(OptimisticLockingFailureException.class, () -> transaction.executeWithoutResult(_ -> {
 			CatalogOffer concurrent = offerRepository.findById(UUID.fromString(kept)).orElseThrow();
 			assertFalse(concurrent.getSlots().isEmpty());
 			// Another request deletes the other offer after the one above was read.
@@ -483,8 +484,10 @@ class CatalogDeletionApiIntegrationTest {
 	}
 
 	private long blockedSessions() {
-		return jdbcTemplate.queryForObject("select count(*) from pg_stat_activity where wait_event_type = 'Lock'"
+		var jdbc = jdbcTemplate.queryForObject("select count(*) from pg_stat_activity where wait_event_type = 'Lock'"
 				+ " and datname = current_database()", Long.class);
+		assertNotNull(jdbc);
+		return jdbc;
 	}
 
 	private void deleteInAnotherThread(String offer, String ifMatch) {
@@ -503,7 +506,9 @@ class CatalogDeletionApiIntegrationTest {
 	}
 
 	private long count(String table) {
-		return jdbcTemplate.queryForObject("select count(*) from " + table, Long.class);
+		var jdbc = jdbcTemplate.queryForObject("select count(*) from " + table, Long.class);
+		assertNotNull(jdbc);
+		return jdbc;
 	}
 
 	private String offerBody() {

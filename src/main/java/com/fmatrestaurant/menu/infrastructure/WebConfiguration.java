@@ -16,7 +16,8 @@ public class WebConfiguration {
 		registration.addUrlPatterns(
 				"/api/v1/menu/categories",
 				"/api/v1/menu/entries",
-				"/api/v1/menu/offers"
+				"/api/v1/menu/offers",
+				"/api/v1/menu/recipes"
 		);
 		return registration;
 	}
