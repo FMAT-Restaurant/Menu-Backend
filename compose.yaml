@@ -36,6 +36,14 @@ services:
 
   api:
     build: .
+    expose:
+      - 8080
+    networks:
+      # Red interna para resolver postgres y rabbitmq.
+      default: {}
+      restaurant-network:
+        aliases:
+          - menu-backend
     depends_on:
       postgres:
         condition: service_healthy
@@ -43,6 +51,7 @@ services:
         condition: service_healthy
     # Configuración externa: Spring Boot lee estas variables de entorno.
     environment:
+      SERVER_PORT: 8080
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-menu}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-menu}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en .env}
@@ -61,6 +70,10 @@ services:
       MENU_CORS_ALLOW_LOCALHOST: ${MENU_CORS_ALLOW_LOCALHOST:-true}
     ports:
       - "${API_PORT:-8080}:8080"
-
+networks:
+  default: {}
+  restaurant-network:
+    external: true
+    name: restaurant-network
 volumes:
   postgres-data:
