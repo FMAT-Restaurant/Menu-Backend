@@ -3,8 +3,7 @@ package com.fmatrestaurant.menu.api;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -265,7 +264,7 @@ class CatalogOfferApiIntegrationTest {
 				.andExpect(status().isNotModified());
 		String listEtag = mockMvc.perform(get(OFFERS)).andExpect(status().isOk())
 				.andReturn().getResponse().getHeader(HttpHeaders.ETAG);
-        assert listEtag != null;
+        assertNotNull(listEtag);
         mockMvc.perform(get(OFFERS).header(HttpHeaders.IF_NONE_MATCH, listEtag))
 				.andExpect(status().isNotModified());
 		mockMvc.perform(get(OFFERS + "/" + UUID.randomUUID())).andExpect(status().isNotFound());
