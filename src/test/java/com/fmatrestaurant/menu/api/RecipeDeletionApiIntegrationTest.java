@@ -211,7 +211,7 @@ class RecipeDeletionApiIntegrationTest {
 		String before = offerJson(offer.getId());
 		String patchBody = "{\"composition\":{\"slots\":[{\"slotId\":\"" + slot.getId()
 				+ "\",\"options\":[{\"optionId\":\"" + option.getId() + "\",\"sourceType\":\"RECIPE\","
-				+ "\"recipeId\":\"" + recipeId + "\",\"recipeRevision\":1}]}]}}";
+				+ "\"recipeId\":\"" + recipeId + "\"}]}]}}";
 		mockMvc.perform(patch(OFFERS + "/" + offer.getId()).header(HttpHeaders.IF_MATCH, offerEtag(offer.getId()))
 				.contentType(MediaType.APPLICATION_JSON).content(patchBody))
 				.andExpect(status().isUnprocessableContent());
@@ -267,7 +267,7 @@ class RecipeDeletionApiIntegrationTest {
 		return "{\"presentationTag\":\"Individual\",\"basePrice\":10,\"imageId\":\"" + imageId
 				+ "\",\"composition\":{\"slots\":[{\"name\":\"Main\",\"quantity\":1,\"options\":["
 				+ "{\"displayName\":\"Burger\",\"sourceType\":\"RECIPE\",\"recipeId\":\""
-				+ recipeId + "\",\"recipeRevision\":1}]}]}}";
+				+ recipeId + "\"}]}]}}";
 	}
 
 	private UUID newRecipe(String name) {

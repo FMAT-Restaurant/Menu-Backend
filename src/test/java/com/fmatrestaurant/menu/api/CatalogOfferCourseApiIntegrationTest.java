@@ -158,7 +158,7 @@ class CatalogOfferCourseApiIntegrationTest {
 	private String slot(String courseField) {
 		return "{\"name\":\"Main\",\"quantity\":1," + courseField + "\"options\":["
 				+ "{\"displayName\":\"Burger\",\"sourceType\":\"RECIPE\",\"recipeId\":\""
-				+ recipeId + "\",\"recipeRevision\":1}]}";
+				+ recipeId + "\"}]}";
 	}
 
 	private ResultActions patchOffer(String id, String body) throws Exception {
