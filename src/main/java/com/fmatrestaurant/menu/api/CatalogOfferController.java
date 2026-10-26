@@ -136,13 +136,12 @@ public class CatalogOfferController {
 	 */
 	public record Option(UUID optionId, SourceType sourceType, @JsonInclude(NON_NULL) String inventoryItemId,
 			@JsonInclude(NON_NULL) BigDecimal quantity, @JsonInclude(NON_NULL) String unit,
-			@JsonInclude(NON_NULL) UUID recipeId, @JsonInclude(NON_NULL) Integer recipeRevision, OfferStatus status,
-			String displayName) {
+			@JsonInclude(NON_NULL) UUID recipeId, OfferStatus status, String displayName) {
 
 		static Option of(SlotOption option) {
 			return new Option(option.getId(), option.getSourceType(), option.getInventoryItemId(),
-					option.getQuantity(), option.getUnit(), option.getRecipeId(), option.getRecipeRevision(),
-					option.getStatus(), option.getDisplayName());
+					option.getQuantity(), option.getUnit(), option.getRecipeId(), option.getStatus(),
+					option.getDisplayName());
 		}
 
 	}

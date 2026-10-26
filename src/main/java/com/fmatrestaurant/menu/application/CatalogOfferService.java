@@ -300,9 +300,8 @@ public class CatalogOfferService {
 		if (id == null) {
 			if (input.sourceType() == SourceType.RECIPE) {
 				rejectInventoryFields(input);
-				requireRecipeRevision(input.recipeId(), input.recipeRevision());
 				return new SlotOption(input.displayName(), create ? OfferStatus.ACTIVE : input.status(),
-						input.recipeId(), input.recipeRevision());
+						input.recipeId(), latestRecipeRevision(input.recipeId()));
 			}
 			rejectRecipeFields(input);
 			return new SlotOption(input.displayName(), create ? OfferStatus.ACTIVE : input.status(),
@@ -330,13 +329,14 @@ public class CatalogOfferService {
 		option.update(input.displayName(), input.status(), item, input.quantity(), input.unit());
 	}
 
-	/** A recipe option has no Inventory content; to change its recipe, the revision is sent too. */
+	/**
+	 * A recipe option has no Inventory content. Sending its recipe, even the same one, fixes the latest
+	 * revision again; omitting it keeps the recipe and the revision.
+	 */
 	private void updateRecipeOption(SlotOption option, OptionInput input) {
 		rejectInventoryFields(input);
-		if (input.recipeId() != null || input.recipeRevision() != null) {
-			requireRecipeRevision(input.recipeId(), input.recipeRevision());
-		}
-		option.updateRecipe(input.displayName(), input.status(), input.recipeId(), input.recipeRevision());
+		Integer revision = input.recipeId() == null ? null : latestRecipeRevision(input.recipeId());
+		option.updateRecipe(input.displayName(), input.status(), input.recipeId(), revision);
 	}
 
 	private static void rejectInventoryFields(OptionInput input) {
@@ -347,25 +347,26 @@ public class CatalogOfferService {
 
 	private static void rejectRecipeFields(OptionInput input) {
 		notAllowed("/recipeId", input.recipeId());
-		notAllowed("/recipeRevision", input.recipeRevision());
 	}
 
-	/** The revision must exist, and a shared lock keeps its recipe in the library until commit. */
-	private void requireRecipeRevision(UUID recipeId, Integer recipeRevision) {
+	/**
+	 * The current published revision of a recipe of the library, which the option is fixed to.
+	 *
+	 * <p>A shared lock keeps the recipe in the library until commit and serializes the assignment with the
+	 * publication of another revision, which updates the recipe row in its own transaction: whichever
+	 * commits first decides the revision fixed here.
+	 */
+	private int latestRecipeRevision(UUID recipeId) {
 		if (recipeId == null) {
 			throw new InvalidFieldException("/recipeId", "The recipe id is required");
 		}
-		if (recipeRevision == null) {
-			throw new InvalidFieldException("/recipeRevision", "The recipe revision is required");
+		int revision = recipeRepository.findForReferenceById(recipeId)
+				.orElseThrow(() -> new InvalidFieldException("/recipeId", "The recipe is not in the library"))
+				.getCurrentRevision();
+		if (!recipeRevisionRepository.existsByRecipeIdAndRevision(recipeId, revision)) {
+			throw new InvalidFieldException("/recipeId", "The recipe " + recipeId + " has no valid revision");
 		}
-		boolean inLibrary = recipeRepository.findForReferenceById(recipeId).isPresent();
-		if (!recipeRevisionRepository.existsByRecipeIdAndRevision(recipeId, recipeRevision)) {
-			throw new InvalidFieldException("/recipeRevision",
-					"The recipe " + recipeId + " has no revision " + recipeRevision);
-		}
-		if (!inLibrary) {
-			throw new InvalidFieldException("/recipeId", "The recipe is not in the library");
-		}
+		return revision;
 	}
 
 	private static <T> T existing(Map<UUID, T> byId, Set<UUID> seen, UUID id, String path, String label,
@@ -585,16 +586,8 @@ public class CatalogOfferService {
 		@JsonSetter(nulls = Nulls.FAIL)
 		private UUID recipeId;
 
-		@JsonProperty
-		@JsonSetter(nulls = Nulls.FAIL)
-		private Integer recipeRevision;
-
 		public UUID recipeId() {
 			return recipeId;
-		}
-
-		public Integer recipeRevision() {
-			return recipeRevision;
 		}
 
 		public UUID optionId() {
