@@ -3,6 +3,8 @@ package com.fmatrestaurant.menu.api;
 import java.util.List;
 import java.util.Locale;
 
+import org.springframework.context.annotation.Profile;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -14,10 +16,18 @@ import org.springframework.web.context.request.WebRequest;
 import com.fmatrestaurant.menu.domain.InventoryItem;
 import com.fmatrestaurant.menu.domain.InvalidFieldException;
 
-/** Fixed inventory responses for local clients, without persistence or external calls. */
+/**
+ * Fixed inventory responses for local clients, without persistence or external calls. It is registered
+ * only in the {@code local} profile: anywhere else Menu exposes neither the list nor the detail of
+ * articles, and its client queries the Inventory service configured in {@code menu.inventory.base-url}.
+ */
+@Profile("local")
 @RestController
 @RequestMapping({"/api/v1/inventory/items", "/inventory/items"})
 public class InventoryMockController {
+
+	/** The answer of Inventory for an article that does not exist, as its contract defines it. */
+	private static final String NOT_FOUND = "No se encontró el recurso solicitado.";
 
 	private static final List<InventoryItem> ITEMS = List.of(
 			new InventoryItem("2c21767f-0f9a-4e9f-adc7-2730556c1801", "Carne de res", "kg"),
@@ -59,12 +69,17 @@ public class InventoryMockController {
 	public record InventoryPage(List<InventoryItem> data, PageMeta meta) {
 	}
 
+	/**
+	 * Compatible with {@code GET /inventory/items/{id}} of Inventory: {@code {data: {id, name, unit}}}, or
+	 * {@code 404} with the error envelope if the id does not exist. Ids are opaque, so the match is exact.
+	 */
 	@GetMapping("/{id}")
-	public ResponseEntity<DataResponse<InventoryItem>> get(@PathVariable String id) {
+	public ResponseEntity<?> get(@PathVariable String id) {
 		return ITEMS.stream()
 				.filter(item -> item.id().equals(id))
 				.findFirst()
-				.map((item) -> ResponseEntity.ok(new DataResponse<>(item)))
-				.orElseGet(() -> ResponseEntity.noContent().build());
+				.<ResponseEntity<?>>map(item -> ResponseEntity.ok(new DataResponse<>(item)))
+				.orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
+						.body(new ApiExceptionHandler.ErrorEnvelope(new ApiExceptionHandler.ErrorBody(NOT_FOUND, null))));
 	}
 }

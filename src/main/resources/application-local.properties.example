@@ -7,7 +7,10 @@ spring.datasource.password=
 # menu.cors.allow-localhost=false
 spring.jpa.hibernate.ddl-auto=update
 
-# Mocked inventory service. Menu will call this service to check items and their units before saving options.
+# Mocked inventory service, available only with the local profile (InventoryMockController). Menu calls
+# GET {base-url}/inventory/items/{id} to check items and their units before saving options. An unknown id
+# is answered with 404 and the error envelope, which Menu reports as 422. Outside the local profile, point
+# INVENTORY_BASE_URL (menu.inventory.base-url) to the real Inventory service.
 menu.inventory.base-url=http://localhost:8080/api/v1
 menu.inventory.token=
 

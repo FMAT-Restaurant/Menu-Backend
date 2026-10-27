@@ -54,14 +54,45 @@ class InventoryClientTest {
 	}
 
 	@Test
+	void aNotFoundWithTheErrorEnvelopeConfirmsThatTheArticleDoesNotExist() {
+		InventoryStub stub = InventoryStub.INSTANCE;
+		stub.reset();
+		InventoryClient client = new InventoryClient(stub.baseUrl(), "", Duration.ofSeconds(3));
+
+		stub.fail(404, "{\"error\": {\"message\": \"No se encontró el recurso solicitado.\"}}");
+
+		assertTrue(client.find("target").isEmpty());
+		assertEquals(List.of("GET /api/v1/inventory/items/target"), stub.requests());
+		stub.reset();
+	}
+
+	/** A wrong base URL or a proxy also answers 404, and that must not turn every article into a missing one. */
+	@Test
+	void aNotFoundWithoutTheErrorEnvelopeDoesNotConfirmAnything() {
+		InventoryStub stub = InventoryStub.INSTANCE;
+		stub.reset();
+		InventoryClient client = new InventoryClient(stub.baseUrl(), "", Duration.ofSeconds(3));
+
+		for (String body : List.of("", "not json", "<html>Not Found</html>", "{}", "{\"data\": null}",
+				"{\"error\": null}", "{\"error\": {}}", "{\"error\": \"Not Found\", \"status\": 404}",
+				"{\"error\": {\"message\": 7}}")) {
+			stub.fail(404, body);
+			assertThrows(RestClientException.class, () -> client.find("target"), body);
+		}
+		stub.reset();
+	}
+
+	@Test
 	void rejectsFailedOrMalformedResponsesInsteadOfReportingMissingItems() {
 		InventoryStub stub = InventoryStub.INSTANCE;
 		stub.reset();
 		InventoryClient client = new InventoryClient(stub.baseUrl(), "", Duration.ofSeconds(3));
-		for (int status : List.of(401, 403, 404, 429, 500, 503)) {
+		for (int status : List.of(401, 403, 429, 500, 503)) {
 			stub.fail(status, "{\"error\": {\"message\": \"Unavailable\"}}");
 			assertThrows(RestClientException.class, () -> client.find("target"));
 		}
+		stub.fail(204, "");
+		assertThrows(RestClientException.class, () -> client.find("target"));
 		for (String body : List.of("", "not json", "{\"data\": []}", "{}", "{\"data\": null}",
 				"{\"data\": {\"id\": \"target\"}}",
 				"{\"data\": {\"id\": \"other\", \"name\": \"Other\", \"unit\": \"g\"}}")) {

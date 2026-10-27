@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.List;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -145,6 +146,22 @@ class RecipeApiIntegrationTest {
 		INVENTORY.fail(503, "{}");
 
 		createRecipe(recipe("Burger", supply(BEEF, "2"))).andExpect(status().isBadGateway());
+
+		assertEquals(0, recipeRepository.count());
+		assertEquals(0, revisionRepository.count());
+	}
+
+	/** A 404 is "the article does not exist" only with the error envelope of Inventory; otherwise it is a failure. */
+	@Test
+	void aNotFoundThatIsNotTheAnswerOfInventoryIsBadGatewayAndStoresNothing() throws Exception {
+		String burger = recipe("Burger", supply(BEEF, "2"));
+		for (String body : List.of("", "not json", "{\"error\": \"Not Found\"}")) {
+			INVENTORY.fail(404, body);
+			createRecipe(burger).andExpect(status().isBadGateway());
+		}
+		INVENTORY.reset();
+		INVENTORY.fail(404, "{\"error\": {\"message\": \"No se encontró el recurso solicitado.\"}}");
+		expectViolation(createRecipe(burger), "/supplies/0/inventoryItemId");
 
 		assertEquals(0, recipeRepository.count());
 		assertEquals(0, revisionRepository.count());
