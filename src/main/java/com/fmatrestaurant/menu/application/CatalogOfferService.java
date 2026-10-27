@@ -159,6 +159,7 @@ public class CatalogOfferService {
 			offer.changeStatus(input.status());
 		}
 		offerRepository.saveAndFlush(offer);
+		offerRepository.incrementVersion(offer);
 		offerRepository.recordRevision(offer);
 		return offer;
 	}

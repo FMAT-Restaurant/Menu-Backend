@@ -23,10 +23,10 @@ public interface CatalogOfferRepository extends JpaRepository<CatalogOffer, UUID
 		JpaSpecificationExecutor<CatalogOffer>, CatalogOfferHistory {
 
 	/**
-	 * Loads the offer for an update. Its version increases on commit even if only its slots or
-	 * options change, so the ETag reflects every change of the composition.
+	 * Loads the offer for an update; {@link #incrementVersion} then makes the ETag reflect every change of
+	 * the composition, and fails if the offer changed or was deleted meanwhile.
 	 */
-	@Lock(LockModeType.OPTIMISTIC_FORCE_INCREMENT)
+	@Lock(LockModeType.OPTIMISTIC)
 	Optional<CatalogOffer> findWithLockById(UUID id);
 
 	/** Loads the offer and locks its row until the end of the transaction, to delete it. */

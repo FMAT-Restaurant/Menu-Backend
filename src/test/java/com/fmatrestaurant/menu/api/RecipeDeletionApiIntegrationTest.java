@@ -199,7 +199,7 @@ class RecipeDeletionApiIntegrationTest {
 	@Test
 	void cannotCreateOrReassignAnOptionToADeletedRecipeEvenThoughTheRevisionStillExists() throws Exception {
 		deleteRecipe("\"rev-1\"").andExpect(status().isNoContent());
-		mockMvc.perform(post("/api/v1/menu/entries/" + entry.getId() + "/offers")
+		mockMvc.perform(post("/api/v1/menu/entries/" + entry.getId() + "/offers").header("Idempotency-Key", UUID.randomUUID())
 				.contentType(MediaType.APPLICATION_JSON).content(offerBody())).andExpect(status().isUnprocessableContent())
 				.andExpect(jsonPath("$.error.details.violations[0].path")
 						.value("/composition/slots/0/options/0/recipeId"));
@@ -212,7 +212,7 @@ class RecipeDeletionApiIntegrationTest {
 		String patchBody = "{\"composition\":{\"slots\":[{\"slotId\":\"" + slot.getId()
 				+ "\",\"options\":[{\"optionId\":\"" + option.getId() + "\",\"sourceType\":\"RECIPE\","
 				+ "\"recipeId\":\"" + recipeId + "\"}]}]}}";
-		mockMvc.perform(patch(OFFERS + "/" + offer.getId()).header(HttpHeaders.IF_MATCH, offerEtag(offer.getId()))
+		mockMvc.perform(patch(OFFERS + "/" + offer.getId()).header("Idempotency-Key", UUID.randomUUID()).header(HttpHeaders.IF_MATCH, offerEtag(offer.getId()))
 				.contentType(MediaType.APPLICATION_JSON).content(patchBody))
 				.andExpect(status().isUnprocessableContent());
 		assertEquals(before, offerJson(offer.getId()));
@@ -229,7 +229,7 @@ class RecipeDeletionApiIntegrationTest {
 				{"composition":{"slots":[{"slotId":"%s","options":[
 				  {"optionId":"%s","sourceType":"INVENTORY_ITEM"}]}]}}
 				""".formatted(slot.getId(), inventoryOption.getId());
-		mockMvc.perform(patch(OFFERS + "/" + offer.getId()).header(HttpHeaders.IF_MATCH, offerEtag(offer.getId()))
+		mockMvc.perform(patch(OFFERS + "/" + offer.getId()).header("Idempotency-Key", UUID.randomUUID()).header(HttpHeaders.IF_MATCH, offerEtag(offer.getId()))
 				.contentType(MediaType.APPLICATION_JSON).content(patchBody)).andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.composition.slots[0].options.length()").value(1))
 				.andExpect(jsonPath("$.data.composition.slots[0].options[0].sourceType").value("INVENTORY_ITEM"));

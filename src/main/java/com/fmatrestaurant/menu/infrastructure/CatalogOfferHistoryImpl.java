@@ -4,6 +4,7 @@ import com.fmatrestaurant.menu.domain.CatalogOffer;
 import com.fmatrestaurant.menu.domain.CatalogOfferRevision;
 
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 
 /** Appends in the caller's transaction; optimistic locking also protects concurrent publication. */
 public class CatalogOfferHistoryImpl implements CatalogOfferHistory {
@@ -20,5 +21,10 @@ public class CatalogOfferHistoryImpl implements CatalogOfferHistory {
 				"select coalesce(max(r.revision), 0) from CatalogOfferRevision r where r.offerId = :offerId", Long.class)
 				.setParameter("offerId", offer.getId()).getSingleResult();
 		entityManager.persist(new CatalogOfferRevision(offer, lastRevision + 1));
+	}
+
+	@Override
+	public void incrementVersion(CatalogOffer offer) {
+		entityManager.lock(offer, LockModeType.PESSIMISTIC_FORCE_INCREMENT);
 	}
 }

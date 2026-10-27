@@ -277,7 +277,7 @@ class CatalogOfferApiIntegrationTest {
 	void patchRequiresTheCurrentEtag() throws Exception {
 		String id = create(offerBody("Individual", "180"));
 
-		mockMvc.perform(patch(OFFERS + "/" + id).contentType(MediaType.APPLICATION_JSON).content("{}"))
+		mockMvc.perform(patch(OFFERS + "/" + id).header("Idempotency-Key", UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON).content("{}"))
 				.andExpect(status().isPreconditionRequired());
 		patchOffer(id, "\"rev-7\"", "{\"basePrice\": 1}").andExpect(status().isPreconditionFailed());
 		patchOffer(id, "*", "{\"basePrice\": 1}").andExpect(status().isPreconditionFailed());
@@ -625,12 +625,12 @@ class CatalogOfferApiIntegrationTest {
 	}
 
 	private ResultActions createOffer(UUID entry, String json) throws Exception {
-		return mockMvc.perform(post("/api/v1/menu/entries/" + entry + "/offers")
+		return mockMvc.perform(post("/api/v1/menu/entries/" + entry + "/offers").header("Idempotency-Key", UUID.randomUUID())
 				.contentType(MediaType.APPLICATION_JSON).content(json));
 	}
 
 	private ResultActions patchOffer(String id, String ifMatch, String json) throws Exception {
-		return mockMvc.perform(patch(OFFERS + "/" + id).header(HttpHeaders.IF_MATCH, ifMatch)
+		return mockMvc.perform(patch(OFFERS + "/" + id).header("Idempotency-Key", UUID.randomUUID()).header(HttpHeaders.IF_MATCH, ifMatch)
 				.contentType(MediaType.APPLICATION_JSON).content(json));
 	}
 

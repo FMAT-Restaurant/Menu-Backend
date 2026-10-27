@@ -328,7 +328,7 @@ class RecipeApiIntegrationTest {
 	}
 
 	private ResultActions createRecipe(String json) throws Exception {
-		return mockMvc.perform(post(RECIPES).contentType(MediaType.APPLICATION_JSON).content(json));
+		return mockMvc.perform(post(RECIPES).header("Idempotency-Key", UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON).content(json));
 	}
 
 	private String create(String json) throws Exception {

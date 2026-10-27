@@ -285,7 +285,7 @@ class CatalogOfferRecipeApiIntegrationTest {
 		String offer = create(entryId, offerBody(recipeId));
 		recipeService.update(recipeId, 1, "Best burger", null, null, null);
 
-		mockMvc.perform(patch(OFFERS + "/" + offer).header(HttpHeaders.IF_MATCH, "\"rev-99\"")
+		mockMvc.perform(patch(OFFERS + "/" + offer).header("Idempotency-Key", UUID.randomUUID()).header(HttpHeaders.IF_MATCH, "\"rev-99\"")
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(optionPatch(offer, "\"recipeId\": \"" + recipeId + "\"")))
 				.andExpect(status().isPreconditionFailed());
@@ -369,7 +369,7 @@ class CatalogOfferRecipeApiIntegrationTest {
 	}
 
 	private ResultActions createOffer(UUID entry, String json) throws Exception {
-		return mockMvc.perform(post("/api/v1/menu/entries/" + entry + "/offers")
+		return mockMvc.perform(post("/api/v1/menu/entries/" + entry + "/offers").header("Idempotency-Key", UUID.randomUUID())
 				.contentType(MediaType.APPLICATION_JSON).content(json));
 	}
 
@@ -393,7 +393,7 @@ class CatalogOfferRecipeApiIntegrationTest {
 	}
 
 	private ResultActions patchOffer(String offer, String json) throws Exception {
-		return mockMvc.perform(patch(OFFERS + "/" + offer).header(HttpHeaders.IF_MATCH, etag(offer))
+		return mockMvc.perform(patch(OFFERS + "/" + offer).header("Idempotency-Key", UUID.randomUUID()).header(HttpHeaders.IF_MATCH, etag(offer))
 				.contentType(MediaType.APPLICATION_JSON).content(json));
 	}
 

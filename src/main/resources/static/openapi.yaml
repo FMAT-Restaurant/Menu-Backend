@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: API de Menu y referencia externa de Inventario
-  version: 5.0.1
-  description: 'Contrato HTTP de las operaciones de consulta y administración de Menu, con una referencia a la consulta externa de Inventario para facilitar el trabajo del frontend. El frontend llama directamente al microservicio de Inventario; el backend de Menu no implementa ni atiende /inventory/items. Las operaciones de Menu se organizan por recurso y no definen el host de despliegue; sus rutas son relativas a una URL base que termina en /api/v1. Las imágenes se cargan previamente mediante POST /media/images, que recibe multipart/form-data y devuelve data.id con un identificador generado por el servidor. Los POST y PATCH de entradas y ofertas reciben JSON con imageId: obligatorio al crear y opcional al editar; omitirlo conserva la imagen vigente. Solo la carga de imágenes recibe el archivo mediante multipart/form-data. Las entradas nuevas inician INACTIVE, con estado asignado por el servidor. Las ofertas nuevas también inician INACTIVE y deben activarse manualmente. El PATCH de ofertas conserva los campos omitidos y reemplaza recursivamente los conjuntos de slots y opciones enviados. Valida el resultado completo y persiste atómicamente, con un ETag fuerte vigente en If-Match.'
+  version: 7.0.0
+  description: 'Contrato HTTP de las operaciones de consulta y administración de Menu, con referencias a las consultas externas de Inventario para facilitar el trabajo del frontend. El frontend llama directamente al microservicio de Inventario; el backend de Menu no implementa ni atiende /inventory/items ni /inventory/item/{id}. InventoryItem.id e inventoryItemId son strings opacos sin formato impuesto. Las operaciones de Menu se organizan por recurso y no definen el host de despliegue; sus rutas son relativas a una URL base que termina en /api/v1. Las imágenes se cargan previamente mediante POST /media/images, que recibe multipart/form-data y devuelve data.id con un identificador generado por el servidor. Los POST y PATCH de entradas y ofertas reciben JSON con imageId: obligatorio al crear y opcional al editar; omitirlo conserva la imagen vigente. Solo la carga de imágenes recibe el archivo mediante multipart/form-data. Las entradas nuevas inician INACTIVE, con estado asignado por el servidor. Los POST de categorías, entradas, ofertas para una entrada, recetas e imágenes, y PATCH /menu/offers/{offerId}, requieren Idempotency-Key. Durante 24 horas desde la primera confirmación exitosa, la misma clave y solicitud recuperan el estado HTTP original (201 en creaciones y 200 en PATCH), el cuerpo y el ETag, sin repetir efectos, generar otros IDs, asociar otra imagen ni volver a resolver recetas. La carga de imagen compara los bytes del archivo y el tipo de medio declarado de la parte file, ignorando boundary, nombre de archivo y orden de partes. El PATCH conserva también el If-Match original: tras autenticar y autorizar, un reintento coincidente recupera su respuesta antes de validar otra vez el ETag vigente; una ejecución nueva exige el ETag vigente normalmente. Una clave ausente o inválida devuelve 400; datos diferentes, incluido If-Match en PATCH, devuelven 409. Una operación en curso o con resultado incierto devuelve 409 con Retry-After y no se ejecuta nuevamente hasta resolver el resultado previo. Las ofertas nuevas también inician INACTIVE y deben activarse manualmente. El servidor asigna status: ACTIVE a todas las opciones nuevas de POST; la solicitud no acepta status para ellas. presentationTag es requerido en POST y PATCH de ofertas y en sus respuestas. Para un origen RECIPE solo se indica recipeId: al asignarlo, el servidor selecciona la revisión válida más reciente y conserva internamente la referencia histórica; las opciones no exponen recipeRevision. El PATCH de ofertas conserva los demás campos omitidos y reemplaza recursivamente los conjuntos de slots y opciones enviados. Valida el resultado completo y persiste atómicamente, con un ETag fuerte vigente en If-Match. Los DELETE de entradas y ofertas devuelven 409 si incumplen las reglas de eliminación del dominio, 428 si falta If-Match y 412 si el ETag es obsoleto. Su respuesta 204 no contiene cuerpo ni ETag porque el recurso eliminado ya no tiene una representación vigente. Si falla la consulta a Inventario necesaria para validar insumos en POST o PATCH de ofertas o recetas, se devuelve 502 sin aplicar cambios.'
   license:
     name: MIT
     url: https://github.com/FMAT-Restaurant/Menu-Documentation/blob/main/LICENSE
@@ -75,7 +75,9 @@ paths:
         - Categorías
       operationId: createMenuCategory
       summary: Crear una categoría
-      description: Crea una categoría para organizar entradas del catálogo.
+      description: Crea una categoría para organizar entradas del catálogo. Requiere Idempotency-Key con un UUID generado por el cliente por operación; su alcance es el sujeto autenticado, el menú, el método POST y la ruta concreta. Durante 24 horas desde la confirmación inicial exitosa, la misma clave y el mismo JSON semántico recuperan el 201, cuerpo, ETag e identificador originales sin crear otra categoría. La comparación ignora espacios y orden de propiedades; conserva el orden de arrays y distingue omisión de null. Cada intento verifica autenticación y autorización antes de recuperar el resultado, que se devuelve antes de revalidar referencias o reglas vigentes, incluso si la categoría fue editada o eliminada posteriormente. Un encabezado ausente o inválido devuelve 400 INVALID_IDEMPOTENCY_KEY; otros datos con la misma clave devuelven 409 IDEMPOTENCY_KEY_REUSED. Una operación en curso o de resultado todavía incierto devuelve 409 IDEMPOTENCY_IN_PROGRESS con Retry-After; no inicia otra creación hasta confirmar el resultado anterior. Los fallos confirmados antes de guardar no conservan un resultado exitoso y permiten reintentar la misma clave y datos. Los reintentos no extienden las 24 horas; una clave expirada puede tratarse como nueva y crear un duplicado.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
@@ -90,7 +92,7 @@ paths:
                   description: Opciones dulces.
       responses:
         '201':
-          description: Categoría creada.
+          description: Categoría creada, o reproducción del 201, cuerpo y ETag originales de la misma operación idempotente.
           headers:
             ETag:
               $ref: '#/components/headers/ETag'
@@ -107,10 +109,14 @@ paths:
                       name: Postres
                       description: Opciones dulces.
                       entryCount: 0
+        '400':
+          $ref: '#/components/responses/IdempotencyBadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/IdempotencyConflict'
         '422':
           $ref: '#/components/responses/UnprocessableEntity'
         '429':
@@ -296,7 +302,9 @@ paths:
         - Entradas
       operationId: createMenuEntry
       summary: Crear una entrada
-      description: Crea una entrada del catálogo con sus categorías y una imagen obligatoria previamente cargada en POST /api/v1/media/images. Envíe data.id de esa respuesta como imageId en el cuerpo JSON; esta operación no recibe el archivo ni asigna un nuevo identificador de imagen. El backend asigna el estado INACTIVE; el cliente no proporciona status. imageId debe identificar una imagen existente, válida y accesible al solicitante. Los metadatos y las asociaciones de imagen y categorías se validan y persisten de forma atómica. La entrada y sus categorías pertenecen al menú provisionado en la instalación. Una referencia de imagen inválida, categorías inexistentes o de otro menú y cualquier solicitud inválida devuelven 422 sin crear la entrada ni aplicar cambios. La carga previa de imagen es una operación independiente y no se deshace si falla la creación de la entrada.
+      description: Crea una entrada del catálogo con sus categorías y una imagen obligatoria previamente cargada en POST /api/v1/media/images. Envíe data.id de esa respuesta como imageId en el cuerpo JSON; esta operación no recibe el archivo ni asigna un nuevo identificador de imagen. El backend asigna el estado INACTIVE; el cliente no proporciona status. imageId debe identificar una imagen existente, válida y accesible al solicitante. Los metadatos y las asociaciones de imagen y categorías se validan y persisten de forma atómica. La entrada y sus categorías pertenecen al menú provisionado en la instalación. Una referencia de imagen inválida, categorías inexistentes o de otro menú y cualquier solicitud inválida devuelven 422 sin crear la entrada ni aplicar cambios. La carga previa de imagen es una operación independiente y no se deshace si falla la creación de la entrada. Requiere Idempotency-Key, un UUID generado por el cliente por creación lógica, con alcance por usuario autenticado, menú, método POST y ruta concreta. Durante 24 horas desde la primera creación confirmada, reenviar la misma clave y el mismo JSON semántico devuelve el 201, cuerpo y ETag originales, con la misma entrada y asociación de imagen; no repite efectos. El orden de propiedades y los espacios del JSON no alteran su igualdad; el orden de arrays y la diferencia entre omisión y null sí la alteran. Tras autenticar y autorizar al solicitante, el resultado guardado se recupera antes de validar los recursos o referencias vigentes, incluso si después fueron editados o eliminados. Otra carga JSON con la misma clave devuelve 409 con error.details.code IDEMPOTENCY_KEY_REUSED; una creación todavía en curso devuelve 409 con error.details.code IDEMPOTENCY_IN_PROGRESS y Retry-After. La ausencia o invalidez del encabezado devuelve 400. Los errores anteriores a la creación confirmada no fijan un resultado y liberan la clave para reintentar la misma solicitud. Los reintentos no extienden el plazo; después de 24 horas la clave puede tratarse como nueva y ya no garantiza evitar duplicados.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
@@ -314,7 +322,7 @@ paths:
                   imageId: 55e62412-9249-4db6-8ccb-31f19ea2f501
       responses:
         '201':
-          description: Entrada creada en INACTIVE y asociada con la imagen previamente cargada.
+          description: Entrada creada en INACTIVE y asociada con la imagen previamente cargada; un reintento idempotente reproduce el cuerpo y el ETag originales.
           headers:
             ETag:
               $ref: '#/components/headers/ETag'
@@ -337,10 +345,14 @@ paths:
                         thumbnailUrl: https://cdn.example.com/menu/hamburguesa-hawaiana-thumb.jpg
                       categoryIds:
                         - 0ddba9d0-0f45-4abc-9e4a-3e3471a5ce01
+        '400':
+          $ref: '#/components/responses/IdempotencyBadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/IdempotencyConflict'
         '422':
           $ref: '#/components/responses/UnprocessableEntity'
         '429':
@@ -475,23 +487,44 @@ paths:
         - Entradas
       operationId: deleteMenuEntry
       summary: Eliminar una entrada
-      description: Elimina la entrada y también las ofertas asociadas. Envíe el ETag leído en If-Match para confirmar que la entrada no cambió.
+      description: 'Elimina la entrada y también las ofertas asociadas, preservando el historial según las reglas del dominio. La entrada debe estar ARCHIVED; cualquier otro estado devuelve 409 sin eliminar la entrada ni sus ofertas. Envíe el ETag leído en If-Match para confirmar que la entrada no cambió: su ausencia devuelve 428 y un valor obsoleto devuelve 412, sin modificaciones.'
       parameters:
         - $ref: '#/components/parameters/IfMatch'
       responses:
         '204':
-          description: Entrada y ofertas asociadas eliminadas.
-          headers:
-            ETag:
-              $ref: '#/components/headers/ETag'
+          description: Entrada y ofertas asociadas eliminadas. La respuesta no contiene cuerpo ni encabezado ETag porque no queda una representación vigente del recurso eliminado; se preserva el historial según las reglas del dominio.
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          description: La entrada debe estar ARCHIVED para poder eliminarse; no se aplican cambios.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                entradaNoArchivada:
+                  summary: Entrada en un estado distinto de ARCHIVED
+                  value:
+                    error:
+                      message: La entrada debe estar archivada para eliminarse.
         '412':
           $ref: '#/components/responses/PreconditionFailed'
+        '428':
+          description: Se requiere el encabezado If-Match para eliminar la entrada; no se aplican cambios.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                faltaIfMatch:
+                  summary: Encabezado de concurrencia ausente
+                  value:
+                    error:
+                      message: El encabezado If-Match es requerido.
         '429':
           $ref: '#/components/responses/TooManyRequests'
   /menu/offers:
@@ -561,7 +594,9 @@ paths:
         - Ofertas
       operationId: createEntryOffer
       summary: Crear una oferta para una entrada
-      description: 'Crea una oferta asociada a la entrada indicada en la ruta. La composición define los espacios de selección y sus opciones. La imagen es obligatoria: cárguela antes mediante POST /api/v1/media/images y envíe data.id de la respuesta como imageId en el cuerpo JSON. Esta operación no recibe archivos ni URLs. imageId debe identificar una imagen existente, válida y accesible al solicitante; una referencia inválida devuelve 422 sin crear la oferta. Toda oferta se crea con estado INACTIVE y debe activarse manualmente después. La carga previa es una operación independiente y no se deshace si falla la creación de la oferta.'
+      description: 'Crea una oferta asociada a la entrada indicada en la ruta. La composición define los espacios de selección y sus opciones. La imagen es obligatoria: cárguela antes mediante POST /api/v1/media/images y envíe data.id de la respuesta como imageId en el cuerpo JSON. Esta operación no recibe archivos ni URLs. imageId debe identificar una imagen existente, válida y accesible al solicitante; una referencia inválida devuelve 422 sin crear la oferta. Toda oferta se crea con estado INACTIVE y debe activarse manualmente después. El servidor asigna status: ACTIVE a todas las opciones nuevas; el cuerpo de POST no acepta status para las opciones. Si falla la consulta a Inventario necesaria para validar un origen INVENTORY_ITEM, devuelve 502 sin crear la oferta; un artículo de inventario inválido devuelve 422. La carga previa es una operación independiente y no se deshace si falla la creación de la oferta. Requiere Idempotency-Key, un UUID generado por el cliente por creación lógica, con alcance por usuario autenticado, menú, método POST y ruta concreta (incluido entryId). Durante 24 horas desde la primera creación confirmada, reenviar la misma clave y el mismo JSON semántico devuelve el 201, cuerpo y ETag originales, con la misma oferta, slots, opciones e imagen; no repite efectos ni resuelve otra vez las revisiones de recetas. El orden de propiedades y los espacios del JSON no alteran su igualdad; el orden de arrays y la diferencia entre omisión y null sí la alteran. Tras autenticar y autorizar al solicitante, el resultado guardado se recupera antes de validar los recursos o referencias vigentes, incluso si después fueron editados o eliminados. Otra carga JSON con la misma clave devuelve 409 con error.details.code IDEMPOTENCY_KEY_REUSED; una creación todavía en curso devuelve 409 con error.details.code IDEMPOTENCY_IN_PROGRESS y Retry-After. La ausencia o invalidez del encabezado devuelve 400. Los errores anteriores a la creación confirmada, incluido 502, no fijan un resultado y liberan la clave para reintentar la misma solicitud. Los reintentos no extienden el plazo; después de 24 horas la clave puede tratarse como nueva y ya no garantiza evitar duplicados. Una opción RECIPE se selecciona solo por recipeId: al asignarla, el servidor resuelve atómicamente la revisión válida publicada más reciente y la conserva internamente; no se expone una revisión en la opción. Una receta inexistente o sin revisión válida devuelve 422 sin aplicar cambios.'
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
@@ -597,13 +632,13 @@ paths:
                         course: plato fuerte
                         options:
                           - sourceType: INVENTORY_ITEM
-                            inventoryItemId: INV-potatoes-001
+                            inventoryItemId: CARNE-150G
                             quantity: 200
                             unit: g
                             displayName: Papas
       responses:
         '201':
-          description: Oferta creada.
+          description: Oferta creada; un reintento idempotente reproduce el cuerpo y el ETag de la creación original.
           headers:
             ETag:
               $ref: '#/components/headers/ETag'
@@ -670,11 +705,13 @@ paths:
                             options:
                               - optionId: 79a1bc24-0d4f-489b-9836-3a60b5c4ed12
                                 sourceType: INVENTORY_ITEM
-                                inventoryItemId: INV-potatoes-001
+                                inventoryItemId: CARNE-150G
                                 quantity: 200
                                 unit: g
                                 displayName: Papas
                                 status: ACTIVE
+        '400':
+          $ref: '#/components/responses/IdempotencyBadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -691,10 +728,14 @@ paths:
                   value:
                     error:
                       message: No se encontró la entrada indicada.
+        '409':
+          $ref: '#/components/responses/IdempotencyConflict'
         '422':
           $ref: '#/components/responses/UnprocessableEntity'
         '429':
           $ref: '#/components/responses/TooManyRequests'
+        '502':
+          $ref: '#/components/responses/InventoryUnavailable'
   /menu/offers/{offerId}:
     parameters:
       - name: offerId
@@ -770,7 +811,7 @@ paths:
                             options:
                               - optionId: 89cce4da-2f19-4d27-942d-b2ee82fb5402
                                 sourceType: INVENTORY_ITEM
-                                inventoryItemId: INV-potatoes-001
+                                inventoryItemId: CARNE-150G
                                 quantity: 200
                                 unit: g
                                 displayName: Papas
@@ -789,9 +830,10 @@ paths:
         - Ofertas
       operationId: patchMenuOffer
       summary: Actualizar una oferta
-      description: Actualiza parcialmente una oferta. Los campos omitidos se conservan; enviar composition.slots o las options de un slot reemplaza el conjunto completo. La composición se valida íntegramente y se persiste de forma atómica. Requiere el ETag vigente en If-Match. Las reglas de IDs, tipos de opción, estados e imagen se detallan en el esquema de solicitud.
+      description: 'Actualiza parcialmente una oferta. presentationTag es un string requerido en cada solicitud; los demás campos omitidos se conservan; enviar composition.slots o las options de un slot reemplaza el conjunto completo. La composición se valida íntegramente y se persiste de forma atómica. Una ejecución nueva requiere el ETag vigente en If-Match. Las reglas de IDs, tipos de opción, estados e imagen se detallan en el esquema de solicitud. Si falla la consulta a Inventario necesaria para validar un origen INVENTORY_ITEM, devuelve 502 sin aplicar cambios; un artículo de inventario inválido devuelve 422. Para una opción RECIPE, enviar recipeId, incluso si coincide con el actual, asigna atómicamente la revisión válida publicada más reciente. Omitir recipeId en una opción que ya es RECIPE conserva la asignación anterior; cambiar el tipo de origen a RECIPE requiere recipeId. La revisión resuelta se conserva internamente y no se expone en la opción. Una receta inexistente o sin revisión válida devuelve 422 sin aplicar cambios; editar después la receta no altera las opciones existentes. Requiere Idempotency-Key, un UUID generado por el cliente para este guardado lógico, además de If-Match. La clave se delimita por el sujeto autenticado, el menú, el método PATCH y la ruta concreta de la oferta. Los reintentos conservan la clave, el JSON y el If-Match originales. La comparación ignora espacios y orden de propiedades JSON; conserva el orden de arrays y distingue omisión de null. Tras autenticar y autorizar, un resultado exitoso con la misma solicitud se recupera antes de volver a comprobar el ETag o las referencias vigentes. Durante 24 horas desde la confirmación inicial devuelve el 200, cuerpo y ETag originales, incluidos los IDs generados, la imagen y la asignación de recetas, sin repetir la actualización ni resolver otra revisión, aunque después se haya editado o eliminado la oferta. Cambiar el JSON o el If-Match bajo la misma clave devuelve 409 con error.details.code IDEMPOTENCY_KEY_REUSED. Una solicitud en proceso o cuyo resultado aún no se ha confirmado devuelve 409 con error.details.code IDEMPOTENCY_IN_PROGRESS y Retry-After; no se inicia otra actualización hasta confirmar el resultado anterior. La ausencia o invalidez de Idempotency-Key devuelve 400. If-Match sigue siendo obligatorio: omitirlo devuelve 428; sin un resultado exitoso recuperable, un ETag obsoleto devuelve 412. Un fallo confirmado anterior a la persistencia, incluido 502, no aplica cambios ni conserva un resultado exitoso y permite reintentar los mismos datos y headers. Los reintentos no extienden las 24 horas; una clave expirada se trata como nueva. Antes de reenviar un guardado incierto con una clave expirada, consulte y reconcilie el estado actual para evitar repetir la actualización.'
       parameters:
         - $ref: '#/components/parameters/IfMatch'
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
@@ -802,6 +844,7 @@ paths:
               actualizarComposicion:
                 summary: Conservar dos slots y actualizar parcialmente las opciones del segundo
                 value:
+                  presentationTag: Individual
                   composition:
                     slots:
                       - slotId: b37c1bd7-17b2-47a2-a3a4-802559445301
@@ -815,6 +858,7 @@ paths:
               agregarSlot:
                 summary: Conservar un slot existente y agregar un slot nuevo
                 value:
+                  presentationTag: Individual
                   composition:
                     slots:
                       - slotId: b37c1bd7-17b2-47a2-a3a4-802559445301
@@ -824,12 +868,13 @@ paths:
                           - displayName: Papas
                             status: ACTIVE
                             sourceType: INVENTORY_ITEM
-                            inventoryItemId: INV-potatoes-001
+                            inventoryItemId: CARNE-150G
                             quantity: 200
                             unit: g
               cambiarOrigen:
-                summary: Reasignar una opción RECIPE existente a la revisión más reciente de su receta
+                summary: Asignar una receta por ID usando su revisión válida más reciente
                 value:
+                  presentationTag: Individual
                   composition:
                     slots:
                       - slotId: b37c1bd7-17b2-47a2-a3a4-802559445301
@@ -838,8 +883,9 @@ paths:
                             sourceType: RECIPE
                             recipeId: c4813f65-00b4-4921-874e-03c555796401
               actualizarNombreReceta:
-                summary: Cambiar el nombre de una opción existente que ya usa RECIPE, conservando su asignación
+                summary: Cambiar el nombre de una opción RECIPE conservando su asignación
                 value:
+                  presentationTag: Individual
                   composition:
                     slots:
                       - slotId: b37c1bd7-17b2-47a2-a3a4-802559445301
@@ -850,6 +896,7 @@ paths:
               actualizarCantidadInventario:
                 summary: Cambiar solo la cantidad de una opción existente que ya usa INVENTORY_ITEM
                 value:
+                  presentationTag: Individual
                   composition:
                     slots:
                       - slotId: b37c1bd7-17b2-47a2-a3a4-802559445302
@@ -859,7 +906,7 @@ paths:
                             quantity: 250
       responses:
         '200':
-          description: Oferta actualizada.
+          description: Oferta actualizada o respuesta original del mismo guardado idempotente, con el cuerpo y ETag originales.
           headers:
             ETag:
               $ref: '#/components/headers/ETag'
@@ -896,19 +943,24 @@ paths:
                                 displayName: Hamburguesa Hawaiana
                               - optionId: 89cce4da-2f19-4d27-942d-b2ee82fb5402
                                 sourceType: INVENTORY_ITEM
-                                inventoryItemId: INV-potatoes-001
+                                inventoryItemId: CARNE-150G
                                 status: ACTIVE
                                 displayName: Papas
                                 quantity: 200
                                 unit: g
+        '400':
+          $ref: '#/components/responses/IdempotencyBadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/IdempotencyConflict'
         '412':
           $ref: '#/components/responses/PreconditionFailed'
+          description: El ETag de If-Match es obsoleto y no existe un resultado exitoso recuperable para el mismo guardado idempotente.
         '422':
           $ref: '#/components/responses/UnprocessableEntity'
         '428':
@@ -925,27 +977,56 @@ paths:
                       message: El encabezado If-Match es requerido.
         '429':
           $ref: '#/components/responses/TooManyRequests'
+        '502':
+          $ref: '#/components/responses/InventoryUnavailable'
     delete:
       tags:
         - Ofertas
       operationId: deleteMenuOffer
       summary: Eliminar una oferta
+      description: Requiere el ETag vigente en If-Match y que la oferta esté INACTIVE. Devuelve 409 si la oferta no está INACTIVE o si eliminarla deja una entrada ACTIVE sin una oferta ACTIVE válida. El rechazo conserva íntegramente la oferta y su historia. Si falta If-Match, devuelve 428; si no coincide con el ETag vigente, devuelve 412.
       parameters:
         - $ref: '#/components/parameters/IfMatch'
       responses:
         '204':
-          description: Oferta eliminada.
-          headers:
-            ETag:
-              $ref: '#/components/headers/ETag'
+          description: Oferta eliminada. La respuesta no contiene cuerpo ni encabezado ETag, porque no queda una representación vigente del recurso eliminado.
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          description: El estado de la oferta o de su entrada impide eliminarla.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                ofertaNoInactiva:
+                  summary: La oferta debe estar INACTIVE para eliminarse
+                  value:
+                    error:
+                      message: La oferta debe estar INACTIVE para eliminarse.
+                entradaSinOfertaActiva:
+                  summary: La entrada ACTIVE quedaría sin una oferta ACTIVE válida
+                  value:
+                    error:
+                      message: No se puede dejar una entrada ACTIVE sin una oferta ACTIVE válida.
         '412':
           $ref: '#/components/responses/PreconditionFailed'
+        '428':
+          description: Se requiere el encabezado If-Match para eliminar la oferta.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                faltaIfMatch:
+                  summary: Encabezado de concurrencia ausente
+                  value:
+                    error:
+                      message: El encabezado If-Match es requerido.
         '429':
           $ref: '#/components/responses/TooManyRequests'
   /menu/recipes:
@@ -979,10 +1060,10 @@ paths:
                         name: Hamburguesa Hawaiana
                         description: Carne, jamón, queso y piña.
                         supplies:
-                          - inventoryItemId: INV-beef-001
+                          - inventoryItemId: CARNE-150G
                             quantity: 200
                             inventoryItem:
-                              id: INV-beef-001
+                              id: CARNE-150G
                               name: Carne Molida Res 80/20
                               unit: g
                     meta:
@@ -1003,7 +1084,9 @@ paths:
         - Recetas
       operationId: createMenuRecipe
       summary: Crear una receta
-      description: Crea una receta con sus insumos y cantidades. Cada inventoryItemId debe referirse a un artículo de inventario existente.
+      description: Crea una receta con sus insumos y cantidades. Cada inventoryItemId debe referirse a un artículo de inventario existente; una referencia inexistente o inválida devuelve 422. Si falla la consulta a Inventario necesaria para validar los insumos, devuelve 502 sin crear la receta ni aplicar cambios parciales. Requiere Idempotency-Key con un UUID generado por el cliente por operación, delimitado por el sujeto autenticado, el menú, el método POST y la ruta concreta. Durante 24 horas desde la confirmación inicial exitosa, reenviar la misma clave y el mismo JSON semántico devuelve el 201, cuerpo, ETag y recipeId originales sin crear otra receta. La comparación ignora espacios y orden de propiedades; conserva el orden de arrays y distingue omisión de null. Cada intento verifica autenticación y autorización antes de recuperar el resultado, que se devuelve antes de revalidar referencias vigentes o volver a consultar Inventario, incluso si la receta fue editada o eliminada después. Un encabezado ausente o inválido devuelve 400 INVALID_IDEMPOTENCY_KEY; otros datos con la misma clave devuelven 409 IDEMPOTENCY_KEY_REUSED. Una operación en curso o con resultado todavía incierto devuelve 409 IDEMPOTENCY_IN_PROGRESS con Retry-After; no inicia otra creación hasta confirmar el resultado anterior. Los fallos confirmados antes de guardar, incluido 502, no aplican cambios ni conservan un resultado exitoso y permiten reintentar la misma clave y datos. Los reintentos no extienden las 24 horas; una clave expirada puede tratarse como nueva y crear un duplicado.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
@@ -1018,11 +1101,11 @@ paths:
                   description: Carne, jamón, queso y piña.
                   instructions: Asar carne, dorar jamón y piña. Montar en pan.
                   supplies:
-                    - inventoryItemId: INV-beef-001
+                    - inventoryItemId: CARNE-150G
                       quantity: 200
       responses:
         '201':
-          description: Receta creada.
+          description: Receta creada, o reproducción del 201, cuerpo y ETag originales de la misma operación idempotente.
           headers:
             ETag:
               $ref: '#/components/headers/ETag'
@@ -1040,20 +1123,26 @@ paths:
                       description: Carne, jamón, queso y piña.
                       instructions: Asar carne, dorar jamón y piña. Montar en pan.
                       supplies:
-                        - inventoryItemId: INV-beef-001
+                        - inventoryItemId: CARNE-150G
                           quantity: 200
                           inventoryItem:
-                            id: INV-beef-001
+                            id: CARNE-150G
                             name: Carne Molida Res 80/20
                             unit: g
+        '400':
+          $ref: '#/components/responses/IdempotencyBadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/IdempotencyConflict'
         '422':
           $ref: '#/components/responses/UnprocessableEntity'
         '429':
           $ref: '#/components/responses/TooManyRequests'
+        '502':
+          $ref: '#/components/responses/InventoryUnavailable'
   /menu/recipes/{recipeId}:
     parameters:
       - name: recipeId
@@ -1092,10 +1181,10 @@ paths:
                       description: Carne, jamón, queso y piña.
                       instructions: Asar carne, dorar jamón y piña. Montar en pan.
                       supplies:
-                        - inventoryItemId: INV-beef-001
+                        - inventoryItemId: CARNE-150G
                           quantity: 200
                           inventoryItem:
-                            id: INV-beef-001
+                            id: CARNE-150G
                             name: Carne Molida Res 80/20
                             unit: g
         '304':
@@ -1113,7 +1202,7 @@ paths:
         - Recetas
       operationId: patchMenuRecipe
       summary: Actualizar una receta
-      description: Actualiza los campos de la receta incluidos en el cuerpo. Cada inventoryItemId proporcionado debe referirse a un artículo existente; envíe el ETag leído en If-Match para evitar sobrescribir cambios recientes.
+      description: Actualiza los campos de la receta incluidos en el cuerpo. Cada inventoryItemId proporcionado debe referirse a un artículo existente; una referencia inexistente o inválida devuelve 422. Si falla la consulta a Inventario necesaria para validar los insumos, devuelve 502 sin modificar la receta ni aplicar cambios parciales. Envíe el ETag leído en If-Match para evitar sobrescribir cambios recientes.
       parameters:
         - $ref: '#/components/parameters/IfMatch'
       requestBody:
@@ -1130,7 +1219,7 @@ paths:
                   description: Carne, jamón, queso y piña.
                   instructions: Asar la carne; dorar el jamón y la piña; montar en pan.
                   supplies:
-                    - inventoryItemId: INV-beef-001
+                    - inventoryItemId: CARNE-150G
                       quantity: 200
       responses:
         '200':
@@ -1152,10 +1241,10 @@ paths:
                       description: Carne, jamón, queso y piña.
                       instructions: Asar la carne; dorar el jamón y la piña; montar en pan.
                       supplies:
-                        - inventoryItemId: INV-beef-001
+                        - inventoryItemId: CARNE-150G
                           quantity: 200
                           inventoryItem:
-                            id: INV-beef-001
+                            id: CARNE-150G
                             name: Carne Molida Res 80/20
                             unit: g
         '401':
@@ -1170,6 +1259,8 @@ paths:
           $ref: '#/components/responses/UnprocessableEntity'
         '429':
           $ref: '#/components/responses/TooManyRequests'
+        '502':
+          $ref: '#/components/responses/InventoryUnavailable'
     delete:
       tags:
         - Recetas
@@ -1229,7 +1320,7 @@ paths:
                   summary: Artículo de inventario encontrado
                   value:
                     data:
-                      - id: INV-beef-001
+                      - id: CARNE-150G
                         name: Carne Molida Res 80/20
                         unit: g
                     meta:
@@ -1245,13 +1336,66 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '429':
           $ref: '#/components/responses/TooManyRequests'
+  /inventory/item/{id}:
+    servers:
+      - url: https://{inventoryHost}/api/v1
+        variables:
+          inventoryHost:
+            default: inventory.example.invalid
+            description: Dominio reservado como marcador; reemplazarlo por el host de despliegue del microservicio de Inventario.
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Identificador opaco del insumo, sin formato impuesto.
+        schema:
+          type: string
+          example: CARNE-150G
+    get:
+      tags:
+        - Inventario
+      operationId: getInventoryItem
+      summary: Consultar artículo por ID
+      description: Operación del microservicio externo de Inventario, llamada directamente por el frontend para consultar un artículo por su identificador. El backend de Menu no implementa esta ruta; Menu solo conserva referencias de solo lectura a los artículos.
+      parameters:
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Artículo de inventario encontrado.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryItemResponse'
+              examples:
+                articuloEncontrado:
+                  summary: Artículo de inventario encontrado
+                  value:
+                    data:
+                      id: CARNE-150G
+                      name: Carne Molida Res 80/20
+                      unit: g
+        '304':
+          $ref: '#/components/responses/NotModified'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
   /media/images:
     post:
       tags:
         - Imágenes
       operationId: uploadMenuImage
       summary: Subir una imagen
-      description: 'Sube el archivo del campo file mediante multipart/form-data. Acepta JPEG, PNG y WebP de hasta 10 MiB (10485760 bytes), con ancho y alto máximos de 4096 px cada uno. Valida el contenido real y su decodificación, además del tipo declarado. Solo tras validar la carga, el servidor genera el UUID y devuelve data.id, data.url y data.thumbnailUrl. El cliente utiliza data.id como imageId en las solicitudes JSON de creación o edición de entradas y ofertas, sin reenviar el archivo. La carga y la asociación son operaciones separadas: cargar una imagen no crea una entrada ni una oferta. Una imagen inválida devuelve 422 sin crear una imagen utilizable ni modificar un recurso existente o su revisión.'
+      description: 'Sube el archivo del campo file mediante multipart/form-data. Acepta JPEG, PNG y WebP de hasta 10 MiB (10485760 bytes), con ancho y alto máximos de 4096 px cada uno. Valida el contenido real y su decodificación, además del tipo declarado. Solo tras validar la carga, el servidor genera el UUID y devuelve data.id, data.url y data.thumbnailUrl. El cliente utiliza data.id como imageId en las solicitudes JSON de creación o edición de entradas y ofertas, sin reenviar el archivo. La carga y la asociación son operaciones separadas: cargar una imagen no crea una entrada ni una oferta. Una imagen inválida devuelve 422 sin crear una imagen utilizable ni modificar un recurso existente o su revisión. Requiere Idempotency-Key con un UUID generado por el cliente para la carga lógica, delimitado por el sujeto autenticado, el menú, el método POST y la ruta concreta. Durante 24 horas desde la confirmación inicial exitosa, reenviar la misma clave, los mismos bytes del archivo y el mismo tipo de medio declarado en la parte file devuelve el 201, cuerpo y ETag originales, incluidos data.id, data.url y data.thumbnailUrl, sin crear otra imagen ni repetir sus efectos de transformación. La comparación ignora el boundary, el orden de las partes y el nombre del archivo; no compara el multipart completo ni deduplica cargas con claves distintas. Una clave nueva permite una carga independiente aunque el archivo sea idéntico. Cada intento verifica autenticación y autorización antes de recuperar el resultado original y antes de volver a validar la imagen vigente. Un encabezado ausente o inválido devuelve 400 INVALID_IDEMPOTENCY_KEY; cambiar el archivo o su tipo de medio con la misma clave devuelve 409 IDEMPOTENCY_KEY_REUSED. Una carga en proceso o interrumpida cuyo resultado todavía sea incierto devuelve 409 IDEMPOTENCY_IN_PROGRESS con Retry-After hasta confirmar su resultado. El reintento recupera o continúa la misma carga lógica y no crea otra imagen utilizable para esa clave. Un fallo confirmado antes de obtener una imagen utilizable permite reintentar la misma clave y archivo; un resultado incierto no inicia otra operación. Los reintentos no extienden las 24 horas; una clave expirada puede tratarse como nueva y crear otra imagen. La asociación posterior con una entrada u oferta sigue siendo independiente y utiliza su propia clave de operación.'
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
@@ -1276,7 +1420,7 @@ paths:
                   file: hamburguesa-hawaiana.jpg
       responses:
         '201':
-          description: Imagen validada, con UUID generado por el servidor y URL disponibles.
+          description: Imagen validada, con UUID y URL disponibles, o reproducción del 201, cuerpo y ETag originales de la misma carga idempotente.
           headers:
             ETag:
               $ref: '#/components/headers/ETag'
@@ -1292,10 +1436,14 @@ paths:
                       id: 55e62412-9249-4db6-8ccb-31f19ea2f501
                       url: https://cdn.example.com/menu/hamburguesa-hawaiana.jpg
                       thumbnailUrl: https://cdn.example.com/menu/hamburguesa-hawaiana-thumb.jpg
+        '400':
+          $ref: '#/components/responses/IdempotencyBadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/IdempotencyConflict'
         '422':
           $ref: '#/components/responses/UnprocessableEntity'
         '429':
@@ -1378,9 +1526,8 @@ components:
       properties:
         id:
           type: string
-          minLength: 1
-          description: Identificador de texto opaco del insumo, asignado por Inventario. Se conserva sin normalizar y no admite valores vacíos ni en blanco.
-          example: INV-potatoes-001
+          description: Identificador opaco del insumo como string, sin formato UUID requerido.
+          example: CARNE-150G
         name:
           type: string
           description: Nombre legible del insumo.
@@ -1390,7 +1537,7 @@ components:
           description: Unidad usada para expresar la cantidad del insumo.
           example: g
       example:
-        id: INV-potatoes-001
+        id: CARNE-150G
         name: Carne Molida Res 80/20
         unit: g
     Error:
@@ -1753,7 +1900,7 @@ components:
           example: Hamburguesa Hawaiana
         presentationTag:
           type: string
-          description: Etiqueta que distingue esta presentación de la entrada.
+          description: Etiqueta obligatoria que distingue esta presentación de la entrada; no admite null.
           example: Combo
         basePrice:
           type: number
@@ -1804,7 +1951,7 @@ components:
           example: 82f7c6d4-3d9a-4fa1-bf2c-7b8d9e0f1a23
         presentationTag:
           type: string
-          description: Etiqueta que distingue esta presentación de la entrada.
+          description: Etiqueta obligatoria que distingue esta presentación de la entrada; no admite null.
           example: Combo
         basePrice:
           type: number
@@ -1839,7 +1986,7 @@ components:
                   displayName: Hamburguesa hawaiana
     CatalogOfferCreateRequest:
       type: object
-      description: Datos JSON para crear una oferta y definir su composición inicial. La imagen se carga previamente mediante POST /api/v1/media/images y esta solicitud asocia su identificador; la carga y la asociación son operaciones separadas. No se envían archivos ni URLs en esta solicitud. Los UUID de los slots y las opciones los genera el servidor; no deben incluirse en este cuerpo. El servidor asigna INACTIVE al crear la oferta; su activación manual se realiza después mediante una actualización.
+      description: Datos JSON para crear una oferta y definir su composición inicial. La imagen se carga previamente mediante POST /api/v1/media/images y esta solicitud asocia su identificador; la carga y la asociación son operaciones separadas. No se envían archivos ni URLs en esta solicitud. Los UUID de los slots y las opciones los genera el servidor; no deben incluirse en este cuerpo. El servidor asigna INACTIVE al crear la oferta y status ACTIVE a cada opción nueva; status de las opciones no se envía en esta solicitud. La activación manual de la oferta se realiza después mediante una actualización.
       additionalProperties: false
       required:
         - presentationTag
@@ -1849,7 +1996,7 @@ components:
       properties:
         presentationTag:
           type: string
-          description: Etiqueta que distingue esta presentación de la entrada.
+          description: Etiqueta obligatoria que distingue esta presentación de la entrada; no admite null.
           example: Combo
         basePrice:
           type: number
@@ -1877,12 +2024,14 @@ components:
                   displayName: Hamburguesa hawaiana
     CatalogOfferPatchRequest:
       type: object
-      description: 'Campos de una oferta que se desean actualizar mediante JSON. La imagen de reemplazo se carga previamente mediante POST /api/v1/media/images; esta solicitud actualiza su asociación con imageId. La carga y la asociación son operaciones separadas. No se envían archivos ni URLs en esta solicitud. Los campos omitidos se conservan recursivamente; un objeto vacío conserva todos los valores y composition vacío conserva sus slots. Enviar slots u options reemplaza su conjunto completo; los elementos existentes incluidos pueden omitir campos para conservarlos y las opciones omitidas de un slot existente se conservan. Las listas vacías devuelven 422. Los identificadores existentes deben pertenecer a la oferta y al slot correspondiente: desconocidos, ajenos o duplicados se rechazan con 422; no se mueven elementos ni se crean con ID proporcionado. Los nuevos elementos omiten su ID y el servidor lo genera. Se valida el resultado completo y las invariantes antes de persistir; cualquier error rechaza toda la operación. Se recalculan los estados de slots y oferta según las opciones y su habilitación administrativa. If-Match protege la actualización de modificaciones concurrentes.'
+      description: 'Campos de una oferta que se desean actualizar mediante JSON. La imagen de reemplazo se carga previamente mediante POST /api/v1/media/images; esta solicitud actualiza su asociación con imageId. La carga y la asociación son operaciones separadas. No se envían archivos ni URLs en esta solicitud. presentationTag es obligatorio en toda solicitud; si no se desea cambiar, se reenvía su valor vigente. Los demás campos omitidos se conservan recursivamente; composition vacío conserva sus slots. Enviar slots u options reemplaza su conjunto completo; los elementos existentes incluidos pueden omitir campos para conservarlos y las opciones omitidas de un slot existente se conservan. Las listas vacías devuelven 422. Los identificadores existentes deben pertenecer a la oferta y al slot correspondiente: desconocidos, ajenos o duplicados se rechazan con 422; no se mueven elementos ni se crean con ID proporcionado. Los nuevos elementos omiten su ID y el servidor lo genera. Se valida el resultado completo y las invariantes antes de persistir; cualquier error rechaza toda la operación. Se recalculan los estados de slots y oferta según las opciones y su habilitación administrativa. If-Match protege la actualización de modificaciones concurrentes.'
       additionalProperties: false
+      required:
+        - presentationTag
       properties:
         presentationTag:
           type: string
-          description: Nueva etiqueta de presentación, si se desea cambiar.
+          description: Etiqueta obligatoria de presentación; reenviar el valor vigente si no se desea cambiar. No admite null.
           example: Combo familiar
         basePrice:
           type: number
@@ -2077,7 +2226,7 @@ components:
             displayName: Hamburguesa hawaiana
     CompositionSlotInput:
       type: object
-      description: Datos para crear un slot de una composición; el servidor genera slotId. course es opcional; omitirlo o enviarlo como null crea el slot sin curso.
+      description: Datos para crear un slot de una composición; el servidor genera slotId.
       additionalProperties: false
       required:
         - name
@@ -2093,15 +2242,12 @@ components:
           description: Rango y precisión no definidos en la fuente.
           example: 1
         course:
-          type:
-            - string
-            - 'null'
+          type: string
           enum:
             - entrada
             - plato fuerte
             - postre
             - bebida
-            - null
           description: Curso al que pertenece el slot, si se especifica.
           example: plato fuerte
         options:
@@ -2159,10 +2305,10 @@ components:
         name: Hamburguesa Hawaiana
         description: Preparación de hamburguesa con piña asada y queso.
         supplies:
-          - inventoryItemId: INV-potatoes-001
+          - inventoryItemId: CARNE-150G
             quantity: 200
             inventoryItem:
-              id: INV-potatoes-001
+              id: CARNE-150G
               name: Carne Molida Res 80/20
               unit: g
     RecipeDetail:
@@ -2203,10 +2349,10 @@ components:
         description: Preparación de hamburguesa con piña asada y queso.
         instructions: Cocina la carne, asa la piña y sirve con queso en el pan.
         supplies:
-          - inventoryItemId: INV-potatoes-001
+          - inventoryItemId: CARNE-150G
             quantity: 200
             inventoryItem:
-              id: INV-potatoes-001
+              id: CARNE-150G
               name: Carne Molida Res 80/20
               unit: g
     RecipeCreateRequest:
@@ -2240,7 +2386,7 @@ components:
         description: Preparación de hamburguesa con piña asada y queso.
         instructions: Cocina la carne, asa la piña y sirve con queso en el pan.
         supplies:
-          - inventoryItemId: INV-potatoes-001
+          - inventoryItemId: CARNE-150G
             quantity: 200
     RecipePatchRequest:
       type: object
@@ -2273,9 +2419,8 @@ components:
       properties:
         inventoryItemId:
           type: string
-          minLength: 1
-          description: Identificador de texto opaco del insumo utilizado, sin restricción de formato UUID.
-          example: INV-potatoes-001
+          description: Identificador opaco del insumo utilizado, sin formato impuesto.
+          example: CARNE-150G
         quantity:
           type: number
           description: Cantidad del insumo expresada en la unidad de inventario.
@@ -2283,10 +2428,10 @@ components:
         inventoryItem:
           $ref: '#/components/schemas/InventoryItem'
       example:
-        inventoryItemId: INV-potatoes-001
+        inventoryItemId: CARNE-150G
         quantity: 200
         inventoryItem:
-          id: INV-potatoes-001
+          id: CARNE-150G
           name: Carne Molida Res 80/20
           unit: g
     RecipeSupplyInput:
@@ -2298,15 +2443,14 @@ components:
       properties:
         inventoryItemId:
           type: string
-          minLength: 1
-          description: Identificador de texto opaco del insumo utilizado, sin restricción de formato UUID.
-          example: INV-potatoes-001
+          description: Identificador opaco del insumo utilizado, sin formato impuesto.
+          example: CARNE-150G
         quantity:
           type: number
           description: Cantidad del insumo expresada en la unidad de inventario.
           example: 200
       example:
-        inventoryItemId: INV-potatoes-001
+        inventoryItemId: CARNE-150G
         quantity: 200
     RecipeListResponse:
       type: object
@@ -2350,6 +2494,19 @@ components:
             $ref: '#/components/schemas/InventoryItem'
         meta:
           $ref: '#/components/schemas/PageMeta'
+    InventoryItemResponse:
+      type: object
+      description: Respuesta con el artículo de inventario consultado.
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/InventoryItem'
+      example:
+        data:
+          id: CARNE-150G
+          name: Carne Molida Res 80/20
+          unit: g
     ValidationViolation:
       type: object
       description: Incumplimiento de validación asociado a un campo del cuerpo de la solicitud.
@@ -2421,7 +2578,7 @@ components:
         displayName: Hamburguesa hawaiana
     InventoryItemSlotOptionInput:
       type: object
-      description: Datos para crear una opción de slot basada en un insumo de inventario; el servidor genera optionId.
+      description: Datos para crear una opción de slot basada en un insumo de inventario mediante POST; el servidor genera optionId y asigna status ACTIVE. No se envían optionId ni status en la solicitud.
       additionalProperties: false
       required:
         - sourceType
@@ -2435,9 +2592,8 @@ components:
           description: Indica que la opción se basa directamente en un insumo de inventario.
         inventoryItemId:
           type: string
-          minLength: 1
-          description: Identificador de texto opaco del insumo de inventario de origen, sin restricción de formato UUID.
-          example: INV-potatoes-001
+          description: Identificador opaco del insumo de inventario de origen como string, sin formato impuesto.
+          example: CARNE-150G
         quantity:
           type: number
           exclusiveMinimum: 0
@@ -2454,7 +2610,7 @@ components:
           example: Queso cheddar
       example:
         sourceType: INVENTORY_ITEM
-        inventoryItemId: INV-potatoes-001
+        inventoryItemId: CARNE-150G
         quantity: 150
         unit: g
         displayName: Queso cheddar
@@ -2495,7 +2651,7 @@ components:
         displayName: Hamburguesa hawaiana
     InventoryItemSlotOption:
       type: object
-      description: Opción de slot cuyo origen es un insumo de inventario. La respuesta incluye cantidad y unidad; la respuesta del PATCH también incluye su estado.
+      description: Opción de slot cuyo origen es un insumo de inventario. La respuesta incluye cantidad y unidad; las respuestas del POST y del PATCH también incluyen su estado.
       additionalProperties: false
       required:
         - optionId
@@ -2515,9 +2671,8 @@ components:
           description: Indica que la opción se basa directamente en un insumo de inventario.
         inventoryItemId:
           type: string
-          minLength: 1
-          description: Identificador de texto opaco del insumo de inventario de origen, sin restricción de formato UUID.
-          example: INV-potatoes-001
+          description: Identificador opaco del insumo de inventario de origen como string, sin formato impuesto.
+          example: CARNE-150G
         quantity:
           type: number
           exclusiveMinimum: 0
@@ -2528,7 +2683,7 @@ components:
           description: Unidad compatible con la del artículo.
         status:
           $ref: '#/components/schemas/OfferStatus'
-          description: Estado de la opción, incluido en la respuesta del PATCH.
+          description: Estado de la opción, incluido en las respuestas del POST y del PATCH; al crearla mediante POST el servidor asigna ACTIVE.
         displayName:
           type: string
           description: Nombre que se muestra para esta opción en el catálogo.
@@ -2536,13 +2691,13 @@ components:
       example:
         optionId: b2c3d4e5-f678-489a-bcde-f0123456789a
         sourceType: INVENTORY_ITEM
-        inventoryItemId: INV-potatoes-001
+        inventoryItemId: CARNE-150G
         quantity: 150
         unit: g
         displayName: Queso cheddar
     RecipeSlotOptionPatchInput:
       type: object
-      description: Datos para actualizar o crear una opción basada en una receta. Enviar recipeId, incluso si coincide con el actual, asigna atómicamente la revisión válida más reciente de esa receta; el servidor conserva internamente la referencia resuelta. Omitir recipeId en una opción existente de tipo RECIPE conserva su asignación. Las ediciones posteriores de la receta no cambian opciones ni historia. Una receta inexistente o sin revisión válida devuelve 422 sin aplicar cambios.
+      description: Datos para actualizar o crear una opción basada en una receta. Enviar recipeId, incluso si coincide con el actual, asigna atómicamente la revisión válida más reciente de esa receta; el servidor conserva internamente la referencia resuelta. Omitir recipeId en una opción existente de tipo RECIPE conserva su asignación. Cambiar el tipo de origen a RECIPE requiere recipeId. Las ediciones posteriores de la receta no cambian opciones ni historia. Una receta inexistente o sin revisión válida devuelve 422 sin aplicar cambios.
       additionalProperties: false
       required:
         - sourceType
@@ -2593,7 +2748,8 @@ components:
           $ref: '#/components/schemas/OfferStatus'
         inventoryItemId:
           type: string
-          minLength: 1
+          description: Identificador opaco del insumo de inventario como string, sin formato impuesto.
+          example: CARNE-150G
         quantity:
           type: number
           exclusiveMinimum: 0
@@ -2747,7 +2903,7 @@ components:
       name: If-Match
       in: header
       required: true
-      description: ETag fuerte de la versión vigente del recurso leída por el cliente; se envía para una actualización condicional con comparación fuerte.
+      description: 'ETag fuerte de la versión vigente del recurso leída por el cliente; se envía para una actualización condicional con comparación fuerte. En PATCH /menu/offers/{offerId}, un reintento idempotente conserva el If-Match original: si coincide con una solicitud exitosa vigente, se recupera su respuesta antes de reevaluar ese ETag, aunque ya sea obsoleto. Una ejecución nueva valida el ETag contra la versión vigente normalmente.'
       schema:
         type: string
         example: '"rev-3"'
@@ -2759,6 +2915,16 @@ components:
       schema:
         type: string
         example: W/"rev-3"
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: UUID generado por el cliente para una operación lógica; se envía sin comillas. Es obligatorio en POST /menu/categories, POST /menu/entries, POST /menu/entries/{entryId}/offers, POST /menu/recipes, POST /media/images y PATCH /menu/offers/{offerId}. Su ausencia o un formato inválido devuelve 400. Los reintentos deben conservar la clave y los datos originales. Para JSON, la comparación ignora espacios y el orden de las propiedades de objetos; conserva el orden de los arrays y distingue un campo omitido de null. En PATCH de ofertas también se compara el If-Match original; el cliente conserva ambos encabezados y el cuerpo, y una respuesta exitosa vigente se recupera antes de reevaluar el ETag. En la carga multipart de imágenes se comparan los bytes exactos del archivo y el tipo de medio declarado de la parte file; se ignoran el boundary, el orden de las partes y el nombre de archivo. La clave se delimita por el sujeto autenticado, el menú provisionado, el método HTTP y la ruta concreta, incluidos entryId u offerId cuando apliquen. El resultado exitoso se conserva durante 24 horas desde la confirmación inicial; los reintentos no extienden ese plazo. Una clave expirada se trata como nueva y puede crear otro recurso o volver a aplicar una actualización; no debe reutilizarse.
+      schema:
+        type: string
+        format: uuid
+        pattern: ^[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$
+        example: 83f34a6a-5611-41dd-b437-a9cb96d932c2
   headers:
     ETag:
       description: Validador de la representación devuelta o modificada.
@@ -2890,3 +3056,98 @@ components:
               value:
                 error:
                   message: Espera antes de volver a enviar solicitudes.
+    InventoryUnavailable:
+      description: 502 cuando Menu no pudo consultar Inventario para validar los artículos o insumos de la operación. No se persiste la creación ni la actualización y no se aplican cambios parciales. Una referencia que se validó como inválida devuelve 422, no 502.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          examples:
+            inventoryUnavailable:
+              summary: Inventario no disponible para validar la operación
+              value:
+                error:
+                  message: No se pudo consultar Inventario; no se aplicaron cambios.
+    IdempotencyBadRequest:
+      description: Falta el encabezado Idempotency-Key obligatorio o su valor no tiene el formato UUID requerido; no se crea ni modifica el recurso.
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - error
+            properties:
+              error:
+                type: object
+                required:
+                  - message
+                  - details
+                properties:
+                  message:
+                    type: string
+                  details:
+                    type: object
+                    required:
+                      - code
+                    properties:
+                      code:
+                        type: string
+                        enum:
+                          - INVALID_IDEMPOTENCY_KEY
+          examples:
+            invalidIdempotencyKey:
+              summary: Clave de idempotencia ausente o inválida
+              value:
+                error:
+                  message: Envía Idempotency-Key con un UUID válido.
+                  details:
+                    code: INVALID_IDEMPOTENCY_KEY
+    IdempotencyConflict:
+      description: 'La clave vigente ya está vinculada a datos diferentes de solicitud (IDEMPOTENCY_KEY_REUSED): un JSON semánticamente distinto, un If-Match original distinto en PATCH de ofertas, o bytes de archivo o tipo de medio declarado distintos en la carga de imágenes. Una solicitud con la misma clave y los mismos datos que sigue en proceso o cuyo resultado aún es incierto devuelve IDEMPOTENCY_IN_PROGRESS. Ninguno de estos rechazos inicia otra creación ni actualización; no se ejecuta de nuevo una operación con resultado incierto hasta resolver el resultado anterior. Para IDEMPOTENCY_IN_PROGRESS, espere los segundos indicados en Retry-After y reintente con la misma clave y todos los datos originales, incluido If-Match cuando aplique. Para IDEMPOTENCY_KEY_REUSED, recupere los datos originales para reintentar esa operación o use una clave nueva solo si pretende una operación distinta.'
+      headers:
+        Retry-After:
+          description: Segundos antes de reintentar; solo se devuelve para IDEMPOTENCY_IN_PROGRESS.
+          schema:
+            type: integer
+            minimum: 1
+            example: 1
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - error
+            properties:
+              error:
+                type: object
+                required:
+                  - message
+                  - details
+                properties:
+                  message:
+                    type: string
+                  details:
+                    type: object
+                    required:
+                      - code
+                    properties:
+                      code:
+                        type: string
+                        enum:
+                          - IDEMPOTENCY_KEY_REUSED
+                          - IDEMPOTENCY_IN_PROGRESS
+          examples:
+            idempotencyKeyReused:
+              summary: La clave ya identifica otros datos de solicitud
+              value:
+                error:
+                  message: La clave de idempotencia ya está vinculada a una solicitud diferente.
+                  details:
+                    code: IDEMPOTENCY_KEY_REUSED
+            idempotencyInProgress:
+              summary: La misma operación todavía se está procesando
+              value:
+                error:
+                  message: La solicitud con esta clave de idempotencia sigue en proceso.
+                  details:
+                    code: IDEMPOTENCY_IN_PROGRESS

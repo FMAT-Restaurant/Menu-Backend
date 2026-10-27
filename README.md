@@ -25,6 +25,13 @@ sin filtrar por estado ni revisión. La baja retira la receta de la biblioteca; 
 revisiones publicadas y sus ingredientes. En bases existentes, ejecutar
 [`docs/sql/recipe-deletion.sql`](docs/sql/recipe-deletion.sql) antes de iniciar esta versión.
 Las bases nuevas crean la columna mediante los mapeos JPA.
+
+Los `POST` de categorías, entradas, ofertas, recetas e imágenes y `PATCH /api/v1/menu/offers/{offerId}`
+exigen `Idempotency-Key` (UUID sin comillas; si falta o no es válido, `400 INVALID_IDEMPOTENCY_KEY`).
+Durante 24 horas desde el primer éxito, repetir la misma solicitud con la misma clave devuelve el estado,
+cuerpo y `ETag` originales sin volver a ejecutarla; otra solicitud con esa clave da
+`409 IDEMPOTENCY_KEY_REUSED`, y una en curso, `409 IDEMPOTENCY_IN_PROGRESS` con `Retry-After`. Los
+registros viven en la tabla `idempotency_record`, que crean los mapeos JPA.
  
 | Recurso | Descripción |
 | ------- | ----------- |
@@ -124,8 +131,8 @@ inválida impide el arranque. Una lista vacía permite únicamente localhost si 
 En producción, establecer `MENU_CORS_ALLOW_LOCALHOST=false` y declarar los orígenes autorizados.
 
 La política global cubre errores y recursos estáticos. Permite `GET`, `HEAD`, `POST`, `PATCH`,
-`DELETE` y `OPTIONS`; acepta `Accept`, `Content-Type`, `Authorization`, `If-Match` e
-`If-None-Match`; expone `ETag` y `Location` al navegador. Los preflight se cachean una hora.
+`DELETE` y `OPTIONS`; acepta `Accept`, `Content-Type`, `Authorization`, `If-Match`,
+`If-None-Match` e `Idempotency-Key`; expone `ETag`, `Location` y `Retry-After` al navegador. Los preflight se cachean una hora.
 No habilita credenciales de cookies cross-origin; el token explícito en `Authorization` sí está
 permitido. CORS no sustituye la autenticación ni restringe clientes sin cabecera `Origin`.
 
@@ -181,7 +188,7 @@ El contrato servido en `src/main/resources/static/openapi.yaml` incluye este cam
 | Persistencia | Decidida: PostgreSQL 18.6 con Spring Data JPA. Sin migraciones: el esquema lo genera Hibernate en local. |
 | Topología | Sin decidir. `compose.yaml` es solo el entorno local. La conectividad base con RabbitMQ ya está configurada, pero no hay exchanges, colas, bindings ni contratos de mensajes hasta decidir la topología. |
 | Límites transaccionales | Sin decidir. |
-| AuthN/AuthZ | Sin decidir. No se incluye Spring Security y el contrato OpenAPI no declara ningún esquema de seguridad; esto **no** significa que la API sea pública o anónima. |
+| AuthN/AuthZ | Sin decidir. No se incluye Spring Security, aunque el contrato OpenAPI 7.0.0 declara `bearerAuth` global; esto **no** significa que la API sea pública o anónima. Mientras tanto, las claves de idempotencia usan un sujeto fijo. |
 
 ## Arquitectura
 

@@ -181,7 +181,7 @@ class CatalogEntryApiIntegrationTest {
 		}
 		uploadFile(new MockMultipartFile("file", "image.jpg", MediaType.IMAGE_JPEG_VALUE, png))
 				.andExpect(status().isUnprocessableContent());
-		mockMvc.perform(multipart(IMAGES))
+		mockMvc.perform(multipart(IMAGES).header("Idempotency-Key", UUID.randomUUID()))
 				.andExpect(status().isUnprocessableContent())
 				.andExpect(jsonPath(VIOLATION_PATH).value("/file"));
 
@@ -409,7 +409,7 @@ class CatalogEntryApiIntegrationTest {
 	}
 
 	private ResultActions createEntry(String json) throws Exception {
-		return mockMvc.perform(post(ENTRIES).contentType(MediaType.APPLICATION_JSON).content(json));
+		return mockMvc.perform(post(ENTRIES).header("Idempotency-Key", UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON).content(json));
 	}
 
 	private ResultActions patchEntry(String id, String ifMatch, String json) throws Exception {
@@ -430,7 +430,7 @@ class CatalogEntryApiIntegrationTest {
 	}
 
 	private ResultActions uploadFile(MockMultipartFile file) throws Exception {
-		return mockMvc.perform(multipart(IMAGES).file(file));
+		return mockMvc.perform(multipart(IMAGES).header("Idempotency-Key", UUID.randomUUID()).file(file));
 	}
 
 	/** The client sends ACTIVE, but every new entry must start INACTIVE. */
