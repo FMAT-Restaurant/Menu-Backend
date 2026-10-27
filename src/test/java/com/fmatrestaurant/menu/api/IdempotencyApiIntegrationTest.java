@@ -53,6 +53,7 @@ import com.fmatrestaurant.menu.domain.InventoryItem;
 import com.fmatrestaurant.menu.infrastructure.CatalogEntryRepository;
 import com.fmatrestaurant.menu.infrastructure.CatalogOfferRepository;
 import com.fmatrestaurant.menu.infrastructure.CategoryRepository;
+import com.fmatrestaurant.menu.infrastructure.IdempotencyRecordPurge;
 import com.fmatrestaurant.menu.infrastructure.IdempotencyRecordRepository;
 import com.fmatrestaurant.menu.infrastructure.ImageRepository;
 import com.fmatrestaurant.menu.infrastructure.RecipeRepository;
@@ -83,6 +84,9 @@ class IdempotencyApiIntegrationTest {
 
 	@Autowired
 	private IdempotencyRecordRepository records;
+
+	@Autowired
+	private IdempotencyRecordPurge purge;
 
 	@Autowired
 	private CategoryRepository categoryRepository;
@@ -214,6 +218,23 @@ class IdempotencyApiIntegrationTest {
 
 		createCategory(key, "{\"name\": \"Starters\"}").andExpect(status().isCreated());
 		assertEquals(2, categoryRepository.count());
+	}
+
+	@Test
+	void thePurgeDeletesOnlyExpiredRecords() throws Exception {
+		String expired = UUID.randomUUID().toString();
+		createCategory(expired, "{\"name\": \"Desserts\"}").andExpect(status().isCreated());
+		jdbc.update("update idempotency_record set created_at = created_at - interval '25 hours', "
+				+ "completed_at = completed_at - interval '25 hours'");
+		String current = UUID.randomUUID().toString();
+		MvcResult kept = createCategory(current, "{\"name\": \"Starters\"}").andExpect(status().isCreated())
+				.andReturn();
+		INVENTORY.fail(503, "{}");
+		createRecipe(UUID.randomUUID().toString(), recipe("150")).andExpect(status().isBadGateway());
+
+		assertEquals(1, purge.purge());
+		assertEquals(2, records.count());
+		assertSameResponse(kept, createCategory(current, "{\"name\": \"Starters\"}").andReturn());
 	}
 
 	@Test

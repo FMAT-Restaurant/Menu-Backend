@@ -31,7 +31,8 @@ exigen `Idempotency-Key` (UUID sin comillas; si falta o no es válido, `400 INVA
 Durante 24 horas desde el primer éxito, repetir la misma solicitud con la misma clave devuelve el estado,
 cuerpo y `ETag` originales sin volver a ejecutarla; otra solicitud con esa clave da
 `409 IDEMPOTENCY_KEY_REUSED`, y una en curso, `409 IDEMPOTENCY_IN_PROGRESS` con `Retry-After`. Los
-registros viven en la tabla `idempotency_record`, que crean los mapeos JPA.
+registros viven en la tabla `idempotency_record`, que crean los mapeos JPA; una tarea horaria borra los
+vencidos.
  
 | Recurso | Descripción |
 | ------- | ----------- |
