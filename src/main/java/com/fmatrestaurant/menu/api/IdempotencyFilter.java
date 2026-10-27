@@ -20,6 +20,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.web.util.ContentCachingResponseWrapper;
@@ -113,30 +114,15 @@ public class IdempotencyFilter extends OncePerRequestFilter {
 		String id = hex(digest().digest(String.join("\n", SUBJECT, String.valueOf(CategoryService.DEFAULT_MENU_ID),
 				request.getMethod(), path(request), key.toLowerCase(Locale.ROOT)).getBytes(StandardCharsets.UTF_8)));
 		ContentCachingResponseWrapper captured = new ContentCachingResponseWrapper(response);
-		Outcome outcome;
+		Outcome outcome = execute(id, fingerprint, chain, replayable, captured);
+		respond(outcome, id, fingerprint, captured);
+	}
+
+	/** Runs the operation, or decides not to, in the transaction that stores its response. */
+	private Outcome execute(String id, String fingerprint, FilterChain chain, HttpServletRequest request,
+			ContentCachingResponseWrapper captured) throws ServletException, IOException {
 		try {
-			outcome = transactions.execute(transaction -> {
-				if (!records.tryLock(id)) {
-					return new Outcome(State.IN_PROGRESS, null);
-				}
-				IdempotencyRecord current = records.findById(id).filter(found -> !found.expired(Instant.now()))
-						.orElse(null);
-				if (current != null && !current.getFingerprint().equals(fingerprint)) {
-					return new Outcome(State.REUSED, null);
-				}
-				if (current != null && current.completed()) {
-					return new Outcome(State.REPLAYED, current);
-				}
-				run(chain, replayable, captured);
-				if (captured.getStatus() / 100 == 2) {
-					records.save(new IdempotencyRecord(id, fingerprint, Instant.now()).complete(captured.getStatus(),
-							captured.getContentType(), captured.getHeader(HttpHeaders.ETAG),
-							captured.getContentAsByteArray(), Instant.now()));
-					return new Outcome(State.EXECUTED, null);
-				}
-				transaction.setRollbackOnly();
-				return new Outcome(State.FAILED, null);
-			});
+			return transactions.execute(transaction -> attempt(transaction, id, fingerprint, chain, request, captured));
 		}
 		catch (ChainException e) {
 			if (e.getCause() instanceof IOException io) {
@@ -146,11 +132,40 @@ public class IdempotencyFilter extends OncePerRequestFilter {
 		}
 		catch (RuntimeException e) {
 			// The commit failed, so the captured response must not reach the client.
-			if (!response.isCommitted()) {
-				response.reset();
+			if (!captured.getResponse().isCommitted()) {
+				captured.getResponse().reset();
 			}
 			throw e;
 		}
+	}
+
+	private Outcome attempt(TransactionStatus transaction, String id, String fingerprint, FilterChain chain,
+			HttpServletRequest request, ContentCachingResponseWrapper captured) {
+		if (!records.tryLock(id)) {
+			return new Outcome(State.IN_PROGRESS, null);
+		}
+		IdempotencyRecord current = records.findById(id).filter(found -> !found.expired(Instant.now())).orElse(null);
+		if (current != null && !current.getFingerprint().equals(fingerprint)) {
+			return new Outcome(State.REUSED, null);
+		}
+		if (current != null && current.completed()) {
+			return new Outcome(State.REPLAYED, current);
+		}
+		run(chain, request, captured);
+		if (captured.getStatus() / 100 == 2) {
+			records.save(new IdempotencyRecord(id, fingerprint, Instant.now()).complete(captured.getStatus(),
+					captured.getContentType(), captured.getHeader(HttpHeaders.ETAG), captured.getContentAsByteArray(),
+					Instant.now()));
+			return new Outcome(State.EXECUTED, null);
+		}
+		transaction.setRollbackOnly();
+		return new Outcome(State.FAILED, null);
+	}
+
+	/** Sends the answer only after the commit, so the client never sees a result that was not stored. */
+	private void respond(Outcome outcome, String id, String fingerprint, ContentCachingResponseWrapper captured)
+			throws IOException {
+		HttpServletResponse response = (HttpServletResponse) captured.getResponse();
 		switch (outcome.state()) {
 			case IN_PROGRESS -> {
 				response.setHeader(HttpHeaders.RETRY_AFTER, "1");
@@ -159,7 +174,7 @@ public class IdempotencyFilter extends OncePerRequestFilter {
 			}
 			case REUSED -> error(response, HttpStatus.CONFLICT,
 					"The idempotency key is already bound to a different request.", "IDEMPOTENCY_KEY_REUSED");
-			case REPLAYED -> replay(response, outcome.record());
+			case REPLAYED -> replay(response, outcome.stored());
 			case FAILED -> {
 				bind(id, fingerprint);
 				captured.copyBodyToResponse();
@@ -190,15 +205,15 @@ public class IdempotencyFilter extends OncePerRequestFilter {
 		}
 	}
 
-	private static void replay(HttpServletResponse response, IdempotencyRecord record) throws IOException {
-		response.setStatus(record.getResponseStatus());
-		if (record.getResponseContentType() != null) {
-			response.setContentType(record.getResponseContentType());
+	private static void replay(HttpServletResponse response, IdempotencyRecord stored) throws IOException {
+		response.setStatus(stored.getResponseStatus());
+		if (stored.getResponseContentType() != null) {
+			response.setContentType(stored.getResponseContentType());
 		}
-		if (record.getResponseEtag() != null) {
-			response.setHeader(HttpHeaders.ETAG, record.getResponseEtag());
+		if (stored.getResponseEtag() != null) {
+			response.setHeader(HttpHeaders.ETAG, stored.getResponseEtag());
 		}
-		byte[] body = record.getResponseBody() == null ? new byte[0] : record.getResponseBody();
+		byte[] body = stored.getResponseBody() == null ? new byte[0] : stored.getResponseBody();
 		response.setContentLength(body.length);
 		response.getOutputStream().write(body);
 	}
@@ -287,7 +302,7 @@ public class IdempotencyFilter extends OncePerRequestFilter {
 		IN_PROGRESS, REUSED, REPLAYED, EXECUTED, FAILED
 	}
 
-	private record Outcome(State state, IdempotencyRecord record) {
+	private record Outcome(State state, IdempotencyRecord stored) {
 	}
 
 	private record Route(String method, Pattern path) {
