@@ -3,7 +3,7 @@ package com.fmatrestaurant.menu.domain;
 import java.math.BigDecimal;
 import java.util.UUID;
 
-import org.hibernate.annotations.Check;
+import jakarta.persistence.CheckConstraint;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -24,12 +24,34 @@ import jakarta.persistence.Table;
  * (BR-MENU-010).
  */
 @Entity
-@Table(name = "slot_option")
-@Check(name = "ck_slot_option_source", constraints = "(source_type = 'INVENTORY_ITEM' "
-		+ "and inventory_item_id is not null and quantity is not null and quantity > 0 and unit is not null "
-		+ "and recipe_id is null and recipe_revision is null) or (source_type = 'RECIPE' "
-		+ "and recipe_id is not null and recipe_revision is not null and recipe_revision >= 1 "
-		+ "and inventory_item_id is null and quantity is null and unit is null and source_name is null)")
+@Table(
+		name = "slot_option",
+		check = @CheckConstraint(
+				name = "ck_slot_option_source",
+				constraint = """
+            (
+                source_type = 'INVENTORY_ITEM'
+                AND inventory_item_id IS NOT NULL
+                AND quantity IS NOT NULL
+                AND quantity > 0
+                AND unit IS NOT NULL
+                AND recipe_id IS NULL
+                AND recipe_revision IS NULL
+            )
+            OR
+            (
+                source_type = 'RECIPE'
+                AND recipe_id IS NOT NULL
+                AND recipe_revision IS NOT NULL
+                AND recipe_revision >= 1
+                AND inventory_item_id IS NULL
+                AND quantity IS NULL
+                AND unit IS NULL
+                AND source_name IS NULL
+            )
+            """
+		)
+)
 public class SlotOption {
 
 	/** Maximum length of the display name, matching the database column. */
