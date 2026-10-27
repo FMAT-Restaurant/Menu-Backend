@@ -500,6 +500,49 @@ class CatalogOfferApiIntegrationTest {
 		assertEquals(List.of("GET /api/v1/inventory/items/" + cheddar.id()), INVENTORY.requests());
 	}
 
+	/** Only Inventory confirming that the article does not exist is a 422; not knowing is a 502. */
+	@Test
+	void anArticleThatInventoryConfirmsAsMissingIsRejectedWith422AndNothingChanges() throws Exception {
+		String id = create(offerBody("Individual", "180"));
+		String json = read(id);
+		String slot = JsonPath.read(json, "$.data.composition.slots[0].slotId");
+		String option = JsonPath.read(json, "$.data.composition.slots[0].options[0].optionId");
+		String etag = etag(id);
+		INVENTORY.reset();
+		INVENTORY.fail(404, "{\"error\": {\"message\": \"No se encontró el recurso solicitado.\"}}");
+
+		expectViolation(createOffer(entryId, offerBody("Other", "10")),
+				"/composition/slots/0/options/0/inventoryItemId");
+		expectViolation(patchOffer(id, etag, """
+				{"basePrice": 1, "composition": {"slots": [{"slotId": "%s", "options": [
+				  {"optionId": "%s", "sourceType": "INVENTORY_ITEM", "inventoryItemId": "gone", "unit": "g"}]}]}}
+				""".formatted(slot, option)), "/composition/slots/0/options/0/inventoryItemId");
+
+		assertEquals(1, offerRepository.count());
+		mockMvc.perform(get(OFFERS + "/" + id))
+				.andExpect(header().string(HttpHeaders.ETAG, etag))
+				.andExpect(jsonPath("$.data.basePrice").value(180));
+	}
+
+	@Test
+	void theSameRequestCanBeRetriedOnceInventoryRecovers() throws Exception {
+		String key = UUID.randomUUID().toString();
+		String body = offerBody("Individual", "180");
+		INVENTORY.fail(503, "{}");
+		createOfferWithKey(key, body).andExpect(status().isBadGateway());
+		assertEquals(0, offerRepository.count());
+		INVENTORY.reset();
+		INVENTORY.fail(404, "{\"error\": {\"message\": \"No\"}}");
+		createOfferWithKey(key, body).andExpect(status().isUnprocessableContent());
+		assertEquals(0, offerRepository.count());
+
+		INVENTORY.reset();
+		INVENTORY.add(POTATOES);
+		createOfferWithKey(key, body).andExpect(status().isCreated());
+
+		assertEquals(1, offerRepository.count());
+	}
+
 	@Test
 	void anInventoryFailureRejectsTheWriteWithoutChanges() throws Exception {
 		String id = create(offerBody("Individual", "180"));
@@ -512,8 +555,14 @@ class CatalogOfferApiIntegrationTest {
 				  {"optionId": "%s", "sourceType": "INVENTORY_ITEM", "unit": "g"}]}]}}
 				""".formatted(slot, option);
 
-		for (int failure : List.of(401, 403, 404, 429, 500, 503)) {
+		for (int failure : List.of(401, 403, 429, 500, 503)) {
 			INVENTORY.fail(failure, "{\"error\": {\"message\": \"No\"}}");
+			expectBadGateway(createOffer(entryId, offerBody("Other", "10")));
+			expectBadGateway(patchOffer(id, etag, unitChange));
+		}
+		// A 404 that is not the answer of Inventory for a missing article confirms nothing.
+		for (String notFound : List.of("", "not json", "{\"error\": \"Not Found\"}")) {
+			INVENTORY.fail(404, notFound);
 			expectBadGateway(createOffer(entryId, offerBody("Other", "10")));
 			expectBadGateway(patchOffer(id, etag, unitChange));
 		}
@@ -626,6 +675,11 @@ class CatalogOfferApiIntegrationTest {
 
 	private ResultActions createOffer(UUID entry, String json) throws Exception {
 		return mockMvc.perform(post("/api/v1/menu/entries/" + entry + "/offers").header("Idempotency-Key", UUID.randomUUID())
+				.contentType(MediaType.APPLICATION_JSON).content(json));
+	}
+
+	private ResultActions createOfferWithKey(String key, String json) throws Exception {
+		return mockMvc.perform(post("/api/v1/menu/entries/" + entryId + "/offers").header("Idempotency-Key", key)
 				.contentType(MediaType.APPLICATION_JSON).content(json));
 	}
 

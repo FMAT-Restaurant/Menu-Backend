@@ -1,6 +1,7 @@
 package com.fmatrestaurant.menu.api;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -10,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.test.web.servlet.MockMvc;
@@ -37,7 +39,7 @@ class InventoryMockControllerTest {
 	}
 
 	@Test
-	void preservesTheExtraDetailRoute() throws Exception {
+	void answersTheDetailRouteOfInventory() throws Exception {
 		var body = new InventoryMockController().list(null, 1, 12,
 				new ServletWebRequest(new MockHttpServletRequest())).getBody();
 		assertNotNull(body);
@@ -78,13 +80,30 @@ class InventoryMockControllerTest {
 		}
 	}
 
+	/** Like Inventory: 404 with the error envelope, which is what the Menu client takes as "does not exist". */
 	@Test
-	void unknownIdReturnsEmptyBodyOnTheExtraDetailRoute() throws Exception {
-		for (String id : new String[] {"missing-item", "inv-beef-001"}) {
-			mvc.perform(get("/inventory/items/{id}", id))
-					.andExpect(status().isNoContent())
-					.andExpect(content().string(""));
+	void unknownIdIsNotFoundWithTheErrorEnvelopeOfInventory() throws Exception {
+		for (String path : new String[] {"/inventory/items/{id}", "/api/v1/inventory/items/{id}"}) {
+			for (String id : new String[] {"missing-item", "inv-beef-001", "2C21767F-0F9A-4E9F-ADC7-2730556C1801"}) {
+				mvc.perform(get(path, id))
+						.andExpect(status().isNotFound())
+						.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+						.andExpect(jsonPath("$.error.message").isString())
+						.andExpect(jsonPath("$.data").doesNotExist());
+			}
 		}
+	}
+
+	@Test
+	void isRegisteredOnlyInTheLocalProfile() {
+		ApplicationContextRunner runner = new ApplicationContextRunner()
+				.withUserConfiguration(InventoryMockController.class);
+
+		runner.run(context -> assertEquals(0, context.getBeansOfType(InventoryMockController.class).size()));
+		runner.withPropertyValues("spring.profiles.active=production")
+				.run(context -> assertEquals(0, context.getBeansOfType(InventoryMockController.class).size()));
+		runner.withPropertyValues("spring.profiles.active=local")
+				.run(context -> assertEquals(1, context.getBeansOfType(InventoryMockController.class).size()));
 	}
 
 }

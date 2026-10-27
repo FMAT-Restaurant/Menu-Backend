@@ -24,7 +24,8 @@ import com.sun.net.httpserver.HttpServer;
 /**
  * Real HTTP server shaped like the external Inventory contract ({@code GET /api/v1/inventory/items},
  * paged with {@code data} and {@code meta}), so the tests exercise the actual client of the backend.
- * It records every request and can be told to fail or to answer slowly.
+ * It records every request and can be told to fail or to answer slowly. An article that does not exist is
+ * answered like Inventory does: {@code 404} with the error envelope.
  */
 public final class InventoryStub {
 
@@ -127,7 +128,7 @@ public final class InventoryStub {
 			String id = exchange.getRequestURI().getPath().substring(itemPrefix.length());
 			InventoryItem item = items.stream().filter(candidate -> id.equals(candidate.id())).findFirst().orElse(null);
 			if (item == null) {
-				send(exchange, 204, "");
+				send(exchange, 404, "{\"error\": {\"message\": \"No se encontró el recurso solicitado.\"}}");
 			} else {
 				send(exchange, 200, "{\"data\": {\"id\": \"%s\", \"name\": \"%s\", \"unit\": \"%s\"}}"
 						.formatted(item.id(), item.name(), item.unit()));

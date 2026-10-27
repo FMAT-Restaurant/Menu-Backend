@@ -166,15 +166,23 @@ Otros comandos útiles:
 
 ### Artículos de Inventario
 
-El controlador `InventoryMockController` expone un inventario fijo dentro de este backend:
+El controlador `InventoryMockController` expone un inventario fijo dentro de este backend **solo cuando el perfil `local` está activo** (`--spring.profiles.active=local`). Con cualquier otro perfil no existe y Menu no expone rutas de lista ni de detalle de artículos: las consultas se delegan al servicio de Inventario configurado en `INVENTORY_BASE_URL`.
 
 - `GET /api/v1/inventory/items`: página `{data, meta}` de 10 artículos hardcoded con UUID válidos. Acepta `q` (búsqueda por nombre sin distinguir mayúsculas), `page` (desde 1) y `pageSize` (positivo, 12 por defecto), y consultas condicionales `If-None-Match` con ETag y respuesta `304`.
 - Se conservan `/inventory/items` y `/inventory/items/` como alias locales.
-- `GET /inventory/items/{id}` (también bajo `/api/v1`) es una extensión del mock, no incluida en el contrato externo: devuelve `{data: {id, name, unit}}` o `204` si no existe. Ejemplo: `/inventory/items/2c21767f-0f9a-4e9f-adc7-2730556c1801`.
+- `GET /inventory/items/{id}` (también bajo `/api/v1`) es compatible con la consulta por ID de Inventario: devuelve `{data: {id, name, unit}}`, o `404` con el sobre de error `{error: {message}}` si el ID no existe. Los IDs son strings opacos y se comparan exactamente. Ejemplo: `/inventory/items/2c21767f-0f9a-4e9f-adc7-2730556c1801`.
 
 Para usarlo desde el cliente de este mismo backend, asignar `INVENTORY_BASE_URL=http://localhost:8080/api/v1` (ajustando el puerto si corresponde). El mock no necesita token, no usa base de datos ni llama al servicio externo. No se modifica el `.env` automáticamente.
 
-`InventoryClient.find` hace una sola consulta a `GET /inventory/items/{id}` y consume `{data: {id, name, unit}}`, validando que el ID recibido coincida exactamente con el solicitado. Devuelve vacío únicamente ante `204`; errores HTTP (incluido `404`) o respuestas incompletas se propagan como fallo de Inventario. Esta ruta por ID es una extensión local y debe estar disponible con esa misma respuesta en el servicio de Inventario configurado. El contrato publicado define UUID; el cliente conserva compatibilidad con identificadores opacos como strings.
+`InventoryClient.find` hace una sola consulta a `GET /inventory/items/{id}` y consume `{data: {id, name, unit}}`, validando que el ID recibido coincida exactamente con el solicitado. Esa es la ruta correcta de servicio a servicio: no se cambia a `/inventory/item/{id}`, que aparece por error en el OpenAPI publicado de Menu (la corrección se hará en el repositorio de documentación). Devuelve vacío únicamente cuando Inventario confirma la inexistencia con un `404` que trae su sobre de error `{error: {message}}`; un `404` sin ese sobre (una URL base equivocada o un proxy), un `204`, cualquier otro error HTTP, un timeout o una respuesta incompleta se propagan como fallo de Inventario.
+
+| Resultado de la consulta | Respuesta de Menu en ofertas y recetas |
+| ------------------------ | -------------------------------------- |
+| Artículo encontrado | La operación continúa |
+| Inventario confirma que no existe (`404` con sobre de error) | `422`, sin cambios |
+| Timeout, indisponibilidad, `5xx`, `401`/`403`/`429` o respuesta inválida | `502`, sin cambios |
+
+Ni un `422` ni un `502` dejan cambios parciales, y tras recuperarse Inventario la misma solicitud (con la misma `Idempotency-Key` en las operaciones que la exigen) puede reintentarse. El contrato publicado define UUID; el cliente conserva compatibilidad con identificadores opacos como strings.
 
 Las recetas y las opciones de inventario de las ofertas reciben `inventoryItemId` como string opaco (por ejemplo, `INV-beef-001` o `000042`), sin exigir formato UUID. Menu confirma el artículo y su unidad mediante el cliente HTTP de Inventario y conserva el identificador exacto, el nombre y la unidad. Los identificadores propios de Menu siguen siendo UUID.
 
