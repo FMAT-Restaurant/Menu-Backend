@@ -110,7 +110,7 @@ class NotFoundAndCorsTest {
 		mvc.perform(get(PATH).header("Origin", "https://menu.example.com"))
 				.andExpect(status().isOk())
 				.andExpect(header().string("ETag", "\"rev-0\""))
-				.andExpect(header().string("Access-Control-Expose-Headers", "ETag, Location"));
+				.andExpect(header().string("Access-Control-Expose-Headers", "ETag, Location, Retry-After"));
 		mvc.perform(get(PATH)).andExpect(status().isOk())
 				.andExpect(header().doesNotExist("Access-Control-Allow-Origin"));
 	}

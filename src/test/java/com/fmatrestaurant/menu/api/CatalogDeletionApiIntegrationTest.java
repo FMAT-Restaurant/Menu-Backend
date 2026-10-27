@@ -356,7 +356,7 @@ class CatalogDeletionApiIntegrationTest {
 		long entryVersion = entryRepository.findById(entry).orElseThrow().getVersion();
 
 		duringDeletion(() -> entryService.delete(entry, entryVersion),
-				() -> mockMvc.perform(post(ENTRIES + "/" + entry + "/offers")
+				() -> mockMvc.perform(post(ENTRIES + "/" + entry + "/offers").header("Idempotency-Key", UUID.randomUUID())
 						.contentType(MediaType.APPLICATION_JSON).content(offerBody())))
 				.andExpect(status().isNotFound());
 
@@ -388,7 +388,7 @@ class CatalogDeletionApiIntegrationTest {
 	}
 
 	private String newOffer(UUID entry) throws Exception {
-		String response = mockMvc.perform(post(ENTRIES + "/" + entry + "/offers")
+		String response = mockMvc.perform(post(ENTRIES + "/" + entry + "/offers").header("Idempotency-Key", UUID.randomUUID())
 				.contentType(MediaType.APPLICATION_JSON).content(offerBody()))
 				.andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
 		return JsonPath.read(response, "$.data.id");
@@ -401,7 +401,7 @@ class CatalogDeletionApiIntegrationTest {
 	}
 
 	private void activateOffer(String offer) throws Exception {
-		mockMvc.perform(patch(OFFERS + "/" + offer).header(HttpHeaders.IF_MATCH, offerEtag(offer))
+		mockMvc.perform(patch(OFFERS + "/" + offer).header("Idempotency-Key", UUID.randomUUID()).header(HttpHeaders.IF_MATCH, offerEtag(offer))
 				.contentType(MediaType.APPLICATION_JSON).content("{\"status\": \"ACTIVE\"}"))
 				.andExpect(status().isOk());
 	}
@@ -423,7 +423,7 @@ class CatalogDeletionApiIntegrationTest {
 	}
 
 	private ResultActions patchOffer(String offer, String ifMatch, String json) throws Exception {
-		return mockMvc.perform(patch(OFFERS + "/" + offer).header(HttpHeaders.IF_MATCH, ifMatch)
+		return mockMvc.perform(patch(OFFERS + "/" + offer).header("Idempotency-Key", UUID.randomUUID()).header(HttpHeaders.IF_MATCH, ifMatch)
 				.contentType(MediaType.APPLICATION_JSON).content(json));
 	}
 

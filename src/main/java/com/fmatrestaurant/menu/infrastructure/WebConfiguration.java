@@ -3,7 +3,10 @@ package com.fmatrestaurant.menu.infrastructure;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.web.filter.ShallowEtagHeaderFilter;
+
+import com.fmatrestaurant.menu.api.IdempotencyFilter;
 
 @Configuration(proxyBeanMethods = false)
 public class WebConfiguration {
@@ -20,5 +23,12 @@ public class WebConfiguration {
 				"/api/v1/menu/recipes"
 		);
 		return registration;
+	}
+
+	/** Idempotency-Key of the creations and of PATCH of offers; it chooses its routes itself. */
+	@Bean
+	FilterRegistrationBean<IdempotencyFilter> idempotencyFilter(IdempotencyRecordRepository records,
+			PlatformTransactionManager transactionManager) {
+		return new FilterRegistrationBean<>(new IdempotencyFilter(records, transactionManager));
 	}
 }

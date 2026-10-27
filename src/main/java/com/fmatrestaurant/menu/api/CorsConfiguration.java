@@ -5,8 +5,11 @@ import java.util.Arrays;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.web.servlet.FilterRegistration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.filter.CorsFilter;
 
@@ -14,7 +17,10 @@ import org.springframework.web.filter.CorsFilter;
 @Configuration(proxyBeanMethods = false)
 public class CorsConfiguration {
 
+	/** First, so the answers of the other filters, such as Idempotency-Key errors, also carry CORS headers. */
 	@Bean
+	@FilterRegistration
+	@Order(Ordered.HIGHEST_PRECEDENCE)
 	CorsFilter corsFilter(@Value("${menu.cors.allowed-origins:}") String origins,
 			@Value("${menu.cors.allow-localhost:true}") boolean allowLocalhost) {
 		var policy = new org.springframework.web.cors.CorsConfiguration();
@@ -26,8 +32,9 @@ public class CorsConfiguration {
 			policy.setAllowedOriginPatterns(List.of("http://localhost:[*]", "https://localhost:[*]"));
 		}
 		policy.setAllowedMethods(List.of("GET", "HEAD", "POST", "PATCH", "DELETE", "OPTIONS"));
-		policy.setAllowedHeaders(List.of("Accept", "Content-Type", "Authorization", "If-Match", "If-None-Match"));
-		policy.setExposedHeaders(List.of("ETag", "Location"));
+		policy.setAllowedHeaders(List.of("Accept", "Content-Type", "Authorization", "If-Match", "If-None-Match",
+				"Idempotency-Key"));
+		policy.setExposedHeaders(List.of("ETag", "Location", "Retry-After"));
 		policy.setAllowCredentials(false);
 		policy.setMaxAge(3600L);
 		var source = new UrlBasedCorsConfigurationSource();

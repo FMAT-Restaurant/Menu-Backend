@@ -22,17 +22,23 @@ class OpenApiSpecTest {
 	@Autowired
 	private MockMvc mockMvc;
 
-	/** The bundle of Menu-Documentation, self-contained, with the five operations of offers. */
+	/** The bundle of Menu-Documentation, self-contained, with the five operations of offers and idempotency. */
 	@Test
 	void servesTheCurrentContractBundle() throws Exception {
 		mockMvc.perform(get("/openapi.yaml"))
 				.andExpect(status().isOk())
-				.andExpect(content().string(Matchers.containsString("version: 5.0.1")))
+				.andExpect(content().string(Matchers.containsString("version: 7.0.0")))
 				.andExpect(content().string(Matchers.stringContainsInOrder("operationId: listMenuOffers",
 						"operationId: createEntryOffer", "operationId: getMenuOffer", "operationId: patchMenuOffer",
 						"operationId: deleteMenuOffer")))
 				.andExpect(content().string(Matchers.containsString("InventoryItemSlotOptionInput:")))
 				.andExpect(content().string(Matchers.containsString("CatalogOfferPatchResponse:")))
+				.andExpect(content().string(Matchers.stringContainsInOrder("IdempotencyKey:", "name: Idempotency-Key",
+						"IdempotencyBadRequest:", "INVALID_IDEMPOTENCY_KEY", "IdempotencyConflict:", "Retry-After:",
+						"IDEMPOTENCY_KEY_REUSED", "IDEMPOTENCY_IN_PROGRESS")))
+				// RECIPE options only carry recipeId; the resolved revision stays internal.
+				.andExpect(content().string(Matchers.containsString("las opciones no exponen recipeRevision")))
+				.andExpect(content().string(Matchers.not(Matchers.containsString("recipeRevision:"))))
 				.andExpect(content().string(Matchers.not(Matchers.containsString(".yaml#"))));
 	}
 

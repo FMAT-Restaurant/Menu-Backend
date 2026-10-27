@@ -76,7 +76,7 @@ class CategoryApiIntegrationTest {
 
 	@Test
 	void createsListsAndPartiallyUpdatesCategoriesWithStrongEtags() throws Exception {
-		String response = mockMvc.perform(post(CATEGORIES).contentType(MediaType.APPLICATION_JSON)
+		String response = mockMvc.perform(post(CATEGORIES).header("Idempotency-Key", UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON)
 				.content("{\"name\":\" Desserts \",\"description\":\" Sweet things \"}"))
 				.andExpect(status().isCreated())
 				.andExpect(header().string(HttpHeaders.ETAG, "\"rev-0\""))
@@ -217,7 +217,7 @@ class CategoryApiIntegrationTest {
 				.andExpect(jsonPath("$.data", hasSize(0)))
 				.andExpect(jsonPath("$.meta.total").value(0))
 				.andExpect(jsonPath("$.meta.totalPages").value(0));
-		mockMvc.perform(post(CATEGORIES).contentType(MediaType.APPLICATION_JSON)
+		mockMvc.perform(post(CATEGORIES).header("Idempotency-Key", UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON)
 				.content("{\"name\":\" \",\"description\":\"x\"}"))
 				.andExpect(status().isUnprocessableContent())
 				.andExpect(jsonPath(VIOLATION_PATH).value("/name"));

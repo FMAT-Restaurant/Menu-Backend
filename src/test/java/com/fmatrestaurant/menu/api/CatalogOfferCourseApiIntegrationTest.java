@@ -151,7 +151,7 @@ class CatalogOfferCourseApiIntegrationTest {
 	private ResultActions create(String courseField) throws Exception {
 		String body = "{\"presentationTag\":\"Individual\",\"basePrice\":10,\"imageId\":\"" + imageId
 				+ "\",\"composition\":{\"slots\":[" + slot(courseField) + "]}}";
-		return mockMvc.perform(post("/api/v1/menu/entries/" + entryId + "/offers")
+		return mockMvc.perform(post("/api/v1/menu/entries/" + entryId + "/offers").header("Idempotency-Key", UUID.randomUUID())
 				.contentType(MediaType.APPLICATION_JSON).content(body));
 	}
 
@@ -164,7 +164,7 @@ class CatalogOfferCourseApiIntegrationTest {
 	private ResultActions patchOffer(String id, String body) throws Exception {
 		String etag = mockMvc.perform(get(OFFERS + "/" + id)).andReturn().getResponse().getHeader(HttpHeaders.ETAG);
 		assertNotNull(etag, "ETag header is missing from GET response");
-		return mockMvc.perform(patch(OFFERS + "/" + id).header(HttpHeaders.IF_MATCH, etag)
+		return mockMvc.perform(patch(OFFERS + "/" + id).header("Idempotency-Key", UUID.randomUUID()).header(HttpHeaders.IF_MATCH, etag)
 				.contentType(MediaType.APPLICATION_JSON).content(body));
 	}
 

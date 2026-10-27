@@ -1,0 +1,31 @@
+package com.fmatrestaurant.menu.infrastructure;
+
+import java.time.Instant;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
+
+/**
+ * The locks are PostgreSQL advisory locks of the current transaction: they are released when it ends,
+ * also if the instance dies, so no operation stays "in progress" forever.
+ */
+public interface IdempotencyRecordRepository extends JpaRepository<IdempotencyRecord, String> {
+
+	/** False while another transaction runs an operation with the same key. */
+	@Query(value = "select pg_try_advisory_xact_lock(hashtextextended(:id, 0))", nativeQuery = true)
+	boolean tryLock(@Param("id") String id);
+
+	/** Waits for the transaction that runs an operation with the same key. */
+	@Query(value = "select true from pg_advisory_xact_lock(hashtextextended(:id, 0))", nativeQuery = true)
+	boolean lock(@Param("id") String id);
+
+	/** Records whose window started before the cutoff: the response since its success, the binding since its failure. */
+	@Transactional
+	@Modifying
+	@Query("delete from IdempotencyRecord r where coalesce(r.completedAt, r.createdAt) < :cutoff")
+	int deleteStartedBefore(@Param("cutoff") Instant cutoff);
+
+}

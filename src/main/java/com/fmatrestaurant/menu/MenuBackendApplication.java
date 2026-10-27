@@ -2,8 +2,10 @@ package com.fmatrestaurant.menu;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication
+@EnableScheduling
 public class MenuBackendApplication {
 
 	public static void main(String[] args) {
