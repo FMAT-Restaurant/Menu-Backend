@@ -3,6 +3,7 @@ package com.fmatrestaurant.menu.api;
 import java.util.List;
 import java.util.Locale;
 
+import com.fmatrestaurant.menu.application.InventoryItemNotFoundException;
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -74,12 +75,11 @@ public class InventoryMockController {
 	 * {@code 404} with the error envelope if the id does not exist. Ids are opaque, so the match is exact.
 	 */
 	@GetMapping("/{id}")
-	public ResponseEntity<?> get(@PathVariable String id) {
+	public ResponseEntity<DataResponse<InventoryItem>> get(@PathVariable String id) {
 		return ITEMS.stream()
 				.filter(item -> item.id().equals(id))
 				.findFirst()
-				.<ResponseEntity<?>>map(item -> ResponseEntity.ok(new DataResponse<>(item)))
-				.orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
-						.body(new ApiExceptionHandler.ErrorEnvelope(new ApiExceptionHandler.ErrorBody(NOT_FOUND, null))));
+				.map(item -> ResponseEntity.ok(new DataResponse<>(item)))
+				.orElseThrow(() -> new InventoryItemNotFoundException(id));
 	}
 }

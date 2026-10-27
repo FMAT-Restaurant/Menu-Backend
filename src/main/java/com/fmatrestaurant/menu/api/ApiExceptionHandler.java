@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import com.fmatrestaurant.menu.application.InventoryItemNotFoundException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -49,7 +50,8 @@ public class ApiExceptionHandler {
 	private static final String NOT_FOUND = "The requested resource was not found.";
 
 	@ExceptionHandler({ CatalogEntryNotFoundException.class, CatalogOfferNotFoundException.class,
-			CategoryNotFoundException.class, ImageNotFoundException.class, RecipeNotFoundException.class })
+			CategoryNotFoundException.class, ImageNotFoundException.class, RecipeNotFoundException.class,
+			InventoryItemNotFoundException.class })
 	ResponseEntity<ErrorEnvelope> notFound(RuntimeException e) {
 		return error(HttpStatus.NOT_FOUND, e.getMessage());
 	}
