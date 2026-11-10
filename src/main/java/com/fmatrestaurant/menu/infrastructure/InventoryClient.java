@@ -29,7 +29,9 @@ import tools.jackson.databind.json.JsonMapper;
  * with the article as a flat {@code {id, name, unit}} object, not wrapped in a {@code data} envelope.
  *
  * <p>Only a {@code 404} that carries the error envelope of the Inventory contract confirms that an article
- * does not exist. Every other failure (timeout, connection, a non-2xx answer such as 401, 403, 429 or 5xx,
+ * does not exist, and only once the item collection ({@code GET {base-url}/items}) answers: an unknown route
+ * can answer with the same envelope (Menu's own routes do), so without that check a wrong base URL would turn
+ * every article into a missing one. Every other failure (timeout, connection, a non-2xx answer such as 401, 403, 429 or 5xx,
  * a {@code 404} without that envelope, which is what a wrong base URL or a proxy answers, or an invalid
  * body) is a {@link RestClientException}, so it is never mistaken for an article that does not exist.
  */
@@ -73,6 +75,7 @@ public class InventoryClient {
 		}
 		catch (HttpClientErrorException.NotFound e) {
 			if (hasErrorEnvelope(e.getResponseBodyAsByteArray())) {
+				confirmItemRoute(id, e);
 				return Optional.empty();
 			}
 			throw e;
@@ -93,6 +96,30 @@ public class InventoryClient {
 	 */
 	@JsonIgnoreProperties(ignoreUnknown = true)
 	record InventoryResponse(String id, String name, String unit) {
+	}
+
+	/**
+	 * Confirms that the {@code 404} came from the item route of Inventory and not from a server that does not
+	 * know that route at all. The collection is queried filtered by the id, so the answer stays small; its body
+	 * is not read.
+	 *
+	 * @throws RestClientException if the item collection is not reachable at the base URL either
+	 */
+	private void confirmItemRoute(String id, HttpClientErrorException.NotFound notFound) {
+		try {
+			restClient.get()
+					.uri(uri -> uri.path("/items").queryParam("q", "{q}").build(id))
+					.retrieve()
+					.toBodilessEntity();
+		}
+		catch (RestClientException e) {
+			RestClientException misconfigured = new RestClientException(
+					"Inventory answered 404 for item " + id + ", but its item collection is not reachable either; "
+							+ "check that menu.inventory.base-url (INVENTORY_BASE_URL) is the root of the "
+							+ "Inventory service", e);
+			misconfigured.addSuppressed(notFound);
+			throw misconfigured;
+		}
 	}
 
 	/** Whether the body is the error envelope of the contract: {@code {"error": {"message": "..."}}}. */

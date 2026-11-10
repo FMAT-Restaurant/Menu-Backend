@@ -40,13 +40,13 @@ La política global cubre errores y recursos estáticos. Permite `GET`, `HEAD`, 
 
 ## Integración con Inventario
 
-`InventoryClient.find` hace una sola consulta a `GET {INVENTORY_BASE_URL}/items/{id}` y consume el objeto plano `{id, name, unit}` (sin envoltorio `data`), validando que el ID recibido coincida exactamente con el solicitado. Devuelve vacío únicamente cuando Inventario confirma la inexistencia con un `404` que trae su sobre de error `{error: {message}}`; un `404` sin ese sobre (una URL base equivocada o un proxy), un `204`, cualquier otro error HTTP, un timeout o una respuesta incompleta se propagan como fallo de Inventario.
+`InventoryClient.find` hace una sola consulta a `GET {INVENTORY_BASE_URL}/items/{id}` y consume el objeto plano `{id, name, unit}` (sin envoltorio `data`), validando que el ID recibido coincida exactamente con el solicitado. Devuelve vacío únicamente cuando Inventario confirma la inexistencia con un `404` que trae su sobre de error `{error: {message}}` **y** la colección `GET {INVENTORY_BASE_URL}/items?q={id}` responde `2xx`. Esa segunda consulta (solo en el caso de un `404`) descarta una URL base equivocada: un servidor que no conoce la ruta puede responder con el mismo sobre (las rutas inexistentes de Menu lo hacen), y sin ella cada artículo se reportaría como inexistente. Si la colección tampoco responde, es un fallo de Inventario (`502`) y queda en el log un aviso que indica revisar `INVENTORY_BASE_URL`; un `404` sin ese sobre (una URL base equivocada o un proxy), un `204`, cualquier otro error HTTP, un timeout o una respuesta incompleta se propagan como fallo de Inventario.
 
 | Resultado de la consulta | Respuesta de Menu en ofertas y recetas |
 | ------------------------ | -------------------------------------- |
 | Artículo encontrado | La operación continúa |
-| Inventario confirma que no existe (`404` con sobre de error) | `422`, sin cambios |
-| Timeout, indisponibilidad, `5xx`, `401`/`403`/`429` o respuesta inválida | `502`, sin cambios |
+| Inventario confirma que no existe (`404` con sobre de error y colección `/items` alcanzable) | `422`, sin cambios |
+| Timeout, indisponibilidad, `5xx`, `401`/`403`/`429`, respuesta inválida o URL base equivocada | `502`, sin cambios |
 
 Ni un `422` ni un `502` dejan cambios parciales, y tras recuperarse Inventario la misma solicitud (con la misma `Idempotency-Key` en las operaciones que la exigen) puede reintentarse.
 

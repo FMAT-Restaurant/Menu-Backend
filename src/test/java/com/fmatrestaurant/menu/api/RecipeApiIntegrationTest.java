@@ -162,6 +162,9 @@ class RecipeApiIntegrationTest {
 		INVENTORY.reset();
 		INVENTORY.fail(404, "{\"error\": {\"message\": \"No se encontró el recurso solicitado.\"}}");
 		expectViolation(createRecipe(burger), "/supplies/0/inventoryItemId");
+		// The same 404 from a server that does not serve Inventory at the base URL confirms nothing.
+		INVENTORY.failCollection(404, "{\"error\": {\"message\": \"The requested resource was not found.\"}}");
+		createRecipe(burger).andExpect(status().isBadGateway());
 
 		assertEquals(0, recipeRepository.count());
 		assertEquals(0, revisionRepository.count());
