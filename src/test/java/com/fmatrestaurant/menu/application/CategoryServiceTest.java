@@ -90,7 +90,7 @@ class CategoryServiceTest {
 
 	@Test
 	void createRejectsDuplicateNameWithoutSaving() {
-		when(repository.existsByMenuIdAndName(CategoryService.DEFAULT_MENU_ID, "Drinks")).thenReturn(true);
+		when(repository.existsByMenuIdAndNameIgnoreCase(CategoryService.DEFAULT_MENU_ID, "Drinks")).thenReturn(true);
 
 		assertThrows(InvalidCategoryException.class, () -> service.create("Drinks", null));
 
@@ -155,7 +155,7 @@ class CategoryServiceTest {
 		when(existing.getMenuId()).thenReturn(CategoryService.DEFAULT_MENU_ID);
 		when(existing.getName()).thenReturn("Drinks");
 		when(repository.findById(ID)).thenReturn(Optional.of(existing));
-		when(repository.existsByMenuIdAndNameAndIdNot(CategoryService.DEFAULT_MENU_ID, "Food", ID)).thenReturn(true);
+		when(repository.existsByMenuIdAndNameIgnoreCaseAndIdNot(CategoryService.DEFAULT_MENU_ID, "Food", ID)).thenReturn(true);
 
 		assertThrows(InvalidCategoryException.class, () -> service.update(ID, "Food", "New"));
 

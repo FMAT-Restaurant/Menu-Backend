@@ -136,10 +136,10 @@ public class CategoryService {
 		if (name == null) {
 			return;
 		}
-		String normalizedName = name.strip().toLowerCase();
+		String normalizedName = name.strip();
 		boolean exists = excludedId == null
-				? categoryRepository.existsByMenuIdAndName(menuId, normalizedName)
-				: categoryRepository.existsByMenuIdAndNameAndIdNot(menuId, normalizedName, excludedId);
+				? categoryRepository.existsByMenuIdAndNameIgnoreCase(menuId, normalizedName)
+				: categoryRepository.existsByMenuIdAndNameIgnoreCaseAndIdNot(menuId, normalizedName, excludedId);
 		if (exists) {
 			throw new InvalidCategoryException("/name", "A category with this name already exists in this menu");
 		}
