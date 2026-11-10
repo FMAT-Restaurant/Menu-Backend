@@ -29,5 +29,5 @@ COPY --from=build /workspace/app.jar app.jar
 # 7. Puerto HTTP por defecto de Spring Boot
 EXPOSE 8080
 
-# 8. Comando por defecto al ejecutar el contenedor
-ENTRYPOINT ["java", "-jar", "/app/app.jar"]
+# 8. Comando por defecto al ejecutar el contenedor; el heap se calcula sobre el límite de memoria del contenedor
+ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75.0", "-jar", "/app/app.jar"]

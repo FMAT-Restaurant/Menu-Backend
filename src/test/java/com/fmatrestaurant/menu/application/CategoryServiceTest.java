@@ -14,16 +14,18 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import com.fmatrestaurant.menu.application.exception.CategoryNotFoundException;
+import com.fmatrestaurant.menu.application.service.CategoryService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 
-import com.fmatrestaurant.menu.domain.Category;
-import com.fmatrestaurant.menu.domain.InvalidCategoryException;
-import com.fmatrestaurant.menu.domain.InvalidFieldException;
-import com.fmatrestaurant.menu.infrastructure.CatalogEntryRepository;
-import com.fmatrestaurant.menu.infrastructure.CategoryRepository;
+import com.fmatrestaurant.menu.domain.model.Category;
+import com.fmatrestaurant.menu.domain.exception.InvalidCategoryException;
+import com.fmatrestaurant.menu.domain.exception.InvalidFieldException;
+import com.fmatrestaurant.menu.infrastructure.repository.CatalogEntryRepository;
+import com.fmatrestaurant.menu.infrastructure.repository.CategoryRepository;
 
 class CategoryServiceTest {
 

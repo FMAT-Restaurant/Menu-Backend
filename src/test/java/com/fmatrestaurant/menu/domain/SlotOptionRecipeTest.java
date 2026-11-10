@@ -6,6 +6,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.UUID;
 
+import com.fmatrestaurant.menu.domain.exception.InvalidFieldException;
+import com.fmatrestaurant.menu.domain.model.OfferStatus;
+import com.fmatrestaurant.menu.domain.model.SlotOption;
+import com.fmatrestaurant.menu.domain.model.SourceType;
 import org.junit.jupiter.api.Test;
 
 class SlotOptionRecipeTest {

@@ -18,6 +18,9 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import com.fmatrestaurant.menu.application.exception.RecipeNotFoundException;
+import com.fmatrestaurant.menu.application.exception.StaleRecipeException;
+import com.fmatrestaurant.menu.application.service.RecipeService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -28,16 +31,16 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.client.RestClientException;
 
-import com.fmatrestaurant.menu.application.RecipeService.SupplyData;
-import com.fmatrestaurant.menu.domain.ComponentIngredient;
-import com.fmatrestaurant.menu.domain.InvalidFieldException;
-import com.fmatrestaurant.menu.domain.InventoryItem;
-import com.fmatrestaurant.menu.domain.Recipe;
-import com.fmatrestaurant.menu.domain.RecipeRevision;
+import com.fmatrestaurant.menu.application.service.RecipeService.SupplyData;
+import com.fmatrestaurant.menu.domain.model.ComponentIngredient;
+import com.fmatrestaurant.menu.domain.exception.InvalidFieldException;
+import com.fmatrestaurant.menu.domain.model.InventoryItem;
+import com.fmatrestaurant.menu.domain.model.Recipe;
+import com.fmatrestaurant.menu.domain.model.RecipeRevision;
 import com.fmatrestaurant.menu.infrastructure.InventoryClient;
-import com.fmatrestaurant.menu.infrastructure.CatalogOfferRepository;
-import com.fmatrestaurant.menu.infrastructure.RecipeRepository;
-import com.fmatrestaurant.menu.infrastructure.RecipeRevisionRepository;
+import com.fmatrestaurant.menu.infrastructure.repository.CatalogOfferRepository;
+import com.fmatrestaurant.menu.infrastructure.repository.RecipeRepository;
+import com.fmatrestaurant.menu.infrastructure.repository.RecipeRevisionRepository;
 
 class RecipeServiceTest {
 
@@ -63,13 +66,22 @@ class RecipeServiceTest {
 		revisionRepository = mock(RecipeRevisionRepository.class);
 		inventoryClient = mock(InventoryClient.class);
 		service = new RecipeService(recipeRepository, revisionRepository, inventoryClient,
-				mock(CatalogOfferRepository.class));
+				mock(CatalogOfferRepository.class), mock(EventPublisher.class));
 		when(inventoryClient.find(BEEF)).thenReturn(Optional.of(inventoryItem(BEEF)));
 		when(inventoryClient.find(BUN)).thenReturn(Optional.of(inventoryItem(BUN)));
-		when(recipeRepository.save(any(Recipe.class))).thenAnswer(invocation -> invocation.getArgument(0));
-		when(recipeRepository.saveAndFlush(any(Recipe.class))).thenAnswer(invocation -> invocation.getArgument(0));
+		// JPA generates the UUID when persisting; a mocked repository has to do the same for the event.
+		when(recipeRepository.save(any(Recipe.class))).thenAnswer(invocation -> withGeneratedId(invocation.getArgument(0)));
+		when(recipeRepository.saveAndFlush(any(Recipe.class)))
+				.thenAnswer(invocation -> withGeneratedId(invocation.getArgument(0)));
 		when(revisionRepository.saveAndFlush(any(RecipeRevision.class)))
 				.thenAnswer(invocation -> invocation.getArgument(0));
+	}
+
+	private static Recipe withGeneratedId(Recipe recipe) {
+		if (recipe.getId() == null) {
+			ReflectionTestUtils.setField(recipe, "id", UUID.randomUUID());
+		}
+		return recipe;
 	}
 
 	@Test

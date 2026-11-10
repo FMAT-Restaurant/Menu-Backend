@@ -2,7 +2,6 @@ package com.fmatrestaurant.menu.api;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -10,13 +9,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.util.UUID;
 
+import com.fmatrestaurant.menu.api.mock.InventoryMockController;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.http.MediaType;
-import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-import org.springframework.web.context.request.ServletWebRequest;
 
 class InventoryMockControllerTest {
 
@@ -24,66 +22,50 @@ class InventoryMockControllerTest {
 			.setControllerAdvice(new ApiExceptionHandler()).build();
 
 	@Test
-	void listsTenItemsWithAndWithoutTrailingSlash() throws Exception {
-		for (String path : new String[] {"/inventory/items/", "/inventory/items", "/api/v1/inventory/items"}) {
+	void listsTheTenItemsAsAPlainArray() throws Exception {
+		for (String path : new String[] {"/items", "/api/v1/items"}) {
 			mvc.perform(get(path))
 					.andExpect(status().isOk())
 					.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-					.andExpect(jsonPath("$.data.length()").value(10))
-					.andExpect(jsonPath("$.data[0].id").value("2c21767f-0f9a-4e9f-adc7-2730556c1801"))
-					.andExpect(jsonPath("$.meta.page").value(1))
-					.andExpect(jsonPath("$.meta.pageSize").value(12))
-					.andExpect(jsonPath("$.meta.total").value(10))
-					.andExpect(jsonPath("$.meta.totalPages").value(1));
+					.andExpect(jsonPath("$.length()").value(10))
+					.andExpect(jsonPath("$[0].id").value("2c21767f-0f9a-4e9f-adc7-2730556c1801"))
+					.andExpect(jsonPath("$[0].name").value("Carne de res"))
+					.andExpect(jsonPath("$[0].unit").value("kg"));
 		}
 	}
 
 	@Test
 	void answersTheDetailRouteOfInventory() throws Exception {
-		var body = new InventoryMockController().list(null, 1, 12,
-				new ServletWebRequest(new MockHttpServletRequest())).getBody();
-		assertNotNull(body);
-		for (var item : body.data()) {
+		var items = new InventoryMockController().list(null);
+		for (var item : items) {
 			assertDoesNotThrow(() -> UUID.fromString(item.id()));
-			mvc.perform(get("/inventory/items/{id}", item.id()))
+			mvc.perform(get("/api/v1/items/{id}", item.id()))
 					.andExpect(status().isOk())
-					.andExpect(jsonPath("$.data.id").value(item.id()))
-					.andExpect(jsonPath("$.data.name").value(item.name()))
-					.andExpect(jsonPath("$.data.unit").value(item.unit()));
+					.andExpect(jsonPath("$.id").value(item.id()))
+					.andExpect(jsonPath("$.name").value(item.name()))
+					.andExpect(jsonPath("$.unit").value(item.unit()));
 		}
 	}
 
 	@Test
-	void filtersAndPaginatesWithTotalsForTheFilteredCollection() throws Exception {
-		mvc.perform(get("/api/v1/inventory/items").param("q", "CARNE").param("pageSize", "1").param("page", "2"))
+	void filtersByNameIgnoringCaseAndIgnoresAnyPaginationParameter() throws Exception {
+		mvc.perform(get("/api/v1/items").param("q", "CARNE"))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.data.length()").value(1))
-				.andExpect(jsonPath("$.data[0].name").value("Carne de cerdo"))
-				.andExpect(jsonPath("$.meta.total").value(2))
-				.andExpect(jsonPath("$.meta.totalPages").value(2));
-		mvc.perform(get("/api/v1/inventory/items").param("q", "missing"))
-				.andExpect(jsonPath("$.data.length()").value(0))
-				.andExpect(jsonPath("$.meta.totalPages").value(0));
-		mvc.perform(get("/api/v1/inventory/items").param("page", "2147483647"))
-				.andExpect(status().isOk()).andExpect(jsonPath("$.data.length()").value(0));
-	}
-
-	@Test
-	void supportsConditionalGetAndRejectsNonPositivePagination() throws Exception {
-		String etag = mvc.perform(get("/api/v1/inventory/items")).andReturn().getResponse().getHeader("ETag");
-		assertNotNull(etag);
-		mvc.perform(get("/api/v1/inventory/items").header("If-None-Match", etag))
-				.andExpect(status().isNotModified()).andExpect(content().string(""));
-		for (String param : new String[] {"page", "pageSize"}) {
-			mvc.perform(get("/api/v1/inventory/items").param(param, "0"))
-					.andExpect(status().isUnprocessableContent());
-		}
+				.andExpect(jsonPath("$.length()").value(2))
+				.andExpect(jsonPath("$[0].name").value("Carne de res"))
+				.andExpect(jsonPath("$[1].name").value("Carne de cerdo"));
+		mvc.perform(get("/api/v1/items").param("q", "missing"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.length()").value(0));
+		mvc.perform(get("/api/v1/items").param("page", "2").param("pageSize", "1"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.length()").value(10));
 	}
 
 	/** Like Inventory: 404 with the error envelope, which is what the Menu client takes as "does not exist". */
 	@Test
 	void unknownIdIsNotFoundWithTheErrorEnvelopeOfInventory() throws Exception {
-		for (String path : new String[] {"/inventory/items/{id}", "/api/v1/inventory/items/{id}"}) {
+		for (String path : new String[] {"/items/{id}", "/api/v1/items/{id}"}) {
 			for (String id : new String[] {"missing-item", "inv-beef-001", "2C21767F-0F9A-4E9F-ADC7-2730556C1801"}) {
 				mvc.perform(get(path, id))
 						.andExpect(status().isNotFound())

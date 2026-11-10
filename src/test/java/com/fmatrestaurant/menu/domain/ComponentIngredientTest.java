@@ -6,6 +6,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.math.BigDecimal;
 
+import com.fmatrestaurant.menu.domain.exception.InvalidFieldException;
+import com.fmatrestaurant.menu.domain.model.ComponentIngredient;
+import com.fmatrestaurant.menu.domain.model.InventoryItem;
 import org.junit.jupiter.api.Test;
 
 class ComponentIngredientTest {

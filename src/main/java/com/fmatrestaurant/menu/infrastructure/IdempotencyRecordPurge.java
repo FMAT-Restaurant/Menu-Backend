@@ -2,6 +2,8 @@ package com.fmatrestaurant.menu.infrastructure;
 
 import java.time.Instant;
 
+import com.fmatrestaurant.menu.infrastructure.entity.IdempotencyRecord;
+import com.fmatrestaurant.menu.infrastructure.repository.IdempotencyRecordRepository;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 

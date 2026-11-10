@@ -36,8 +36,6 @@ services:
 
   api:
     build: .
-    expose:
-      - 8080
     networks:
       # Red interna para resolver postgres y rabbitmq.
       default: {}
@@ -50,22 +48,23 @@ services:
       rabbitmq:
         condition: service_healthy
     # Configuración externa: Spring Boot lee estas variables de entorno.
+    # host.docker.internal también resuelve en Linux (alcanza servicios publicados en la máquina anfitriona).
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
-      SERVER_PORT: 8080
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-menu}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-menu}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en .env}
       # Solo desarrollo local: Hibernate crea y actualiza el esquema mientras no haya migraciones.
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
-      SPRING_RABBITMQ_HOST: rabbitmq
-      SPRING_RABBITMQ_PORT: 5672
-      SPRING_RABBITMQ_VIRTUALHOST: ${RABBITMQ_VHOST:-/}
-      SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USER:-menu}
-      SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-menu}
+      # URL de conexión: RABBITMQ_URL (broker externo) o, por defecto, el broker de este Compose.
+      SPRING_RABBITMQ_ADDRESSES: ${RABBITMQ_URL:-amqp://${RABBITMQ_USER:-menu}:${RABBITMQ_PASSWORD:-menu}@rabbitmq:5672/${RABBITMQ_VHOST:-}}
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
-      # Host del microservicio externo de Inventario (incluye /api/v1).
-      INVENTORY_BASE_URL: ${INVENTORY_BASE_URL:-http://host.docker.internal:8081/api/v1}
+      # Raíz del microservicio externo de Inventario: Menu consulta {INVENTORY_BASE_URL}/items/{id}.
+      INVENTORY_BASE_URL: ${INVENTORY_BASE_URL:-http://host.docker.internal:8081}
       INVENTORY_TOKEN: ${INVENTORY_TOKEN:-}
+      INVENTORY_TIMEOUT: ${INVENTORY_TIMEOUT:-3s}
+      INVENTORY_AVAILABILITY_ROUTING_KEY: ${INVENTORY_AVAILABILITY_ROUTING_KEY:-inventory.recipe.availability-changed}
       MENU_CORS_ALLOWED_ORIGINS: ${MENU_CORS_ALLOWED_ORIGINS:-}
       MENU_CORS_ALLOW_LOCALHOST: ${MENU_CORS_ALLOW_LOCALHOST:-true}
     ports:

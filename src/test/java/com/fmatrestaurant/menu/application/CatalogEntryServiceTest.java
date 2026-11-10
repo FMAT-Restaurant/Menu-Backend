@@ -14,18 +14,22 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
+import com.fmatrestaurant.menu.application.exception.CatalogEntryNotFoundException;
+import com.fmatrestaurant.menu.application.exception.StaleCatalogEntryException;
+import com.fmatrestaurant.menu.application.service.CatalogEntryService;
+import com.fmatrestaurant.menu.application.service.CategoryService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import com.fmatrestaurant.menu.domain.CatalogEntry;
-import com.fmatrestaurant.menu.domain.Category;
-import com.fmatrestaurant.menu.domain.EntryStatus;
-import com.fmatrestaurant.menu.domain.InvalidFieldException;
-import com.fmatrestaurant.menu.infrastructure.CatalogEntryRepository;
-import com.fmatrestaurant.menu.infrastructure.CatalogOfferRepository;
-import com.fmatrestaurant.menu.infrastructure.CategoryRepository;
-import com.fmatrestaurant.menu.infrastructure.ImageRepository;
+import com.fmatrestaurant.menu.domain.model.CatalogEntry;
+import com.fmatrestaurant.menu.domain.model.Category;
+import com.fmatrestaurant.menu.domain.model.EntryStatus;
+import com.fmatrestaurant.menu.domain.exception.InvalidFieldException;
+import com.fmatrestaurant.menu.infrastructure.repository.CatalogEntryRepository;
+import com.fmatrestaurant.menu.infrastructure.repository.CatalogOfferRepository;
+import com.fmatrestaurant.menu.infrastructure.repository.CategoryRepository;
+import com.fmatrestaurant.menu.infrastructure.repository.ImageRepository;
 
 class CatalogEntryServiceTest {
 
@@ -53,7 +57,7 @@ class CatalogEntryServiceTest {
 		categoryRepository = mock(CategoryRepository.class);
 		imageRepository = mock(ImageRepository.class);
 		service = new CatalogEntryService(entryRepository, categoryRepository, imageRepository,
-				mock(CatalogOfferRepository.class));
+				mock(CatalogOfferRepository.class), mock(EventPublisher.class));
 		when(entryRepository.save(any(CatalogEntry.class))).thenAnswer(invocation -> invocation.getArgument(0));
 		when(entryRepository.saveAndFlush(any(CatalogEntry.class))).thenAnswer(invocation -> invocation.getArgument(0));
 		when(imageRepository.existsById(IMAGE_ID)).thenReturn(true);

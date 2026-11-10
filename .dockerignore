@@ -6,6 +6,10 @@ build/
 *.iml
 .claude
 .env
+.env.*
+.github
+docs
+postman
 
 # Credenciales personales del perfil local
 src/main/resources/application-local.properties

@@ -1,6 +1,7 @@
 # Activate with --spring.profiles.active=local. Spring Boot will automatically load this file when the "local" profile is active.
 spring.datasource.url=jdbc:postgresql://localhost:5432/menu
-spring.datasource.username=tony
+# Los mismos POSTGRES_DB y POSTGRES_USER de .env si se usa el PostgreSQL de Compose.
+spring.datasource.username=menu
 spring.datasource.password=
 # Additional browser origins, comma-separated. Localhost on any port is enabled separately.
 # menu.cors.allowed-origins=https://menu.example.com,https://admin.example.com
@@ -8,15 +9,16 @@ spring.datasource.password=
 spring.jpa.hibernate.ddl-auto=update
 
 # Mocked inventory service, available only with the local profile (InventoryMockController). Menu calls
-# GET {base-url}/inventory/items/{id} to check items and their units before saving options. An unknown id
-# is answered with 404 and the error envelope, which Menu reports as 422. Outside the local profile, point
-# INVENTORY_BASE_URL (menu.inventory.base-url) to the real Inventory service.
-menu.inventory.base-url=http://localhost:8080/api/v1
+# GET {base-url}/items/{id} to check items and their units before saving options. An unknown id
+# is answered with 404 and the error envelope, which Menu reports as 422. base-url is the root of the service:
+# here, this same application. Outside the local profile, point INVENTORY_BASE_URL (menu.inventory.base-url)
+# to the real Inventory service.
+menu.inventory.base-url=http://localhost:8080
 menu.inventory.token=
 
-# RabbitMQ configuration for local development. Menu will use this to send messages to the queue.
-spring.rabbitmq.host=localhost
-spring.rabbitmq.port=5672
-spring.rabbitmq.virtual-host=/
-spring.rabbitmq.username=guest
-spring.rabbitmq.password=guest
+# RabbitMQ for local development: one connection URL, amqp(s)://user:password@host[:port][/vhost]. This is the
+# broker of compose.yaml (docker compose up -d rabbitmq); for an external broker use its amqps:// URL instead.
+# Menu publishes its events in menu.topic and consumes its availability queue.
+spring.rabbitmq.addresses=amqp://menu:menu@localhost:5672
+# Routing key that binds the availability queue to inventory.topic (INVENTORY_AVAILABILITY_ROUTING_KEY).
+# menu.rabbitmq.inventory.availability-routing-key=inventory.recipe.availability-changed

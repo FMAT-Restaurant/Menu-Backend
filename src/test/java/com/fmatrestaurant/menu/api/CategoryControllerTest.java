@@ -6,11 +6,13 @@ import static org.mockito.Mockito.when;
 
 import java.util.UUID;
 
+import com.fmatrestaurant.menu.api.controller.CategoryController;
+import com.fmatrestaurant.menu.api.dto.DataResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.ResponseEntity;
 
-import com.fmatrestaurant.menu.application.CategoryService;
-import com.fmatrestaurant.menu.domain.Category;
+import com.fmatrestaurant.menu.application.service.CategoryService;
+import com.fmatrestaurant.menu.domain.model.Category;
 
 class CategoryControllerTest {
 

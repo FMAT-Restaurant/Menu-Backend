@@ -9,6 +9,9 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
+import com.fmatrestaurant.menu.infrastructure.repository.CatalogEntryRepository;
+import com.fmatrestaurant.menu.infrastructure.repository.CatalogOfferRepository;
+import com.fmatrestaurant.menu.infrastructure.repository.CatalogOfferRevisionRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -18,11 +21,11 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.fmatrestaurant.menu.TestcontainersConfiguration;
-import com.fmatrestaurant.menu.domain.CatalogEntry;
-import com.fmatrestaurant.menu.domain.CatalogOffer;
-import com.fmatrestaurant.menu.domain.CompositionSlot;
-import com.fmatrestaurant.menu.domain.OfferStatus;
-import com.fmatrestaurant.menu.domain.SlotOption;
+import com.fmatrestaurant.menu.domain.model.CatalogEntry;
+import com.fmatrestaurant.menu.domain.model.CatalogOffer;
+import com.fmatrestaurant.menu.domain.model.CompositionSlot;
+import com.fmatrestaurant.menu.domain.model.OfferStatus;
+import com.fmatrestaurant.menu.domain.model.SlotOption;
 
 import jakarta.persistence.EntityManager;
 

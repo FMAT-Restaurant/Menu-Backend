@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.util.Map;
 
+import com.fmatrestaurant.menu.api.mock.InventoryMockController;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -31,9 +32,9 @@ class CorsConfigurationTest {
 				}).run(context -> {
 					MockMvc mvc = MockMvcBuilders.standaloneSetup(new InventoryMockController())
 							.addFilters(context.getBean(CorsFilter.class)).build();
-					mvc.perform(options("/inventory/items").header("Origin", "https://env.example.com")
+					mvc.perform(options("/items").header("Origin", "https://env.example.com")
 							.header("Access-Control-Request-Method", "GET")).andExpect(status().isOk());
-					mvc.perform(options("/inventory/items").header("Origin", "http://localhost:5173")
+					mvc.perform(options("/items").header("Origin", "http://localhost:5173")
 							.header("Access-Control-Request-Method", "GET")).andExpect(status().isForbidden());
 				});
 	}
@@ -50,9 +51,9 @@ class CorsConfigurationTest {
 	void canDisableLocalhostWhileRetainingASingleExplicitOrigin() throws Exception {
 		MockMvc mvc = MockMvcBuilders.standaloneSetup(new InventoryMockController())
 				.addFilters(new CorsConfiguration().corsFilter("https://menu.example.com", false)).build();
-		mvc.perform(options("/inventory/items").header("Origin", "http://localhost:5173")
+		mvc.perform(options("/items").header("Origin", "http://localhost:5173")
 				.header("Access-Control-Request-Method", "GET")).andExpect(status().isForbidden());
-		mvc.perform(options("/inventory/items").header("Origin", "https://menu.example.com")
+		mvc.perform(options("/items").header("Origin", "https://menu.example.com")
 				.header("Access-Control-Request-Method", "GET")).andExpect(status().isOk())
 				.andExpect(header().string("Access-Control-Allow-Origin", "https://menu.example.com"));
 	}
@@ -61,7 +62,7 @@ class CorsConfigurationTest {
 	void emptyConfigurationWithoutLocalhostDeniesCrossOriginRequests() throws Exception {
 		MockMvc mvc = MockMvcBuilders.standaloneSetup(new InventoryMockController())
 				.addFilters(new CorsConfiguration().corsFilter("", false)).build();
-		mvc.perform(options("/inventory/items").header("Origin", "https://menu.example.com")
+		mvc.perform(options("/items").header("Origin", "https://menu.example.com")
 				.header("Access-Control-Request-Method", "GET")).andExpect(status().isForbidden());
 	}
 }

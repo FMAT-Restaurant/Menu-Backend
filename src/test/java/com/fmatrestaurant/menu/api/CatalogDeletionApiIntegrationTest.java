@@ -46,16 +46,16 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import com.fmatrestaurant.menu.InventoryStub;
 import com.fmatrestaurant.menu.TestcontainersConfiguration;
-import com.fmatrestaurant.menu.application.CatalogEntryService;
-import com.fmatrestaurant.menu.application.CatalogOfferService;
-import com.fmatrestaurant.menu.domain.CatalogEntry;
-import com.fmatrestaurant.menu.domain.CatalogOffer;
-import com.fmatrestaurant.menu.domain.Image;
-import com.fmatrestaurant.menu.domain.InventoryItem;
-import com.fmatrestaurant.menu.domain.OfferStatus;
-import com.fmatrestaurant.menu.infrastructure.CatalogEntryRepository;
-import com.fmatrestaurant.menu.infrastructure.CatalogOfferRepository;
-import com.fmatrestaurant.menu.infrastructure.ImageRepository;
+import com.fmatrestaurant.menu.application.service.CatalogEntryService;
+import com.fmatrestaurant.menu.application.service.CatalogOfferService;
+import com.fmatrestaurant.menu.domain.model.CatalogEntry;
+import com.fmatrestaurant.menu.domain.model.CatalogOffer;
+import com.fmatrestaurant.menu.domain.model.Image;
+import com.fmatrestaurant.menu.domain.model.InventoryItem;
+import com.fmatrestaurant.menu.domain.model.OfferStatus;
+import com.fmatrestaurant.menu.infrastructure.repository.CatalogEntryRepository;
+import com.fmatrestaurant.menu.infrastructure.repository.CatalogOfferRepository;
+import com.fmatrestaurant.menu.infrastructure.repository.ImageRepository;
 import com.jayway.jsonpath.JsonPath;
 
 /**

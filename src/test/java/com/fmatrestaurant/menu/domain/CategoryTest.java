@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import com.fmatrestaurant.menu.domain.exception.InvalidCategoryException;
+import com.fmatrestaurant.menu.domain.model.Category;
 import org.junit.jupiter.api.Test;
 
 class CategoryTest {

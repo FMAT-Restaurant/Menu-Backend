@@ -13,23 +13,27 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import com.fmatrestaurant.menu.application.exception.CatalogOfferNotFoundException;
+import com.fmatrestaurant.menu.application.exception.DeletionNotAllowedException;
+import com.fmatrestaurant.menu.application.exception.StaleCatalogOfferException;
+import com.fmatrestaurant.menu.application.service.CatalogOfferService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import com.fmatrestaurant.menu.domain.CatalogEntry;
-import com.fmatrestaurant.menu.domain.CatalogOffer;
-import com.fmatrestaurant.menu.domain.CompositionSlot;
-import com.fmatrestaurant.menu.domain.EntryStatus;
-import com.fmatrestaurant.menu.domain.InventoryItem;
-import com.fmatrestaurant.menu.domain.OfferStatus;
-import com.fmatrestaurant.menu.domain.SlotOption;
-import com.fmatrestaurant.menu.infrastructure.CatalogEntryRepository;
-import com.fmatrestaurant.menu.infrastructure.CatalogOfferRepository;
-import com.fmatrestaurant.menu.infrastructure.ImageRepository;
+import com.fmatrestaurant.menu.domain.model.CatalogEntry;
+import com.fmatrestaurant.menu.domain.model.CatalogOffer;
+import com.fmatrestaurant.menu.domain.model.CompositionSlot;
+import com.fmatrestaurant.menu.domain.model.EntryStatus;
+import com.fmatrestaurant.menu.domain.model.InventoryItem;
+import com.fmatrestaurant.menu.domain.model.OfferStatus;
+import com.fmatrestaurant.menu.domain.model.SlotOption;
+import com.fmatrestaurant.menu.infrastructure.repository.CatalogEntryRepository;
+import com.fmatrestaurant.menu.infrastructure.repository.CatalogOfferRepository;
+import com.fmatrestaurant.menu.infrastructure.repository.ImageRepository;
 import com.fmatrestaurant.menu.infrastructure.InventoryClient;
-import com.fmatrestaurant.menu.infrastructure.RecipeRevisionRepository;
-import com.fmatrestaurant.menu.infrastructure.RecipeRepository;
+import com.fmatrestaurant.menu.infrastructure.repository.RecipeRevisionRepository;
+import com.fmatrestaurant.menu.infrastructure.repository.RecipeRepository;
 
 class CatalogOfferDeletionTest {
 
@@ -50,7 +54,8 @@ class CatalogOfferDeletionTest {
 		entryRepository = mock(CatalogEntryRepository.class);
 		offerRepository = mock(CatalogOfferRepository.class);
 		service = new CatalogOfferService(offerRepository, entryRepository, mock(ImageRepository.class),
-				mock(InventoryClient.class), mock(RecipeRevisionRepository.class), mock(RecipeRepository.class));
+				mock(InventoryClient.class), mock(RecipeRevisionRepository.class), mock(RecipeRepository.class),
+				mock(EventPublisher.class));
 	}
 
 	@Test

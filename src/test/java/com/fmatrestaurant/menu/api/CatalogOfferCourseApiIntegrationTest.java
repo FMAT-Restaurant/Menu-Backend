@@ -30,17 +30,17 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
 import com.fmatrestaurant.menu.TestcontainersConfiguration;
-import com.fmatrestaurant.menu.domain.CatalogEntry;
-import com.fmatrestaurant.menu.domain.ComponentIngredient;
-import com.fmatrestaurant.menu.domain.Image;
-import com.fmatrestaurant.menu.domain.InventoryItem;
-import com.fmatrestaurant.menu.domain.Recipe;
-import com.fmatrestaurant.menu.domain.RecipeRevision;
-import com.fmatrestaurant.menu.infrastructure.CatalogEntryRepository;
-import com.fmatrestaurant.menu.infrastructure.CatalogOfferRepository;
-import com.fmatrestaurant.menu.infrastructure.ImageRepository;
-import com.fmatrestaurant.menu.infrastructure.RecipeRepository;
-import com.fmatrestaurant.menu.infrastructure.RecipeRevisionRepository;
+import com.fmatrestaurant.menu.domain.model.CatalogEntry;
+import com.fmatrestaurant.menu.domain.model.ComponentIngredient;
+import com.fmatrestaurant.menu.domain.model.Image;
+import com.fmatrestaurant.menu.domain.model.InventoryItem;
+import com.fmatrestaurant.menu.domain.model.Recipe;
+import com.fmatrestaurant.menu.domain.model.RecipeRevision;
+import com.fmatrestaurant.menu.infrastructure.repository.CatalogEntryRepository;
+import com.fmatrestaurant.menu.infrastructure.repository.CatalogOfferRepository;
+import com.fmatrestaurant.menu.infrastructure.repository.ImageRepository;
+import com.fmatrestaurant.menu.infrastructure.repository.RecipeRepository;
+import com.fmatrestaurant.menu.infrastructure.repository.RecipeRevisionRepository;
 import com.jayway.jsonpath.JsonPath;
 
 /** Optional slot courses over HTTP and PostgreSQL, using recipe options without Inventory calls. */

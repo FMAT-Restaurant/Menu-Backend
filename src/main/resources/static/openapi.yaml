@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: API de Menu y referencia externa de Inventario
   version: 7.0.0
-  description: 'Contrato HTTP de las operaciones de consulta y administración de Menu, con referencias a las consultas externas de Inventario para facilitar el trabajo del frontend. El frontend llama directamente al microservicio de Inventario; el backend de Menu no implementa ni atiende /inventory/items ni /inventory/item/{id}. InventoryItem.id e inventoryItemId son strings opacos sin formato impuesto. Las operaciones de Menu se organizan por recurso y no definen el host de despliegue; sus rutas son relativas a una URL base que termina en /api/v1. Las imágenes se cargan previamente mediante POST /media/images, que recibe multipart/form-data y devuelve data.id con un identificador generado por el servidor. Los POST y PATCH de entradas y ofertas reciben JSON con imageId: obligatorio al crear y opcional al editar; omitirlo conserva la imagen vigente. Solo la carga de imágenes recibe el archivo mediante multipart/form-data. Las entradas nuevas inician INACTIVE, con estado asignado por el servidor. Los POST de categorías, entradas, ofertas para una entrada, recetas e imágenes, y PATCH /menu/offers/{offerId}, requieren Idempotency-Key. Durante 24 horas desde la primera confirmación exitosa, la misma clave y solicitud recuperan el estado HTTP original (201 en creaciones y 200 en PATCH), el cuerpo y el ETag, sin repetir efectos, generar otros IDs, asociar otra imagen ni volver a resolver recetas. La carga de imagen compara los bytes del archivo y el tipo de medio declarado de la parte file, ignorando boundary, nombre de archivo y orden de partes. El PATCH conserva también el If-Match original: tras autenticar y autorizar, un reintento coincidente recupera su respuesta antes de validar otra vez el ETag vigente; una ejecución nueva exige el ETag vigente normalmente. Una clave ausente o inválida devuelve 400; datos diferentes, incluido If-Match en PATCH, devuelven 409. Una operación en curso o con resultado incierto devuelve 409 con Retry-After y no se ejecuta nuevamente hasta resolver el resultado previo. Las ofertas nuevas también inician INACTIVE y deben activarse manualmente. El servidor asigna status: ACTIVE a todas las opciones nuevas de POST; la solicitud no acepta status para ellas. presentationTag es requerido en POST y PATCH de ofertas y en sus respuestas. Para un origen RECIPE solo se indica recipeId: al asignarlo, el servidor selecciona la revisión válida más reciente y conserva internamente la referencia histórica; las opciones no exponen recipeRevision. El PATCH de ofertas conserva los demás campos omitidos y reemplaza recursivamente los conjuntos de slots y opciones enviados. Valida el resultado completo y persiste atómicamente, con un ETag fuerte vigente en If-Match. Los DELETE de entradas y ofertas devuelven 409 si incumplen las reglas de eliminación del dominio, 428 si falta If-Match y 412 si el ETag es obsoleto. Su respuesta 204 no contiene cuerpo ni ETag porque el recurso eliminado ya no tiene una representación vigente. Si falla la consulta a Inventario necesaria para validar insumos en POST o PATCH de ofertas o recetas, se devuelve 502 sin aplicar cambios.'
+  description: 'Contrato HTTP de las operaciones de consulta y administración de Menu, con referencias a las consultas externas de Inventario para facilitar el trabajo del frontend. El frontend llama directamente al microservicio de Inventario; el backend de Menu no implementa ni atiende /items ni /items/{id}. InventoryItem.id e inventoryItemId son strings opacos sin formato impuesto. Las operaciones de Menu se organizan por recurso y no definen el host de despliegue; sus rutas son relativas a una URL base que termina en /api/v1. Las imágenes se cargan previamente mediante POST /menu/media/images, que recibe multipart/form-data y devuelve data.id con un identificador generado por el servidor. Los POST y PATCH de entradas y ofertas reciben JSON con imageId: obligatorio al crear y opcional al editar; omitirlo conserva la imagen vigente. Solo la carga de imágenes recibe el archivo mediante multipart/form-data. Las entradas nuevas inician INACTIVE, con estado asignado por el servidor. Los POST de categorías, entradas, ofertas para una entrada, recetas e imágenes, y PATCH /menu/offers/{offerId}, requieren Idempotency-Key. Durante 24 horas desde la primera confirmación exitosa, la misma clave y solicitud recuperan el estado HTTP original (201 en creaciones y 200 en PATCH), el cuerpo y el ETag, sin repetir efectos, generar otros IDs, asociar otra imagen ni volver a resolver recetas. La carga de imagen compara los bytes del archivo y el tipo de medio declarado de la parte file, ignorando boundary, nombre de archivo y orden de partes. El PATCH conserva también el If-Match original: tras autenticar y autorizar, un reintento coincidente recupera su respuesta antes de validar otra vez el ETag vigente; una ejecución nueva exige el ETag vigente normalmente. Una clave ausente o inválida devuelve 400; datos diferentes, incluido If-Match en PATCH, devuelven 409. Una operación en curso o con resultado incierto devuelve 409 con Retry-After y no se ejecuta nuevamente hasta resolver el resultado previo. Las ofertas nuevas también inician INACTIVE y deben activarse manualmente. El servidor asigna status: ACTIVE a todas las opciones nuevas de POST; la solicitud no acepta status para ellas. presentationTag es requerido en POST y PATCH de ofertas y en sus respuestas. Para un origen RECIPE solo se indica recipeId: al asignarlo, el servidor selecciona la revisión válida más reciente y conserva internamente la referencia histórica; las opciones no exponen recipeRevision. El PATCH de ofertas conserva los demás campos omitidos y reemplaza recursivamente los conjuntos de slots y opciones enviados. Valida el resultado completo y persiste atómicamente, con un ETag fuerte vigente en If-Match. Los DELETE de entradas y ofertas devuelven 409 si incumplen las reglas de eliminación del dominio, 428 si falta If-Match y 412 si el ETag es obsoleto. Su respuesta 204 no contiene cuerpo ni ETag porque el recurso eliminado ya no tiene una representación vigente. Si falla la consulta a Inventario necesaria para validar insumos en POST o PATCH de ofertas o recetas, se devuelve 502 sin aplicar cambios.'
   license:
     name: MIT
     url: https://github.com/FMAT-Restaurant/Menu-Documentation/blob/main/LICENSE
@@ -302,7 +302,7 @@ paths:
         - Entradas
       operationId: createMenuEntry
       summary: Crear una entrada
-      description: Crea una entrada del catálogo con sus categorías y una imagen obligatoria previamente cargada en POST /api/v1/media/images. Envíe data.id de esa respuesta como imageId en el cuerpo JSON; esta operación no recibe el archivo ni asigna un nuevo identificador de imagen. El backend asigna el estado INACTIVE; el cliente no proporciona status. imageId debe identificar una imagen existente, válida y accesible al solicitante. Los metadatos y las asociaciones de imagen y categorías se validan y persisten de forma atómica. La entrada y sus categorías pertenecen al menú provisionado en la instalación. Una referencia de imagen inválida, categorías inexistentes o de otro menú y cualquier solicitud inválida devuelven 422 sin crear la entrada ni aplicar cambios. La carga previa de imagen es una operación independiente y no se deshace si falla la creación de la entrada. Requiere Idempotency-Key, un UUID generado por el cliente por creación lógica, con alcance por usuario autenticado, menú, método POST y ruta concreta. Durante 24 horas desde la primera creación confirmada, reenviar la misma clave y el mismo JSON semántico devuelve el 201, cuerpo y ETag originales, con la misma entrada y asociación de imagen; no repite efectos. El orden de propiedades y los espacios del JSON no alteran su igualdad; el orden de arrays y la diferencia entre omisión y null sí la alteran. Tras autenticar y autorizar al solicitante, el resultado guardado se recupera antes de validar los recursos o referencias vigentes, incluso si después fueron editados o eliminados. Otra carga JSON con la misma clave devuelve 409 con error.details.code IDEMPOTENCY_KEY_REUSED; una creación todavía en curso devuelve 409 con error.details.code IDEMPOTENCY_IN_PROGRESS y Retry-After. La ausencia o invalidez del encabezado devuelve 400. Los errores anteriores a la creación confirmada no fijan un resultado y liberan la clave para reintentar la misma solicitud. Los reintentos no extienden el plazo; después de 24 horas la clave puede tratarse como nueva y ya no garantiza evitar duplicados.
+      description: Crea una entrada del catálogo con sus categorías y una imagen obligatoria previamente cargada en POST /api/v1/menu/media/images. Envíe data.id de esa respuesta como imageId en el cuerpo JSON; esta operación no recibe el archivo ni asigna un nuevo identificador de imagen. El backend asigna el estado INACTIVE; el cliente no proporciona status. imageId debe identificar una imagen existente, válida y accesible al solicitante. Los metadatos y las asociaciones de imagen y categorías se validan y persisten de forma atómica. La entrada y sus categorías pertenecen al menú provisionado en la instalación. Una referencia de imagen inválida, categorías inexistentes o de otro menú y cualquier solicitud inválida devuelven 422 sin crear la entrada ni aplicar cambios. La carga previa de imagen es una operación independiente y no se deshace si falla la creación de la entrada. Requiere Idempotency-Key, un UUID generado por el cliente por creación lógica, con alcance por usuario autenticado, menú, método POST y ruta concreta. Durante 24 horas desde la primera creación confirmada, reenviar la misma clave y el mismo JSON semántico devuelve el 201, cuerpo y ETag originales, con la misma entrada y asociación de imagen; no repite efectos. El orden de propiedades y los espacios del JSON no alteran su igualdad; el orden de arrays y la diferencia entre omisión y null sí la alteran. Tras autenticar y autorizar al solicitante, el resultado guardado se recupera antes de validar los recursos o referencias vigentes, incluso si después fueron editados o eliminados. Otra carga JSON con la misma clave devuelve 409 con error.details.code IDEMPOTENCY_KEY_REUSED; una creación todavía en curso devuelve 409 con error.details.code IDEMPOTENCY_IN_PROGRESS y Retry-After. La ausencia o invalidez del encabezado devuelve 400. Los errores anteriores a la creación confirmada no fijan un resultado y liberan la clave para reintentar la misma solicitud. Los reintentos no extienden el plazo; después de 24 horas la clave puede tratarse como nueva y ya no garantiza evitar duplicados.
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -415,7 +415,7 @@ paths:
         - Entradas
       operationId: patchMenuEntry
       summary: Actualizar una entrada
-      description: 'Actualiza los campos enviados; los omitidos conservan sus valores. Enviar categoryIds reemplaza el conjunto completo de categorías. La entrada y sus categorías deben pertenecer al menú provisionado en la instalación. Se permite activar o inactivar la entrada, pasar de ACTIVE o INACTIVE a ARCHIVED y desarchivar de ARCHIVED a INACTIVE. El paso directo de ARCHIVED a ACTIVE devuelve 422. Estas transiciones no alteran los estados de las ofertas. Para reemplazar la imagen, envíe imageId en el cuerpo JSON con data.id de la respuesta de POST /api/v1/media/images para una imagen previamente cargada y validada. Debe existir y ser accesible al solicitante; una referencia inválida devuelve 422. Omitir imageId conserva la imagen vigente; null se rechaza. Esta operación no recibe archivos ni URLs. La validación y persistencia de metadatos y asociaciones de imagen y categorías es atómica; un error no aplica cambios parciales y conserva la imagen vigente. La carga previa es una operación independiente y no se deshace si falla la actualización. Envíe el ETag leído en If-Match: su ausencia devuelve 428 y un valor obsoleto devuelve 412, sin modificaciones.'
+      description: 'Actualiza los campos enviados; los omitidos conservan sus valores. Enviar categoryIds reemplaza el conjunto completo de categorías. La entrada y sus categorías deben pertenecer al menú provisionado en la instalación. Se permite activar o inactivar la entrada, pasar de ACTIVE o INACTIVE a ARCHIVED y desarchivar de ARCHIVED a INACTIVE. El paso directo de ARCHIVED a ACTIVE devuelve 422. Estas transiciones no alteran los estados de las ofertas. Para reemplazar la imagen, envíe imageId en el cuerpo JSON con data.id de la respuesta de POST /api/v1/menu/media/images para una imagen previamente cargada y validada. Debe existir y ser accesible al solicitante; una referencia inválida devuelve 422. Omitir imageId conserva la imagen vigente; null se rechaza. Esta operación no recibe archivos ni URLs. La validación y persistencia de metadatos y asociaciones de imagen y categorías es atómica; un error no aplica cambios parciales y conserva la imagen vigente. La carga previa es una operación independiente y no se deshace si falla la actualización. Envíe el ETag leído en If-Match: su ausencia devuelve 428 y un valor obsoleto devuelve 412, sin modificaciones.'
       parameters:
         - $ref: '#/components/parameters/IfMatch'
       requestBody:
@@ -594,7 +594,7 @@ paths:
         - Ofertas
       operationId: createEntryOffer
       summary: Crear una oferta para una entrada
-      description: 'Crea una oferta asociada a la entrada indicada en la ruta. La composición define los espacios de selección y sus opciones. La imagen es obligatoria: cárguela antes mediante POST /api/v1/media/images y envíe data.id de la respuesta como imageId en el cuerpo JSON. Esta operación no recibe archivos ni URLs. imageId debe identificar una imagen existente, válida y accesible al solicitante; una referencia inválida devuelve 422 sin crear la oferta. Toda oferta se crea con estado INACTIVE y debe activarse manualmente después. El servidor asigna status: ACTIVE a todas las opciones nuevas; el cuerpo de POST no acepta status para las opciones. Si falla la consulta a Inventario necesaria para validar un origen INVENTORY_ITEM, devuelve 502 sin crear la oferta; un artículo de inventario inválido devuelve 422. La carga previa es una operación independiente y no se deshace si falla la creación de la oferta. Requiere Idempotency-Key, un UUID generado por el cliente por creación lógica, con alcance por usuario autenticado, menú, método POST y ruta concreta (incluido entryId). Durante 24 horas desde la primera creación confirmada, reenviar la misma clave y el mismo JSON semántico devuelve el 201, cuerpo y ETag originales, con la misma oferta, slots, opciones e imagen; no repite efectos ni resuelve otra vez las revisiones de recetas. El orden de propiedades y los espacios del JSON no alteran su igualdad; el orden de arrays y la diferencia entre omisión y null sí la alteran. Tras autenticar y autorizar al solicitante, el resultado guardado se recupera antes de validar los recursos o referencias vigentes, incluso si después fueron editados o eliminados. Otra carga JSON con la misma clave devuelve 409 con error.details.code IDEMPOTENCY_KEY_REUSED; una creación todavía en curso devuelve 409 con error.details.code IDEMPOTENCY_IN_PROGRESS y Retry-After. La ausencia o invalidez del encabezado devuelve 400. Los errores anteriores a la creación confirmada, incluido 502, no fijan un resultado y liberan la clave para reintentar la misma solicitud. Los reintentos no extienden el plazo; después de 24 horas la clave puede tratarse como nueva y ya no garantiza evitar duplicados. Una opción RECIPE se selecciona solo por recipeId: al asignarla, el servidor resuelve atómicamente la revisión válida publicada más reciente y la conserva internamente; no se expone una revisión en la opción. Una receta inexistente o sin revisión válida devuelve 422 sin aplicar cambios.'
+      description: 'Crea una oferta asociada a la entrada indicada en la ruta. La composición define los espacios de selección y sus opciones. La imagen es obligatoria: cárguela antes mediante POST /api/v1/menu/media/images y envíe data.id de la respuesta como imageId en el cuerpo JSON. Esta operación no recibe archivos ni URLs. imageId debe identificar una imagen existente, válida y accesible al solicitante; una referencia inválida devuelve 422 sin crear la oferta. Toda oferta se crea con estado INACTIVE y debe activarse manualmente después. El servidor asigna status: ACTIVE a todas las opciones nuevas; el cuerpo de POST no acepta status para las opciones. Si falla la consulta a Inventario necesaria para validar un origen INVENTORY_ITEM, devuelve 502 sin crear la oferta; un artículo de inventario inválido devuelve 422. La carga previa es una operación independiente y no se deshace si falla la creación de la oferta. Requiere Idempotency-Key, un UUID generado por el cliente por creación lógica, con alcance por usuario autenticado, menú, método POST y ruta concreta (incluido entryId). Durante 24 horas desde la primera creación confirmada, reenviar la misma clave y el mismo JSON semántico devuelve el 201, cuerpo y ETag originales, con la misma oferta, slots, opciones e imagen; no repite efectos ni resuelve otra vez las revisiones de recetas. El orden de propiedades y los espacios del JSON no alteran su igualdad; el orden de arrays y la diferencia entre omisión y null sí la alteran. Tras autenticar y autorizar al solicitante, el resultado guardado se recupera antes de validar los recursos o referencias vigentes, incluso si después fueron editados o eliminados. Otra carga JSON con la misma clave devuelve 409 con error.details.code IDEMPOTENCY_KEY_REUSED; una creación todavía en curso devuelve 409 con error.details.code IDEMPOTENCY_IN_PROGRESS y Retry-After. La ausencia o invalidez del encabezado devuelve 400. Los errores anteriores a la creación confirmada, incluido 502, no fijan un resultado y liberan la clave para reintentar la misma solicitud. Los reintentos no extienden el plazo; después de 24 horas la clave puede tratarse como nueva y ya no garantiza evitar duplicados. Una opción RECIPE se selecciona solo por recipeId: al asignarla, el servidor resuelve atómicamente la revisión válida publicada más reciente y la conserva internamente; no se expone una revisión en la opción. Una receta inexistente o sin revisión válida devuelve 422 sin aplicar cambios.'
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -1287,7 +1287,7 @@ paths:
           $ref: '#/components/responses/PreconditionFailed'
         '429':
           $ref: '#/components/responses/TooManyRequests'
-  /inventory/items:
+  /items:
     servers:
       - url: https://{inventoryHost}/api/v1
         variables:
@@ -1302,41 +1302,29 @@ paths:
       description: Operación del microservicio externo de Inventario, llamada directamente por el frontend para buscar artículos por texto y seleccionar insumos en recetas u opciones de composición. El backend de Menu no implementa esta ruta; Menu solo conserva referencias de solo lectura a los artículos.
       parameters:
         - $ref: '#/components/parameters/SearchQuery'
-        - $ref: '#/components/parameters/Page'
-        - $ref: '#/components/parameters/PageSize'
-        - $ref: '#/components/parameters/IfNoneMatch'
       responses:
         '200':
-          description: Página de artículos coincidentes.
-          headers:
-            ETag:
-              $ref: '#/components/headers/ETag'
+          description: Lista de artículos coincidentes, sin paginación; vacía si ninguno coincide.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/InventoryItemListResponse'
+                type: array
+                items:
+                  $ref: '#/components/schemas/InventoryItem'
               examples:
                 articulosEncontrados:
                   summary: Artículo de inventario encontrado
                   value:
-                    data:
-                      - id: CARNE-150G
-                        name: Carne Molida Res 80/20
-                        unit: g
-                    meta:
-                      page: 1
-                      pageSize: 12
-                      total: 1
-                      totalPages: 1
-        '304':
-          $ref: '#/components/responses/NotModified'
+                    - id: CARNE-150G
+                      name: Carne Molida Res 80/20
+                      unit: g
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
         '429':
           $ref: '#/components/responses/TooManyRequests'
-  /inventory/item/{id}:
+  /items/{id}:
     servers:
       - url: https://{inventoryHost}/api/v1
         variables:
@@ -1368,15 +1356,14 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/InventoryItemResponse'
+                $ref: '#/components/schemas/InventoryItem'
               examples:
                 articuloEncontrado:
                   summary: Artículo de inventario encontrado
                   value:
-                    data:
-                      id: CARNE-150G
-                      name: Carne Molida Res 80/20
-                      unit: g
+                    id: CARNE-150G
+                    name: Carne Molida Res 80/20
+                    unit: g
         '304':
           $ref: '#/components/responses/NotModified'
         '401':
@@ -1387,7 +1374,7 @@ paths:
           $ref: '#/components/responses/NotFound'
         '429':
           $ref: '#/components/responses/TooManyRequests'
-  /media/images:
+  /menu/media/images:
     post:
       tags:
         - Imágenes
@@ -1779,7 +1766,7 @@ components:
           - 7d9c8f30-6c64-4f12-9a1b-6c4a2d5e8f01
     CatalogEntryCreateRequest:
       type: object
-      description: Datos JSON para crear una entrada y asociarla con sus categorías y una imagen previamente cargada y validada. El backend asigna el estado INACTIVE; el cliente no proporciona status. imageId referencia data.id de la respuesta de POST /api/v1/media/images; no se envía el archivo ni una URL en esta solicitud.
+      description: Datos JSON para crear una entrada y asociarla con sus categorías y una imagen previamente cargada y validada. El backend asigna el estado INACTIVE; el cliente no proporciona status. imageId referencia data.id de la respuesta de POST /api/v1/menu/media/images; no se envía el archivo ni una URL en esta solicitud.
       required:
         - brandName
         - description
@@ -1806,7 +1793,7 @@ components:
         imageId:
           type: string
           format: uuid
-          description: UUID obligatorio de la imagen previamente cargada y validada, obtenido de data.id en POST /api/v1/media/images. No admite null, archivos ni URLs.
+          description: UUID obligatorio de la imagen previamente cargada y validada, obtenido de data.id en POST /api/v1/menu/media/images. No admite null, archivos ni URLs.
           example: 55e62412-9249-4db6-8ccb-31f19ea2f501
       example:
         brandName: Hamburguesa Hawaiana
@@ -1816,7 +1803,7 @@ components:
         imageId: 55e62412-9249-4db6-8ccb-31f19ea2f501
     CatalogEntryPatchRequest:
       type: object
-      description: Campos de una entrada que se desean actualizar, enviados como JSON. Los campos omitidos conservan sus valores vigentes. Para reemplazar la imagen se envía imageId con data.id de la respuesta de POST /api/v1/media/images para una imagen previamente cargada y validada. Omitir imageId conserva la imagen vigente; null se rechaza. No se envían archivos ni URLs en esta solicitud.
+      description: Campos de una entrada que se desean actualizar, enviados como JSON. Los campos omitidos conservan sus valores vigentes. Para reemplazar la imagen se envía imageId con data.id de la respuesta de POST /api/v1/menu/media/images para una imagen previamente cargada y validada. Omitir imageId conserva la imagen vigente; null se rechaza. No se envían archivos ni URLs en esta solicitud.
       additionalProperties: false
       properties:
         brandName:
@@ -1841,7 +1828,7 @@ components:
         imageId:
           type: string
           format: uuid
-          description: UUID de la imagen de reemplazo previamente cargada y validada, obtenido de data.id en POST /api/v1/media/images. Omitirlo conserva la imagen vigente; no admite null, archivos ni URLs.
+          description: UUID de la imagen de reemplazo previamente cargada y validada, obtenido de data.id en POST /api/v1/menu/media/images. Omitirlo conserva la imagen vigente; no admite null, archivos ni URLs.
           example: 55e62412-9249-4db6-8ccb-31f19ea2f501
     CatalogEntryListResponse:
       type: object
@@ -1986,7 +1973,7 @@ components:
                   displayName: Hamburguesa hawaiana
     CatalogOfferCreateRequest:
       type: object
-      description: Datos JSON para crear una oferta y definir su composición inicial. La imagen se carga previamente mediante POST /api/v1/media/images y esta solicitud asocia su identificador; la carga y la asociación son operaciones separadas. No se envían archivos ni URLs en esta solicitud. Los UUID de los slots y las opciones los genera el servidor; no deben incluirse en este cuerpo. El servidor asigna INACTIVE al crear la oferta y status ACTIVE a cada opción nueva; status de las opciones no se envía en esta solicitud. La activación manual de la oferta se realiza después mediante una actualización.
+      description: Datos JSON para crear una oferta y definir su composición inicial. La imagen se carga previamente mediante POST /api/v1/menu/media/images y esta solicitud asocia su identificador; la carga y la asociación son operaciones separadas. No se envían archivos ni URLs en esta solicitud. Los UUID de los slots y las opciones los genera el servidor; no deben incluirse en este cuerpo. El servidor asigna INACTIVE al crear la oferta y status ACTIVE a cada opción nueva; status de las opciones no se envía en esta solicitud. La activación manual de la oferta se realiza después mediante una actualización.
       additionalProperties: false
       required:
         - presentationTag
@@ -2005,7 +1992,7 @@ components:
         imageId:
           type: string
           format: uuid
-          description: UUID obligatorio de la imagen previamente cargada y validada, obtenido de data.id en POST /api/v1/media/images. Debe identificar una imagen existente y accesible al solicitante; no admite null, archivos ni URLs.
+          description: UUID obligatorio de la imagen previamente cargada y validada, obtenido de data.id en POST /api/v1/menu/media/images. Debe identificar una imagen existente y accesible al solicitante; no admite null, archivos ni URLs.
           example: 6b78d901-2c3a-4f5b-8d6e-7a9b0c1d2e3f
         composition:
           $ref: '#/components/schemas/CompositionInput'
@@ -2024,7 +2011,7 @@ components:
                   displayName: Hamburguesa hawaiana
     CatalogOfferPatchRequest:
       type: object
-      description: 'Campos de una oferta que se desean actualizar mediante JSON. La imagen de reemplazo se carga previamente mediante POST /api/v1/media/images; esta solicitud actualiza su asociación con imageId. La carga y la asociación son operaciones separadas. No se envían archivos ni URLs en esta solicitud. presentationTag es obligatorio en toda solicitud; si no se desea cambiar, se reenvía su valor vigente. Los demás campos omitidos se conservan recursivamente; composition vacío conserva sus slots. Enviar slots u options reemplaza su conjunto completo; los elementos existentes incluidos pueden omitir campos para conservarlos y las opciones omitidas de un slot existente se conservan. Las listas vacías devuelven 422. Los identificadores existentes deben pertenecer a la oferta y al slot correspondiente: desconocidos, ajenos o duplicados se rechazan con 422; no se mueven elementos ni se crean con ID proporcionado. Los nuevos elementos omiten su ID y el servidor lo genera. Se valida el resultado completo y las invariantes antes de persistir; cualquier error rechaza toda la operación. Se recalculan los estados de slots y oferta según las opciones y su habilitación administrativa. If-Match protege la actualización de modificaciones concurrentes.'
+      description: 'Campos de una oferta que se desean actualizar mediante JSON. La imagen de reemplazo se carga previamente mediante POST /api/v1/menu/media/images; esta solicitud actualiza su asociación con imageId. La carga y la asociación son operaciones separadas. No se envían archivos ni URLs en esta solicitud. presentationTag es obligatorio en toda solicitud; si no se desea cambiar, se reenvía su valor vigente. Los demás campos omitidos se conservan recursivamente; composition vacío conserva sus slots. Enviar slots u options reemplaza su conjunto completo; los elementos existentes incluidos pueden omitir campos para conservarlos y las opciones omitidas de un slot existente se conservan. Las listas vacías devuelven 422. Los identificadores existentes deben pertenecer a la oferta y al slot correspondiente: desconocidos, ajenos o duplicados se rechazan con 422; no se mueven elementos ni se crean con ID proporcionado. Los nuevos elementos omiten su ID y el servidor lo genera. Se valida el resultado completo y las invariantes antes de persistir; cualquier error rechaza toda la operación. Se recalculan los estados de slots y oferta según las opciones y su habilitación administrativa. If-Match protege la actualización de modificaciones concurrentes.'
       additionalProperties: false
       required:
         - presentationTag
@@ -2043,7 +2030,7 @@ components:
         imageId:
           type: string
           format: uuid
-          description: UUID opcional de la imagen de reemplazo previamente cargada y validada, obtenido de data.id en POST /api/v1/media/images. Debe identificar una imagen existente y accesible al solicitante. Omitirlo conserva la imagen vigente; no admite null, archivos ni URLs.
+          description: UUID opcional de la imagen de reemplazo previamente cargada y validada, obtenido de data.id en POST /api/v1/menu/media/images. Debe identificar una imagen existente y accesible al solicitante. Omitirlo conserva la imagen vigente; no admite null, archivos ni URLs.
           example: 6b78d901-2c3a-4f5b-8d6e-7a9b0c1d2e3f
         composition:
           $ref: '#/components/schemas/CompositionPatchInput'
@@ -2481,32 +2468,6 @@ components:
       properties:
         data:
           $ref: '#/components/schemas/Image'
-    InventoryItemListResponse:
-      type: object
-      description: Página de insumos de inventario que coincide con la consulta.
-      required:
-        - data
-        - meta
-      properties:
-        data:
-          type: array
-          items:
-            $ref: '#/components/schemas/InventoryItem'
-        meta:
-          $ref: '#/components/schemas/PageMeta'
-    InventoryItemResponse:
-      type: object
-      description: Respuesta con el artículo de inventario consultado.
-      required:
-        - data
-      properties:
-        data:
-          $ref: '#/components/schemas/InventoryItem'
-      example:
-        data:
-          id: CARNE-150G
-          name: Carne Molida Res 80/20
-          unit: g
     ValidationViolation:
       type: object
       description: Incumplimiento de validación asociado a un campo del cuerpo de la solicitud.
@@ -2919,7 +2880,7 @@ components:
       name: Idempotency-Key
       in: header
       required: true
-      description: UUID generado por el cliente para una operación lógica; se envía sin comillas. Es obligatorio en POST /menu/categories, POST /menu/entries, POST /menu/entries/{entryId}/offers, POST /menu/recipes, POST /media/images y PATCH /menu/offers/{offerId}. Su ausencia o un formato inválido devuelve 400. Los reintentos deben conservar la clave y los datos originales. Para JSON, la comparación ignora espacios y el orden de las propiedades de objetos; conserva el orden de los arrays y distingue un campo omitido de null. En PATCH de ofertas también se compara el If-Match original; el cliente conserva ambos encabezados y el cuerpo, y una respuesta exitosa vigente se recupera antes de reevaluar el ETag. En la carga multipart de imágenes se comparan los bytes exactos del archivo y el tipo de medio declarado de la parte file; se ignoran el boundary, el orden de las partes y el nombre de archivo. La clave se delimita por el sujeto autenticado, el menú provisionado, el método HTTP y la ruta concreta, incluidos entryId u offerId cuando apliquen. El resultado exitoso se conserva durante 24 horas desde la confirmación inicial; los reintentos no extienden ese plazo. Una clave expirada se trata como nueva y puede crear otro recurso o volver a aplicar una actualización; no debe reutilizarse.
+      description: UUID generado por el cliente para una operación lógica; se envía sin comillas. Es obligatorio en POST /menu/categories, POST /menu/entries, POST /menu/entries/{entryId}/offers, POST /menu/recipes, POST /menu/media/images y PATCH /menu/offers/{offerId}. Su ausencia o un formato inválido devuelve 400. Los reintentos deben conservar la clave y los datos originales. Para JSON, la comparación ignora espacios y el orden de las propiedades de objetos; conserva el orden de los arrays y distingue un campo omitido de null. En PATCH de ofertas también se compara el If-Match original; el cliente conserva ambos encabezados y el cuerpo, y una respuesta exitosa vigente se recupera antes de reevaluar el ETag. En la carga multipart de imágenes se comparan los bytes exactos del archivo y el tipo de medio declarado de la parte file; se ignoran el boundary, el orden de las partes y el nombre de archivo. La clave se delimita por el sujeto autenticado, el menú provisionado, el método HTTP y la ruta concreta, incluidos entryId u offerId cuando apliquen. El resultado exitoso se conserva durante 24 horas desde la confirmación inicial; los reintentos no extienden ese plazo. Una clave expirada se trata como nueva y puede crear otro recurso o volver a aplicar una actualización; no debe reutilizarse.
       schema:
         type: string
         format: uuid

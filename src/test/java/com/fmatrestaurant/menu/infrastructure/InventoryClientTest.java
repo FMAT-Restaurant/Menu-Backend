@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.web.client.RestClientException;
 
 import com.fmatrestaurant.menu.InventoryStub;
-import com.fmatrestaurant.menu.domain.InventoryItem;
+import com.fmatrestaurant.menu.domain.model.InventoryItem;
 
 /** Exercises real HTTP, optionally against the local Postman simulation. */
 class InventoryClientTest {
@@ -48,9 +48,9 @@ class InventoryClientTest {
 		stub.add(new InventoryItem("000042", "Target", "unit"));
 		InventoryClient client = new InventoryClient(stub.baseUrl(), "", Duration.ofSeconds(3));
 		assertEquals("000042", client.find("000042").orElseThrow().id());
-		assertEquals(List.of("GET /api/v1/inventory/items/000042"), stub.requests());
+		assertEquals(List.of("GET /items/000042"), stub.requests());
 		assertTrue(client.find("42").isEmpty());
-		assertEquals(List.of("GET /api/v1/inventory/items/000042", "GET /api/v1/inventory/items/42"), stub.requests());
+		assertEquals(List.of("GET /items/000042", "GET /items/42"), stub.requests());
 	}
 
 	@Test
@@ -62,7 +62,21 @@ class InventoryClientTest {
 		stub.fail(404, "{\"error\": {\"message\": \"No se encontró el recurso solicitado.\"}}");
 
 		assertTrue(client.find("target").isEmpty());
-		assertEquals(List.of("GET /api/v1/inventory/items/target"), stub.requests());
+		assertEquals(List.of("GET /items/target"), stub.requests());
+		stub.reset();
+	}
+
+	/** The real Inventory returns much more than Menu needs (sku, stock, cost, timestamps...); it is ignored. */
+	@Test
+	void ignoresTheFieldsOfTheArticleThatMenuDoesNotUse() {
+		InventoryStub stub = InventoryStub.INSTANCE;
+		stub.reset();
+		InventoryClient client = new InventoryClient(stub.baseUrl(), "", Duration.ofSeconds(3));
+		stub.fail(200, "{\"id\": \"target\", \"name\": \"Target\", \"unit\": \"g\", \"sku\": \"T-1\", "
+				+ "\"stock\": {\"current\": 12.5, \"min\": 2}, \"cost\": 3.2, \"active\": true, "
+				+ "\"createdAt\": \"2026-01-01T00:00:00Z\"}");
+
+		assertEquals(new InventoryItem("target", "Target", "g"), client.find("target").orElseThrow());
 		stub.reset();
 	}
 
@@ -93,9 +107,11 @@ class InventoryClientTest {
 		}
 		stub.fail(204, "");
 		assertThrows(RestClientException.class, () -> client.find("target"));
-		for (String body : List.of("", "not json", "{\"data\": []}", "{}", "{\"data\": null}",
-				"{\"data\": {\"id\": \"target\"}}",
-				"{\"data\": {\"id\": \"other\", \"name\": \"Other\", \"unit\": \"g\"}}")) {
+		for (String body : List.of("", "not json", "{\"data\": []}", "{}", "[]", "{\"id\": \"target\"}",
+				"{\"id\": \"target\", \"name\": \" \", \"unit\": \"g\"}",
+				"{\"id\": \"other\", \"name\": \"Other\", \"unit\": \"g\"}",
+				// The old envelope is no longer the contract.
+				"{\"data\": {\"id\": \"target\", \"name\": \"Target\", \"unit\": \"g\"}}")) {
 			stub.fail(200, body);
 			assertThrows(RestClientException.class, () -> client.find("target"));
 		}

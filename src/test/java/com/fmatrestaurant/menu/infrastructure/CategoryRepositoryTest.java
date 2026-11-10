@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import java.util.List;
 import java.util.UUID;
 
+import com.fmatrestaurant.menu.infrastructure.repository.CategoryRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -14,9 +15,9 @@ import org.springframework.context.annotation.Import;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.fmatrestaurant.menu.TestcontainersConfiguration;
-import com.fmatrestaurant.menu.application.CategoryNotFoundException;
-import com.fmatrestaurant.menu.application.CategoryService;
-import com.fmatrestaurant.menu.domain.Category;
+import com.fmatrestaurant.menu.application.exception.CategoryNotFoundException;
+import com.fmatrestaurant.menu.application.service.CategoryService;
+import com.fmatrestaurant.menu.domain.model.Category;
 
 /**
  * Integration test against PostgreSQL (Testcontainers). Requires Docker.

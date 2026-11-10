@@ -13,18 +13,20 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
-import com.fmatrestaurant.menu.domain.InventoryItem;
+import com.fmatrestaurant.menu.domain.model.InventoryItem;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * Synchronous client of the Inventory service ({@code GET /inventory/items/{id}}). Menu only reads
+ * Synchronous client of the Inventory service ({@code GET {base-url}/items/{id}}). Menu only reads
  * articles; it never creates, changes or deletes them.
  *
- * <p>This is the service-to-service route. The published Menu OpenAPI spells it {@code /inventory/item/{id}}
- * by mistake, so the path must not be changed to match it.
+ * <p>This is the service-to-service route, not the one the frontend uses to search articles. Inventory answers
+ * with the article as a flat {@code {id, name, unit}} object, not wrapped in a {@code data} envelope.
  *
  * <p>Only a {@code 404} that carries the error envelope of the Inventory contract confirms that an article
  * does not exist. Every other failure (timeout, connection, a non-2xx answer such as 401, 403, 429 or 5xx,
@@ -65,8 +67,9 @@ public class InventoryClient {
 		ResponseEntity<InventoryResponse> response;
 		try {
 			response = restClient.get()
-					.uri("/inventory/items/{id}", id)
-					.retrieve().toEntity(InventoryResponse.class);
+					.uri("/items/{id}", id)
+					.retrieve()
+					.toEntity(InventoryResponse.class);
 		}
 		catch (HttpClientErrorException.NotFound e) {
 			if (hasErrorEnvelope(e.getResponseBodyAsByteArray())) {
@@ -75,17 +78,21 @@ public class InventoryClient {
 			throw e;
 		}
 		InventoryResponse result = response.getBody();
-		if (result == null || result.data() == null) {
-			throw new RestClientException("Inventory response must contain data");
+		if (result == null) {
+			throw new RestClientException("Inventory response must contain the article");
 		}
-		InventoryItem item = result.data();
-		if (!id.equals(item.id()) || blank(item.name()) || blank(item.unit())) {
+		if (!id.equals(result.id()) || blank(result.name()) || blank(result.unit())) {
 			throw new RestClientException("Inventory item must contain the requested id, name and unit");
 		}
-		return Optional.of(item);
+		return Optional.of(new InventoryItem(result.id(), result.name(), result.unit()));
 	}
 
-	public record InventoryResponse(InventoryItem data) {
+	/**
+	 * The article as Inventory returns it: a flat object, not wrapped in an envelope. Only the fields Menu
+	 * needs are read; every other one (sku, stock, cost, timestamps...) is ignored.
+	 */
+	@JsonIgnoreProperties(ignoreUnknown = true)
+	record InventoryResponse(String id, String name, String unit) {
 	}
 
 	/** Whether the body is the error envelope of the contract: {@code {"error": {"message": "..."}}}. */

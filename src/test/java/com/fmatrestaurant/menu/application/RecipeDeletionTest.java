@@ -15,15 +15,19 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import com.fmatrestaurant.menu.application.exception.RecipeInUseException;
+import com.fmatrestaurant.menu.application.exception.RecipeNotFoundException;
+import com.fmatrestaurant.menu.application.exception.StaleRecipeException;
+import com.fmatrestaurant.menu.application.service.RecipeService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import com.fmatrestaurant.menu.domain.Recipe;
-import com.fmatrestaurant.menu.infrastructure.CatalogOfferRepository;
+import com.fmatrestaurant.menu.domain.model.Recipe;
+import com.fmatrestaurant.menu.infrastructure.repository.CatalogOfferRepository;
 import com.fmatrestaurant.menu.infrastructure.InventoryClient;
-import com.fmatrestaurant.menu.infrastructure.RecipeRepository;
-import com.fmatrestaurant.menu.infrastructure.RecipeRevisionRepository;
+import com.fmatrestaurant.menu.infrastructure.repository.RecipeRepository;
+import com.fmatrestaurant.menu.infrastructure.repository.RecipeRevisionRepository;
 
 class RecipeDeletionTest {
 
@@ -39,6 +43,8 @@ class RecipeDeletionTest {
 
 	private InventoryClient inventoryClient;
 
+	private EventPublisher publisher;
+
 	private RecipeService service;
 
 	@BeforeEach
@@ -47,7 +53,8 @@ class RecipeDeletionTest {
 		revisionRepository = mock(RecipeRevisionRepository.class);
 		offerRepository = mock(CatalogOfferRepository.class);
 		inventoryClient = mock(InventoryClient.class);
-		service = new RecipeService(recipeRepository, revisionRepository, inventoryClient, offerRepository);
+		publisher = mock(EventPublisher.class);
+		service = new RecipeService(recipeRepository, revisionRepository, inventoryClient, offerRepository, publisher);
 	}
 
 	@Test

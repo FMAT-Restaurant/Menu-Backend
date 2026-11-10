@@ -8,6 +8,14 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
+import com.fmatrestaurant.menu.domain.exception.InvalidFieldException;
+import com.fmatrestaurant.menu.domain.model.CatalogEntry;
+import com.fmatrestaurant.menu.domain.model.CatalogOffer;
+import com.fmatrestaurant.menu.domain.model.CompositionSlot;
+import com.fmatrestaurant.menu.domain.model.InventoryItem;
+import com.fmatrestaurant.menu.domain.model.OfferStatus;
+import com.fmatrestaurant.menu.domain.model.SlotOption;
+import com.fmatrestaurant.menu.domain.model.SourceType;
 import org.junit.jupiter.api.Test;
 
 class CatalogOfferTest {

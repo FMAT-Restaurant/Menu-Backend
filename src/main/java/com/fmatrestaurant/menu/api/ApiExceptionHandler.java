@@ -7,12 +7,14 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-import com.fmatrestaurant.menu.application.InventoryItemNotFoundException;
+import com.fmatrestaurant.menu.application.exception.InventoryItemNotFoundException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MissingRequestHeaderException;
+import org.springframework.web.accept.InvalidApiVersionException;
+import org.springframework.web.accept.MissingApiVersionException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -24,19 +26,19 @@ import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fmatrestaurant.menu.application.CatalogEntryNotFoundException;
-import com.fmatrestaurant.menu.application.CatalogOfferNotFoundException;
-import com.fmatrestaurant.menu.application.CategoryNotFoundException;
-import com.fmatrestaurant.menu.application.DeletionNotAllowedException;
-import com.fmatrestaurant.menu.application.ImageNotFoundException;
-import com.fmatrestaurant.menu.application.RecipeInUseException;
-import com.fmatrestaurant.menu.application.RecipeNotFoundException;
-import com.fmatrestaurant.menu.application.StaleCatalogEntryException;
-import com.fmatrestaurant.menu.application.StaleCatalogOfferException;
-import com.fmatrestaurant.menu.application.StaleRecipeException;
-import com.fmatrestaurant.menu.domain.Image;
-import com.fmatrestaurant.menu.domain.InvalidCategoryException;
-import com.fmatrestaurant.menu.domain.InvalidFieldException;
+import com.fmatrestaurant.menu.application.exception.CatalogEntryNotFoundException;
+import com.fmatrestaurant.menu.application.exception.CatalogOfferNotFoundException;
+import com.fmatrestaurant.menu.application.exception.CategoryNotFoundException;
+import com.fmatrestaurant.menu.application.exception.DeletionNotAllowedException;
+import com.fmatrestaurant.menu.application.exception.ImageNotFoundException;
+import com.fmatrestaurant.menu.application.exception.RecipeInUseException;
+import com.fmatrestaurant.menu.application.exception.RecipeNotFoundException;
+import com.fmatrestaurant.menu.application.exception.StaleCatalogEntryException;
+import com.fmatrestaurant.menu.application.exception.StaleCatalogOfferException;
+import com.fmatrestaurant.menu.application.exception.StaleRecipeException;
+import com.fmatrestaurant.menu.domain.model.Image;
+import com.fmatrestaurant.menu.domain.exception.InvalidCategoryException;
+import com.fmatrestaurant.menu.domain.exception.InvalidFieldException;
 
 import tools.jackson.databind.exc.InvalidNullException;
 import tools.jackson.databind.exc.MismatchedInputException;
@@ -59,6 +61,12 @@ public class ApiExceptionHandler {
 	@ExceptionHandler({ NoHandlerFoundException.class, NoResourceFoundException.class })
 	ResponseEntity<ErrorEnvelope> routeNotFound() {
 		return error(HttpStatus.NOT_FOUND, NOT_FOUND);
+	}
+
+	/** A version nobody serves ({@code /api/v2/...}) or none at all ({@code /api/menu/...}). */
+	@ExceptionHandler({ InvalidApiVersionException.class, MissingApiVersionException.class })
+	ResponseEntity<ErrorEnvelope> unsupportedVersion() {
+		return error(HttpStatus.BAD_REQUEST, "Unsupported or missing API version; use " + ApiVersioning.BASE + ".");
 	}
 
 	@ExceptionHandler(InvalidFieldException.class)
