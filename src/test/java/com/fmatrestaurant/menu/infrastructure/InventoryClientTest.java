@@ -50,7 +50,8 @@ class InventoryClientTest {
 		assertEquals("000042", client.find("000042").orElseThrow().id());
 		assertEquals(List.of("GET /items/000042"), stub.requests());
 		assertTrue(client.find("42").isEmpty());
-		assertEquals(List.of("GET /items/000042", "GET /items/42"), stub.requests());
+		// A 404 is confirmed against the item collection before reporting the article as missing.
+		assertEquals(List.of("GET /items/000042", "GET /items/42", "GET /items?q=42"), stub.requests());
 	}
 
 	@Test
@@ -62,7 +63,27 @@ class InventoryClientTest {
 		stub.fail(404, "{\"error\": {\"message\": \"No se encontró el recurso solicitado.\"}}");
 
 		assertTrue(client.find("target").isEmpty());
-		assertEquals(List.of("GET /items/target"), stub.requests());
+		assertEquals(List.of("GET /items/target", "GET /items?q=target"), stub.requests());
+		stub.reset();
+	}
+
+	/**
+	 * A base URL that does not point to Inventory (for example {@code http://localhost:8080/api/v1/menu}) can
+	 * answer every route with a 404 and the same error envelope; that is a misconfiguration, not a missing article.
+	 */
+	@Test
+	void aNotFoundIsNotConfirmedWhenTheItemCollectionIsNotReachableEither() {
+		InventoryStub stub = InventoryStub.INSTANCE;
+		stub.reset();
+		InventoryClient client = new InventoryClient(stub.baseUrl(), "", Duration.ofSeconds(3));
+		String envelope = "{\"error\": {\"message\": \"The requested resource was not found.\"}}";
+
+		stub.fail(404, envelope);
+		for (int status : List.of(404, 500, 503)) {
+			stub.failCollection(status, envelope);
+			RestClientException e = assertThrows(RestClientException.class, () -> client.find("target"));
+			assertTrue(e.getMessage().contains("INVENTORY_BASE_URL"), e.getMessage());
+		}
 		stub.reset();
 	}
 

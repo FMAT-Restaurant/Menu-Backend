@@ -8,6 +8,8 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 import com.fmatrestaurant.menu.application.exception.InventoryItemNotFoundException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -48,6 +50,8 @@ import tools.jackson.databind.exc.MismatchedInputException;
  */
 @RestControllerAdvice
 public class ApiExceptionHandler {
+
+	private static final Logger LOG = LoggerFactory.getLogger(ApiExceptionHandler.class);
 
 	private static final String NOT_FOUND = "The requested resource was not found.";
 
@@ -147,7 +151,9 @@ public class ApiExceptionHandler {
 	 * so nothing was saved; the contract does not document this answer yet.
 	 */
 	@ExceptionHandler(RestClientException.class)
-	ResponseEntity<ErrorEnvelope> inventoryUnavailable() {
+	ResponseEntity<ErrorEnvelope> inventoryUnavailable(RestClientException e) {
+		// The client does not see the cause, so it is logged: it is the only trace of a misconfigured base URL.
+		LOG.warn("Inventory could not confirm the articles: {}", e.getMessage());
 		return error(HttpStatus.BAD_GATEWAY, "The Inventory service could not confirm the articles; try again later.");
 	}
 
