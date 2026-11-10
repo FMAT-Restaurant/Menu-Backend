@@ -27,9 +27,9 @@ import org.springframework.web.util.ContentCachingResponseWrapper;
 
 import com.fmatrestaurant.menu.api.ApiExceptionHandler.ErrorBody;
 import com.fmatrestaurant.menu.api.ApiExceptionHandler.ErrorEnvelope;
-import com.fmatrestaurant.menu.application.CategoryService;
-import com.fmatrestaurant.menu.infrastructure.IdempotencyRecord;
-import com.fmatrestaurant.menu.infrastructure.IdempotencyRecordRepository;
+import com.fmatrestaurant.menu.application.service.CategoryService;
+import com.fmatrestaurant.menu.infrastructure.entity.IdempotencyRecord;
+import com.fmatrestaurant.menu.infrastructure.repository.IdempotencyRecordRepository;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ReadListener;
@@ -64,13 +64,15 @@ public class IdempotencyFilter extends OncePerRequestFilter {
 
 	private static final Pattern KEY = Pattern.compile("[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}");
 
+	private static final String BASE = Pattern.quote(ApiVersioning.BASE);
+
 	private static final List<Route> ROUTES = List.of(
-			new Route("POST", "/api/v1/menu/categories"),
-			new Route("POST", "/api/v1/menu/entries"),
-			new Route("POST", "/api/v1/menu/entries/[^/]+/offers"),
-			new Route("POST", "/api/v1/menu/recipes"),
-			new Route("POST", "/api/v1/media/images"),
-			new Route("PATCH", "/api/v1/menu/offers/[^/]+"));
+			new Route("POST", BASE + "/menu/categories"),
+			new Route("POST", BASE + "/menu/entries"),
+			new Route("POST", BASE + "/menu/entries/[^/]+/offers"),
+			new Route("POST", BASE + "/menu/recipes"),
+			new Route("POST", BASE + "/menu/media/images"),
+			new Route("PATCH", BASE + "/menu/offers/[^/]+"));
 
 	/** Property order and whitespace do not matter; array order, null and omitted properties do. */
 	private static final JsonMapper CANONICAL = JsonMapper.builder()

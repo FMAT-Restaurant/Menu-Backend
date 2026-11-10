@@ -46,18 +46,18 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 
 import com.fmatrestaurant.menu.InventoryStub;
 import com.fmatrestaurant.menu.TestcontainersConfiguration;
-import com.fmatrestaurant.menu.domain.CatalogEntry;
-import com.fmatrestaurant.menu.domain.Category;
-import com.fmatrestaurant.menu.domain.Image;
-import com.fmatrestaurant.menu.domain.InventoryItem;
-import com.fmatrestaurant.menu.infrastructure.CatalogEntryRepository;
-import com.fmatrestaurant.menu.infrastructure.CatalogOfferRepository;
-import com.fmatrestaurant.menu.infrastructure.CategoryRepository;
+import com.fmatrestaurant.menu.domain.model.CatalogEntry;
+import com.fmatrestaurant.menu.domain.model.Category;
+import com.fmatrestaurant.menu.domain.model.Image;
+import com.fmatrestaurant.menu.domain.model.InventoryItem;
+import com.fmatrestaurant.menu.infrastructure.repository.CatalogEntryRepository;
+import com.fmatrestaurant.menu.infrastructure.repository.CatalogOfferRepository;
+import com.fmatrestaurant.menu.infrastructure.repository.CategoryRepository;
 import com.fmatrestaurant.menu.infrastructure.IdempotencyRecordPurge;
-import com.fmatrestaurant.menu.infrastructure.IdempotencyRecordRepository;
-import com.fmatrestaurant.menu.infrastructure.ImageRepository;
-import com.fmatrestaurant.menu.infrastructure.RecipeRepository;
-import com.fmatrestaurant.menu.infrastructure.RecipeRevisionRepository;
+import com.fmatrestaurant.menu.infrastructure.repository.IdempotencyRecordRepository;
+import com.fmatrestaurant.menu.infrastructure.repository.ImageRepository;
+import com.fmatrestaurant.menu.infrastructure.repository.RecipeRepository;
+import com.fmatrestaurant.menu.infrastructure.repository.RecipeRevisionRepository;
 import com.jayway.jsonpath.JsonPath;
 
 /**
@@ -134,7 +134,7 @@ class IdempotencyApiIntegrationTest {
 		UUID id = UUID.randomUUID();
 		return Stream.of(Arguments.of(HttpMethod.POST, CATEGORIES), Arguments.of(HttpMethod.POST, "/api/v1/menu/entries"),
 				Arguments.of(HttpMethod.POST, "/api/v1/menu/entries/" + id + "/offers"),
-				Arguments.of(HttpMethod.POST, "/api/v1/menu/recipes"), Arguments.of(HttpMethod.POST, "/api/v1/media/images"),
+				Arguments.of(HttpMethod.POST, "/api/v1/menu/recipes"), Arguments.of(HttpMethod.POST, "/api/v1/menu/media/images"),
 				Arguments.of(HttpMethod.PATCH, "/api/v1/menu/offers/" + id));
 	}
 
@@ -371,7 +371,7 @@ class IdempotencyApiIntegrationTest {
 
 	private ResultActions upload(String key, String filename, String type, byte[] content) throws Exception {
 		MockPart file = new MockPart("file", filename, content, MediaType.parseMediaType(type));
-		return mockMvc.perform(multipart("/api/v1/media/images").part(file).header(KEY, key));
+		return mockMvc.perform(multipart("/api/v1/menu/media/images").part(file).header(KEY, key));
 	}
 
 	private UUID entry() {

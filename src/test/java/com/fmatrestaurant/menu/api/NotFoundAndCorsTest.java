@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.util.UUID;
 import java.util.stream.Stream;
 
+import com.fmatrestaurant.menu.api.controller.CategoryController;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -20,13 +21,13 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import com.fmatrestaurant.menu.application.CatalogEntryNotFoundException;
-import com.fmatrestaurant.menu.application.CatalogOfferNotFoundException;
-import com.fmatrestaurant.menu.application.CategoryNotFoundException;
-import com.fmatrestaurant.menu.application.CategoryService;
-import com.fmatrestaurant.menu.application.ImageNotFoundException;
-import com.fmatrestaurant.menu.application.RecipeNotFoundException;
-import com.fmatrestaurant.menu.domain.Category;
+import com.fmatrestaurant.menu.application.exception.CatalogEntryNotFoundException;
+import com.fmatrestaurant.menu.application.exception.CatalogOfferNotFoundException;
+import com.fmatrestaurant.menu.application.exception.CategoryNotFoundException;
+import com.fmatrestaurant.menu.application.service.CategoryService;
+import com.fmatrestaurant.menu.application.exception.ImageNotFoundException;
+import com.fmatrestaurant.menu.application.exception.RecipeNotFoundException;
+import com.fmatrestaurant.menu.domain.model.Category;
 
 @WebMvcTest(controllers = CategoryController.class, properties = {
 		"menu.cors.allowed-origins=https://menu.example.com, https://admin.example.com" })

@@ -15,23 +15,27 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import com.fmatrestaurant.menu.application.exception.CatalogEntryNotFoundException;
+import com.fmatrestaurant.menu.application.exception.DeletionNotAllowedException;
+import com.fmatrestaurant.menu.application.exception.StaleCatalogEntryException;
+import com.fmatrestaurant.menu.application.service.CatalogEntryService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import com.fmatrestaurant.menu.domain.CatalogEntry;
-import com.fmatrestaurant.menu.domain.CatalogOffer;
-import com.fmatrestaurant.menu.domain.CompositionSlot;
-import com.fmatrestaurant.menu.domain.EntryStatus;
-import com.fmatrestaurant.menu.domain.InventoryItem;
-import com.fmatrestaurant.menu.domain.OfferStatus;
-import com.fmatrestaurant.menu.domain.SlotOption;
-import com.fmatrestaurant.menu.infrastructure.CatalogEntryRepository;
-import com.fmatrestaurant.menu.infrastructure.CatalogOfferRepository;
-import com.fmatrestaurant.menu.infrastructure.CategoryRepository;
-import com.fmatrestaurant.menu.infrastructure.ImageRepository;
+import com.fmatrestaurant.menu.domain.model.CatalogEntry;
+import com.fmatrestaurant.menu.domain.model.CatalogOffer;
+import com.fmatrestaurant.menu.domain.model.CompositionSlot;
+import com.fmatrestaurant.menu.domain.model.EntryStatus;
+import com.fmatrestaurant.menu.domain.model.InventoryItem;
+import com.fmatrestaurant.menu.domain.model.OfferStatus;
+import com.fmatrestaurant.menu.domain.model.SlotOption;
+import com.fmatrestaurant.menu.infrastructure.repository.CatalogEntryRepository;
+import com.fmatrestaurant.menu.infrastructure.repository.CatalogOfferRepository;
+import com.fmatrestaurant.menu.infrastructure.repository.CategoryRepository;
+import com.fmatrestaurant.menu.infrastructure.repository.ImageRepository;
 
 class CatalogEntryDeletionTest {
 
@@ -50,7 +54,7 @@ class CatalogEntryDeletionTest {
 		entryRepository = mock(CatalogEntryRepository.class);
 		offerRepository = mock(CatalogOfferRepository.class);
 		service = new CatalogEntryService(entryRepository, mock(CategoryRepository.class),
-				mock(ImageRepository.class), offerRepository);
+				mock(ImageRepository.class), offerRepository, mock(EventPublisher.class));
 	}
 
 	@Test

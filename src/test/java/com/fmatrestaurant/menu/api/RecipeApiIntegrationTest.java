@@ -27,10 +27,10 @@ import org.springframework.test.web.servlet.ResultActions;
 
 import com.fmatrestaurant.menu.InventoryStub;
 import com.fmatrestaurant.menu.TestcontainersConfiguration;
-import com.fmatrestaurant.menu.domain.InventoryItem;
-import com.fmatrestaurant.menu.domain.RecipeRevision;
-import com.fmatrestaurant.menu.infrastructure.RecipeRepository;
-import com.fmatrestaurant.menu.infrastructure.RecipeRevisionRepository;
+import com.fmatrestaurant.menu.domain.model.InventoryItem;
+import com.fmatrestaurant.menu.domain.model.RecipeRevision;
+import com.fmatrestaurant.menu.infrastructure.repository.RecipeRepository;
+import com.fmatrestaurant.menu.infrastructure.repository.RecipeRevisionRepository;
 import com.jayway.jsonpath.JsonPath;
 
 /**

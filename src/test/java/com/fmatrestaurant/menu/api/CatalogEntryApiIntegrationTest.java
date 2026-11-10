@@ -40,13 +40,13 @@ import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.fmatrestaurant.menu.TestcontainersConfiguration;
-import com.fmatrestaurant.menu.application.CatalogEntryService;
-import com.fmatrestaurant.menu.domain.Category;
-import com.fmatrestaurant.menu.domain.Image;
-import com.fmatrestaurant.menu.infrastructure.CatalogEntryRepository;
-import com.fmatrestaurant.menu.infrastructure.CatalogOfferRepository;
-import com.fmatrestaurant.menu.infrastructure.CategoryRepository;
-import com.fmatrestaurant.menu.infrastructure.ImageRepository;
+import com.fmatrestaurant.menu.application.service.CatalogEntryService;
+import com.fmatrestaurant.menu.domain.model.Category;
+import com.fmatrestaurant.menu.domain.model.Image;
+import com.fmatrestaurant.menu.infrastructure.repository.CatalogEntryRepository;
+import com.fmatrestaurant.menu.infrastructure.repository.CatalogOfferRepository;
+import com.fmatrestaurant.menu.infrastructure.repository.CategoryRepository;
+import com.fmatrestaurant.menu.infrastructure.repository.ImageRepository;
 import com.jayway.jsonpath.JsonPath;
 
 /**
@@ -59,7 +59,7 @@ class CatalogEntryApiIntegrationTest {
 
 	private static final String ENTRIES = "/api/v1/menu/entries";
 
-	private static final String IMAGES = "/api/v1/media/images";
+	private static final String IMAGES = "/api/v1/menu/media/images";
 
 	private static final String VIOLATION_PATH = "$.error.details.violations[0].path";
 

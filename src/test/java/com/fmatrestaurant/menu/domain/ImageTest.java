@@ -12,6 +12,8 @@ import java.util.Base64;
 
 import javax.imageio.ImageIO;
 
+import com.fmatrestaurant.menu.domain.exception.InvalidFieldException;
+import com.fmatrestaurant.menu.domain.model.Image;
 import org.junit.jupiter.api.Test;
 
 class ImageTest {

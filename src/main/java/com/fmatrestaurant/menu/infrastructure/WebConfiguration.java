@@ -1,11 +1,13 @@
 package com.fmatrestaurant.menu.infrastructure;
 
+import com.fmatrestaurant.menu.infrastructure.repository.IdempotencyRecordRepository;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.web.filter.ShallowEtagHeaderFilter;
 
+import com.fmatrestaurant.menu.api.ApiVersioning;
 import com.fmatrestaurant.menu.api.IdempotencyFilter;
 
 @Configuration(proxyBeanMethods = false)
@@ -17,10 +19,10 @@ public class WebConfiguration {
 		FilterRegistrationBean<ShallowEtagHeaderFilter> registration =
 				new FilterRegistrationBean<>(new ShallowEtagHeaderFilter());
 		registration.addUrlPatterns(
-				"/api/v1/menu/categories",
-				"/api/v1/menu/entries",
-				"/api/v1/menu/offers",
-				"/api/v1/menu/recipes"
+				ApiVersioning.BASE + "/menu/categories",
+				ApiVersioning.BASE + "/menu/entries",
+				ApiVersioning.BASE + "/menu/offers",
+				ApiVersioning.BASE + "/menu/recipes"
 		);
 		return registration;
 	}
@@ -28,7 +30,7 @@ public class WebConfiguration {
 	/** Idempotency-Key of the creations and of PATCH of offers; it chooses its routes itself. */
 	@Bean
 	FilterRegistrationBean<IdempotencyFilter> idempotencyFilter(IdempotencyRecordRepository records,
-			PlatformTransactionManager transactionManager) {
+                                                                PlatformTransactionManager transactionManager) {
 		return new FilterRegistrationBean<>(new IdempotencyFilter(records, transactionManager));
 	}
 }

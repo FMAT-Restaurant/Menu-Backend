@@ -43,14 +43,14 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import com.fmatrestaurant.menu.InventoryStub;
 import com.fmatrestaurant.menu.TestcontainersConfiguration;
-import com.fmatrestaurant.menu.application.CatalogOfferService;
-import com.fmatrestaurant.menu.application.CatalogOfferService.OfferInput;
-import com.fmatrestaurant.menu.domain.CatalogEntry;
-import com.fmatrestaurant.menu.domain.Image;
-import com.fmatrestaurant.menu.domain.InventoryItem;
-import com.fmatrestaurant.menu.infrastructure.CatalogEntryRepository;
-import com.fmatrestaurant.menu.infrastructure.CatalogOfferRepository;
-import com.fmatrestaurant.menu.infrastructure.ImageRepository;
+import com.fmatrestaurant.menu.application.service.CatalogOfferService;
+import com.fmatrestaurant.menu.application.service.CatalogOfferService.OfferInput;
+import com.fmatrestaurant.menu.domain.model.CatalogEntry;
+import com.fmatrestaurant.menu.domain.model.Image;
+import com.fmatrestaurant.menu.domain.model.InventoryItem;
+import com.fmatrestaurant.menu.infrastructure.repository.CatalogEntryRepository;
+import com.fmatrestaurant.menu.infrastructure.repository.CatalogOfferRepository;
+import com.fmatrestaurant.menu.infrastructure.repository.ImageRepository;
 import com.jayway.jsonpath.JsonPath;
 
 import jakarta.persistence.EntityManagerFactory;
@@ -151,7 +151,7 @@ class CatalogOfferApiIntegrationTest {
 				.andExpect(jsonPath("$.data.composition.slots[0].options[0].recipeId").doesNotExist())
 				.andExpect(jsonPath("$.data.composition.slots[0].options[0].recipeRevision").doesNotExist())
 				.andReturn().getResponse().getContentAsString();
-		assertEquals(List.of("GET /api/v1/inventory/items/" + POTATOES.id()), INVENTORY.requests());
+		assertEquals(List.of("GET /items/" + POTATOES.id()), INVENTORY.requests());
 		String individual = JsonPath.read(response, "$.data.id");
 		String family = create(offerBody("Family", "320"));
 		UUID otherEntry = entryRepository.save(new CatalogEntry(1L, "Lemonade", "Fresh", imageId, List.of())).getId();
@@ -473,7 +473,7 @@ class CatalogOfferApiIntegrationTest {
 
 		// Even with a large catalog, the repeated article is fetched directly only once.
 		String id = create(offerWith(option(cheddar.id(), "kg"), option(cheddar.id(), "kg")));
-		assertEquals(List.of("GET /api/v1/inventory/items/" + cheddar.id()), INVENTORY.requests());
+		assertEquals(List.of("GET /items/" + cheddar.id()), INVENTORY.requests());
 
 		String json = read(id);
 		String slot = JsonPath.read(json, "$.data.composition.slots[0].slotId");
@@ -497,7 +497,7 @@ class CatalogOfferApiIntegrationTest {
 				  {"optionId": "%s", "sourceType": "INVENTORY_ITEM", "unit": "kg"}]}]}}
 				""".formatted(slot, first))
 				.andExpect(status().isOk());
-		assertEquals(List.of("GET /api/v1/inventory/items/" + cheddar.id()), INVENTORY.requests());
+		assertEquals(List.of("GET /items/" + cheddar.id()), INVENTORY.requests());
 	}
 
 	/** Only Inventory confirming that the article does not exist is a 422; not knowing is a 502. */

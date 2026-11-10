@@ -4,26 +4,22 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
-import java.util.stream.Collectors;
 
 import org.springframework.test.context.DynamicPropertyRegistry;
 
-import com.fmatrestaurant.menu.domain.InventoryItem;
+import com.fmatrestaurant.menu.domain.model.InventoryItem;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
 /**
- * Real HTTP server shaped like the external Inventory contract ({@code GET /api/v1/inventory/items},
- * paged with {@code data} and {@code meta}), so the tests exercise the actual client of the backend.
+ * Real HTTP server shaped like the external Inventory contract ({@code GET /items/{id}}, answered with a flat
+ * {@code {id, name, unit}} object), so the tests exercise the actual client of the backend.
  * It records every request and can be told to fail or to answer slowly. An article that does not exist is
  * answered like Inventory does: {@code 404} with the error envelope.
  */
@@ -54,7 +50,7 @@ public final class InventoryStub {
 		} catch (IOException e) {
 			throw new UncheckedIOException(e);
 		}
-		server.createContext("/api/v1/inventory/items", this::handle);
+		server.createContext("/items", this::handle);
 		// A slow answer must not hold back the requests of the next test.
 		server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
 		server.start();
@@ -68,7 +64,7 @@ public final class InventoryStub {
 	}
 
 	public String baseUrl() {
-		return "http://localhost:" + server.getAddress().getPort() + "/api/v1";
+		return "http://localhost:" + server.getAddress().getPort();
 	}
 
 	/** No articles, no recorded requests and normal answers. */
@@ -122,7 +118,7 @@ public final class InventoryStub {
 			send(exchange, failureStatus, failureBody);
 			return;
 		}
-		String itemPrefix = "/api/v1/inventory/items/";
+		String itemPrefix = "/items/";
 		if ("GET".equals(exchange.getRequestMethod())
 				&& exchange.getRequestURI().getPath().startsWith(itemPrefix)) {
 			String id = exchange.getRequestURI().getPath().substring(itemPrefix.length());
@@ -130,42 +126,12 @@ public final class InventoryStub {
 			if (item == null) {
 				send(exchange, 404, "{\"error\": {\"message\": \"No se encontró el recurso solicitado.\"}}");
 			} else {
-				send(exchange, 200, "{\"data\": {\"id\": \"%s\", \"name\": \"%s\", \"unit\": \"%s\"}}"
+				send(exchange, 200, "{\"id\": \"%s\", \"name\": \"%s\", \"unit\": \"%s\"}"
 						.formatted(item.id(), item.name(), item.unit()));
 			}
 			return;
 		}
-		if (!"GET".equals(exchange.getRequestMethod())
-				|| !"/api/v1/inventory/items".equals(exchange.getRequestURI().getPath())) {
-			send(exchange, 501, "{\"error\": {\"message\": \"Endpoint not modeled\"}}");
-			return;
-		}
-		Map<String, String> params = params(query);
-		String search = params.getOrDefault("q", "").toLowerCase(java.util.Locale.ROOT);
-		List<InventoryItem> matches = items.stream()
-				.filter(item -> item.name().toLowerCase(java.util.Locale.ROOT).contains(search)).toList();
-		int page = Integer.parseInt(params.getOrDefault("page", "1"));
-		int pageSize = Integer.parseInt(params.getOrDefault("pageSize", "12"));
-		int from = (int) Math.min((long) (page - 1) * pageSize, matches.size());
-		int to = (int) Math.min((long) from + pageSize, matches.size());
-		int totalPages = (int) ((matches.size() + (long) pageSize - 1) / pageSize);
-		String data = matches.subList(from, to).stream()
-				.map(item -> "{\"id\": \"%s\", \"name\": \"%s\", \"unit\": \"%s\"}"
-						.formatted(item.id(), item.name(), item.unit()))
-				.collect(Collectors.joining(", "));
-		send(exchange, 200, "{\"data\": [%s], \"meta\": {\"page\": %d, \"pageSize\": %d, \"total\": %d, \"totalPages\": %d}}"
-				.formatted(data, page, pageSize, matches.size(), totalPages));
-	}
-
-	private static Map<String, String> params(String query) {
-		Map<String, String> params = new HashMap<>();
-		if (query != null) {
-			for (String pair : query.split("&")) {
-				String[] parts = pair.split("=", 2);
-				params.put(parts[0], parts.length > 1 ? URLDecoder.decode(parts[1], StandardCharsets.UTF_8) : "");
-			}
-		}
-		return params;
+		send(exchange, 501, "{\"error\": {\"message\": \"Endpoint not modeled\"}}");
 	}
 
 	private static void send(HttpExchange exchange, int status, String body) throws IOException {

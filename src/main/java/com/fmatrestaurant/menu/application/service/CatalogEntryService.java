@@ -1,0 +1,203 @@
+package com.fmatrestaurant.menu.application.service;
+
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+import com.fmatrestaurant.menu.application.EventPublisher;
+import com.fmatrestaurant.menu.application.dto.Pages;
+import com.fmatrestaurant.menu.application.exception.CatalogEntryNotFoundException;
+import com.fmatrestaurant.menu.application.exception.DeletionNotAllowedException;
+import com.fmatrestaurant.menu.application.exception.StaleCatalogEntryException;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.fmatrestaurant.menu.domain.model.CatalogEntry;
+import com.fmatrestaurant.menu.domain.model.Category;
+import com.fmatrestaurant.menu.domain.model.EntryStatus;
+import com.fmatrestaurant.menu.domain.exception.InvalidFieldException;
+import com.fmatrestaurant.menu.infrastructure.repository.CatalogEntryRepository;
+import com.fmatrestaurant.menu.infrastructure.repository.CatalogOfferRepository;
+import com.fmatrestaurant.menu.infrastructure.repository.CategoryRepository;
+import com.fmatrestaurant.menu.infrastructure.repository.ImageRepository;
+
+/**
+ * Catalog entry use cases (REQ-MENU-ENTRY-001, REQ-MENU-ENTRY-002, REQ-MENU-ENTRY-003).
+ *
+ * <p>Each write runs in a transaction, so a rejected request leaves no partial changes.
+ */
+@Service
+public class CatalogEntryService {
+
+	/** Category filter value that selects the entries without categories. */
+	public static final String UNCATEGORIZED = "__uncategorized__";
+
+	private final CatalogEntryRepository entryRepository;
+
+	private final CategoryRepository categoryRepository;
+
+	private final ImageRepository imageRepository;
+
+	private final CatalogOfferRepository offerRepository;
+
+	private final EventPublisher eventPublisher;
+
+	public CatalogEntryService(CatalogEntryRepository entryRepository, CategoryRepository categoryRepository,
+			ImageRepository imageRepository, CatalogOfferRepository offerRepository, EventPublisher eventPublisher) {
+		this.entryRepository = entryRepository;
+		this.categoryRepository = categoryRepository;
+		this.imageRepository = imageRepository;
+		this.offerRepository = offerRepository;
+		this.eventPublisher = eventPublisher;
+	}
+
+	/**
+	 * Creates an entry in the menu. It always starts {@link EntryStatus#INACTIVE}.
+	 *
+	 * @throws InvalidFieldException if a value is missing or invalid, a category does not exist or
+	 *         belongs to another menu, or the image does not exist
+	 */
+	@Transactional
+	public CatalogEntry create(String brandName, String description, List<UUID> categoryIds, UUID imageId) {
+		CatalogEntry entry = new CatalogEntry(CategoryService.DEFAULT_MENU_ID, brandName, description,
+				existingImage(imageId), categoryIds == null ? null : categories(categoryIds));
+		return entryRepository.save(entry);
+	}
+
+	/**
+	 * @throws CatalogEntryNotFoundException if the entry does not exist
+	 */
+	@Transactional(readOnly = true)
+	public CatalogEntry get(UUID id) {
+		return find(id);
+	}
+
+	/**
+	 * Administrative search, regardless of whether the entries can be published.
+	 *
+	 * @param categoryFilter a category id or {@link #UNCATEGORIZED}
+	 * @param status when {@code null}, archived entries are left out
+	 * @param page page number, starting at 1
+	 * @throws InvalidFieldException if the category filter, the page or the page size are not valid
+	 */
+	@Transactional(readOnly = true)
+	public Page<CatalogEntry> list(String q, String categoryFilter, EntryStatus status, int page, int pageSize) {
+		Pages.check(page, pageSize);
+		boolean uncategorized = UNCATEGORIZED.equals(categoryFilter);
+		UUID categoryId = categoryFilter == null || uncategorized ? null : categoryId(categoryFilter);
+		return entryRepository.findAll(
+				CatalogEntryRepository.search(CategoryService.DEFAULT_MENU_ID, q, categoryId, uncategorized, status),
+				PageRequest.of(page - 1, pageSize, Sort.by("brandName", "id")));
+	}
+
+	/**
+	 * Number of offers of each entry; entries without offers are left out.
+	 */
+	@Transactional(readOnly = true)
+	public Map<UUID, Long> offerCounts(Collection<UUID> entryIds) {
+		if (entryIds.isEmpty()) {
+			return Map.of();
+		}
+		return offerRepository.countByEntryIds(entryIds).stream()
+				.collect(Collectors.toMap(row -> (UUID) row[0], row -> (Long) row[1]));
+	}
+
+	/**
+	 * Applies the given changes; {@code null} values keep the current ones and the categories, when
+	 * given, replace the current ones.
+	 *
+	 * @param expectedVersion the version the client read
+	 * @throws CatalogEntryNotFoundException if the entry does not exist
+	 * @throws StaleCatalogEntryException if the entry changed since the expected version
+	 * @throws InvalidFieldException if a value or the status transition is not valid
+	 */
+	@Transactional
+	public CatalogEntry update(UUID id, long expectedVersion, String brandName, String description,
+			EntryStatus status, List<UUID> categoryIds, UUID imageId) {
+		CatalogEntry entry = find(id);
+		if (entry.getVersion() != expectedVersion) {
+			throw new StaleCatalogEntryException(id);
+		}
+		// Missing categoryIds keep the current categories.
+		entry.update(brandName, description, existingImage(imageId),
+				categoryIds == null ? null : categories(categoryIds), status);
+		return entryRepository.saveAndFlush(entry);
+	}
+
+	/**
+	 * Deletes an archived entry together with its offers and what they own (slots and options). The
+	 * Inventory articles and the recipes they reference are not touched.
+	 *
+	 * @param expectedVersion the version the client read
+	 * @throws CatalogEntryNotFoundException if the entry does not exist
+	 * @throws StaleCatalogEntryException if the entry changed since the expected version
+	 * @throws DeletionNotAllowedException if the entry is not ARCHIVED
+	 */
+	@Transactional
+	public void delete(UUID id, long expectedVersion) {
+		CatalogEntry entry = entryRepository.findWithLockById(id)
+				.orElseThrow(() -> new CatalogEntryNotFoundException(id));
+		long currentVersion = entry.getVersion() == null ? 0 : entry.getVersion();
+		if (currentVersion != expectedVersion) {
+			throw new StaleCatalogEntryException(id);
+		}
+		if (entry.getStatus() != EntryStatus.ARCHIVED) {
+			throw new DeletionNotAllowedException("Only an ARCHIVED catalog entry can be deleted");
+		}
+		try {
+			var offers = offerRepository.findByEntryId(id);
+			var stockBefore = InventoryOptionEvents.snapshot(
+					offers.stream().flatMap(offer -> offer.getSlots().stream()).toList());
+			offerRepository.deleteAll(offers);
+			offerRepository.flush();
+			entryRepository.delete(entry);
+			entryRepository.flush();
+			InventoryOptionEvents.publishChanges(eventPublisher, stockBefore, Map.of());
+		}
+		catch (DataIntegrityViolationException _) {
+			// An offer was added to the entry after its offers were read.
+			throw new DeletionNotAllowedException("The entry changed while it was being deleted; try again");
+		}
+	}
+
+	/** Not transactional: it runs in the transaction of the caller. */
+	private CatalogEntry find(UUID id) {
+		return entryRepository.findById(id).orElseThrow(() -> new CatalogEntryNotFoundException(id));
+	}
+
+	private List<Category> categories(List<UUID> ids) {
+		Set<UUID> uniqueIds = new HashSet<>(ids);
+		if (uniqueIds.contains(null)) {
+			throw new InvalidFieldException("/categoryIds", "The category ids must not be null");
+		}
+		List<Category> found = categoryRepository.findAllById(uniqueIds);
+		if (found.size() != uniqueIds.size()) {
+			throw new InvalidFieldException("/categoryIds", "Some of the categories do not exist");
+		}
+		return found;
+	}
+
+	private UUID existingImage(UUID imageId) {
+		if (imageId != null && !imageRepository.existsById(imageId)) {
+			throw new InvalidFieldException("/imageId", "The image " + imageId + " does not exist");
+		}
+		return imageId;
+	}
+
+	private static UUID categoryId(String value) {
+		try {
+			return UUID.fromString(value);
+		} catch (IllegalArgumentException _) {
+			throw new InvalidFieldException("categoryId", "The category filter must be a UUID or " + UNCATEGORIZED);
+		}
+	}
+
+}

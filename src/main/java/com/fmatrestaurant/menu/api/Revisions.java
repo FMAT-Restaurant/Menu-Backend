@@ -6,19 +6,19 @@ import java.util.regex.Pattern;
 /**
  * ETags built from the version of a resource, and the version an If-Match refers to.
  */
-final class Revisions {
+public final class Revisions {
 
 	private static final Pattern ETAG = Pattern.compile("(?:W/)?\"rev-(\\d+)\"");
 
 	private Revisions() {
 	}
 
-	static String strong(long version) {
+	public static String strong(long version) {
 		return "\"rev-" + version + "\"";
 	}
 
 	/** For a strong comparison: a weak ETag never matches, so it ends in 412. */
-	static long strongVersion(String ifMatch) {
+	public static long strongVersion(String ifMatch) {
 		return ifMatch.strip().startsWith("W/") ? -1 : version(ifMatch);
 	}
 

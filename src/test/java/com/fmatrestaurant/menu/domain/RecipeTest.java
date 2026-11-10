@@ -2,6 +2,7 @@ package com.fmatrestaurant.menu.domain;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.fmatrestaurant.menu.domain.model.Recipe;
 import org.junit.jupiter.api.Test;
 
 class RecipeTest {

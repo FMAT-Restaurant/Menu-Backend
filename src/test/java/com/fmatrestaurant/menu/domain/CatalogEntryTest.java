@@ -9,6 +9,10 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
+import com.fmatrestaurant.menu.domain.exception.InvalidFieldException;
+import com.fmatrestaurant.menu.domain.model.CatalogEntry;
+import com.fmatrestaurant.menu.domain.model.Category;
+import com.fmatrestaurant.menu.domain.model.EntryStatus;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;

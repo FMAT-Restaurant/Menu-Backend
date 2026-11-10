@@ -74,7 +74,8 @@ docker compose up --build
 [`compose.yaml`](compose.yaml) construye la imagen del API con el [`Dockerfile`](Dockerfile) (Eclipse Temurin 25.0.4.1) y la levanta junto a PostgreSQL 18.6 y RabbitMQ 4.3.6. El API espera a que ambos estén listos.
 
 - La configuración es externa: el API recibe la conexión por variables de entorno (`SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD`). `application.properties` no tiene datos de conexión.
-- Copiar `.env.example` a `.env` (`Copy-Item .env.example .env` en PowerShell, solo si aún no existe) y definir `POSTGRES_PASSWORD`; Compose rechaza una contraseña vacía o ausente. La base y el usuario predeterminados son `menu`, con puertos 8080 y 5432. Se configuran mediante variables o el archivo `.env` (ignorado por git): `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_PORT`, `RABBITMQ_USER`, `RABBITMQ_PASSWORD`, `RABBITMQ_VHOST`, `RABBITMQ_PORT`, `API_PORT`.
+- Copiar `.env.example` a `.env` (`Copy-Item .env.example .env` en PowerShell, solo si aún no existe) y definir `POSTGRES_PASSWORD`; Compose rechaza una contraseña vacía o ausente. La base y el usuario predeterminados son `menu`, con puertos 8080 y 5432. Se configuran mediante variables o el archivo `.env` (ignorado por git): `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_PORT`, `RABBITMQ_USER`, `RABBITMQ_PASSWORD`, `RABBITMQ_VHOST`, `RABBITMQ_PORT`, `RABBITMQ_URL`, `API_PORT`, `SPRING_PROFILES_ACTIVE`, `INVENTORY_BASE_URL`, `INVENTORY_TOKEN`, `INVENTORY_TIMEOUT` e `INVENTORY_AVAILABILITY_ROUTING_KEY`. Cada una está explicada en `.env.example`.
+- El API se une a la red externa `restaurant-network`, que compartes con los demás servicios: crearla una vez con `docker network create restaurant-network`; sin ella `docker compose up` falla.
 - Compose lee `.env` y pasa los valores declarados en `environment` a cada contenedor. Spring no importa ese archivo ni necesita tenerlo dentro de la imagen. Para ejecutar fuera de Docker, usar el perfil `local` descrito abajo.
 - `POSTGRES_PASSWORD` solo inicializa la contraseña al crear una base nueva. Si ya existe el volumen, cambiar esta variable no modifica la contraseña guardada; debe actualizarse con `\password` desde `psql` y coincidir con la configuración de la API.
 - Los datos se guardan en el volumen `postgres-data`. `docker compose down -v` los borra.
@@ -109,6 +110,15 @@ En ambos casos:
 - El contrato OpenAPI (esqueleto, sin endpoints todavía) se sirve en `http://localhost:8080/openapi.yaml`; el archivo es [`src/main/resources/static/openapi.yaml`](src/main/resources/static/openapi.yaml).
 - Ese archivo es una copia de [`docs/apis/menu/openapi.yaml`](https://github.com/FMAT-Restaurant/Menu-Documentation/blob/main/docs/apis/menu/openapi.yaml) del repositorio de documentación, que es la fuente de verdad (OpenAPI 3.2.1). Cualquier cambio al contrato se hace primero allá y luego se copia aquí. Las rutas y los servidores quedan pendientes de OPEN-010.
 
+### Versionado de la API
+
+Todas las rutas de Menu viven bajo `/api/{version}` (hoy `/api/v1`). Usa el versionado nativo de Spring Framework 7: la versión es el segundo segmento del path, es obligatoria bajo `/api` y una versión que ningún controlador declare (`/api/v2/...`) responde `400` con el sobre de error.
+
+- Los controladores se anotan con `@MenuApi("/menu/...")` y declaran rutas relativas; no repiten el prefijo.
+- Prefijo y versión se definen una sola vez en `ApiVersioning` (`PREFIX`, `CURRENT`); `ApiVersioningConfiguration` los conecta a Spring MVC. Los filtros de servlet (Idempotency-Key, ETag) toman la ruta de `ApiVersioning.BASE`.
+- Para servir otra versión: crear una anotación equivalente a `@MenuApi` con `version = "v2"` en los controladores nuevos; la versión se detecta sola.
+- El mock de Inventario (perfil `local`) simula otro servicio y queda fuera del prefijo.
+
 ### CORS y respuestas 404
 
 Los errores 404 mantienen el formato `{ "error": { "message": "..." } }`.
@@ -139,10 +149,31 @@ permitido. CORS no sustituye la autenticación ni restringe clientes sin cabecer
 
 ### Conexión con RabbitMQ
 
-La conectividad base usa Spring AMQP (`spring-boot-starter-amqp`), cuya versión gestiona Spring Boot. Esta tarea solo configura y comprueba la conexión: **no** hay productores, consumidores, exchanges, colas ni contratos de mensajes (siguen sin decidir).
+Menu usa Spring AMQP (`spring-boot-starter-amqp`), cuya versión gestiona Spring Boot.
 
-- La conexión se configura por variables de entorno de Spring Boot: `SPRING_RABBITMQ_HOST`, `SPRING_RABBITMQ_PORT`, `SPRING_RABBITMQ_VIRTUALHOST`, `SPRING_RABBITMQ_USERNAME` y `SPRING_RABBITMQ_PASSWORD`. `application.properties` no contiene datos de conexión ni credenciales. Si no se definen, Spring usa sus valores por defecto (`localhost:5672`, virtual host `/`).
-- `compose.yaml` levanta RabbitMQ 4.3.6 con credenciales solo para desarrollo local (`menu` / `menu`, virtual host `/`, puerto 5672). Se sobrescriben con `RABBITMQ_USER`, `RABBITMQ_PASSWORD`, `RABBITMQ_VHOST` y `RABBITMQ_PORT`, o con un archivo `.env` (ignorado por git). Los secretos reales de otros entornos no se versionan.
+**Publicación.** Cada vez que se crea, actualiza o elimina una *fuente* (una receta de la biblioteca o una opción con un artículo de Inventario), Menu publica un evento en el exchange `menu.topic` (topic, durable) **después de confirmar la transacción**; si la solicitud se rechaza o se revierte no se publica nada. La publicación es asíncrona y nunca afecta a la respuesta HTTP: el cambio ya está confirmado.
+
+Manejo de errores (no hay outbox, así que un evento que no se entrega se pierde; lo que se garantiza es que **nunca se pierde en silencio**):
+
+| Situación | Qué hace Menu |
+| --------- | ------------- |
+| Fallo de conexión o envío | Reintenta con espera creciente (3 intentos, `spring.rabbitmq.template.retry.*`; conexión con timeout de 5 s). Si se agotan, registra un `ERROR` con `eventId`, `type`, `sourceId` y `routingKey`, los datos para volver a anunciar la fuente a mano |
+| El broker rechaza el mensaje (nack) o no confirma en 10 s | `ERROR` con los mismos campos y la causa (usa *publisher confirms*) |
+| Ninguna cola recibe el mensaje (nadie enlazado a `menu.source.*`) | `WARN` `not routed to any queue` (*mandatory* + *returns*) |
+| Apagado de la aplicación mientras se publica | `ERROR` con los mismos campos; nunca rompe una solicitud ya confirmada |
+
+| Routing key | Cuándo | Payload |
+| ----------- | ------ | ------- |
+| `menu.source.created` | Receta creada, u opción de Inventario nueva | `{sourceId, name, items: [{id, quantity}]}` |
+| `menu.source.updated` | Receta con nueva revisión, u opción de Inventario cuyo artículo o cantidad cambió | `{sourceId, name, items: [{id, quantity}]}` |
+| `menu.source.deleted` | Receta eliminada; opción de Inventario retirada, o eliminada junto con su oferta o entrada | `{sourceId}` |
+
+`sourceId` es el id de la receta o el id de la opción; `name` es `null` en opciones de Inventario. Cada mensaje lleva `messageId` (id del evento), `correlationId` (`sourceId`) y la cabecera `X-Event-Type`.
+
+**Consumo.** Menu declara la cola `menu.inventory.availability.queue` (con DLQ `menu.inventory.availability.dlq` en `menu.dlx`) y la enlaza a `inventory.topic` con la routing key de `INVENTORY_AVAILABILITY_ROUTING_KEY` (por defecto `inventory.recipe.availability-changed`). Por ahora solo registra los mensajes recibidos. Ante un fallo del listener (o un mensaje ilegible) hace 3 intentos (`spring.rabbitmq.listener.simple.retry.*`) y, si fallan, republica el mensaje en `menu.dlx` → DLQ con la causa en la cabecera `x-exception-message`; nunca se reencola. Nada consume la DLQ: revisarla es manual.
+
+- La conexión se configura con una sola URL, `amqp(s)://usuario:clave@host[:puerto][/vhost]`, que Spring lee como `spring.rabbitmq.addresses` (`SPRING_RABBITMQ_ADDRESSES`). En Compose viene de `RABBITMQ_URL`; en local, del archivo `application-local.properties`. `application.properties` no contiene datos de conexión ni credenciales; solo la routing key de disponibilidad (`INVENTORY_AVAILABILITY_ROUTING_KEY`). Si no se define, Spring usa sus valores por defecto (`localhost:5672`, virtual host `/`, `guest`/`guest`).
+- `compose.yaml` levanta RabbitMQ 4.3.6 con credenciales solo para desarrollo local (`menu` / `menu`, virtual host `/`, puerto 5672). Se sobrescriben con `RABBITMQ_USER`, `RABBITMQ_PASSWORD`, `RABBITMQ_VHOST` y `RABBITMQ_PORT`, o con un archivo `.env` (ignorado por git); el API usa ese broker salvo que se defina `RABBITMQ_URL` para uno externo. Los secretos reales de otros entornos no se versionan.
 - La conexión se establece de forma perezosa: el API arranca aunque el broker no esté disponible, y la conexión se abre cuando algo la usa.
 
 Para levantar RabbitMQ y comprobar que está listo:
@@ -168,13 +199,12 @@ Otros comandos útiles:
 
 El controlador `InventoryMockController` expone un inventario fijo dentro de este backend **solo cuando el perfil `local` está activo** (`--spring.profiles.active=local`). Con cualquier otro perfil no existe y Menu no expone rutas de lista ni de detalle de artículos: las consultas se delegan al servicio de Inventario configurado en `INVENTORY_BASE_URL`.
 
-- `GET /api/v1/inventory/items`: página `{data, meta}` de 10 artículos hardcoded con UUID válidos. Acepta `q` (búsqueda por nombre sin distinguir mayúsculas), `page` (desde 1) y `pageSize` (positivo, 12 por defecto), y consultas condicionales `If-None-Match` con ETag y respuesta `304`.
-- Se conservan `/inventory/items` y `/inventory/items/` como alias locales.
-- `GET /inventory/items/{id}` (también bajo `/api/v1`) es compatible con la consulta por ID de Inventario: devuelve `{data: {id, name, unit}}`, o `404` con el sobre de error `{error: {message}}` si el ID no existe. Los IDs son strings opacos y se comparan exactamente. Ejemplo: `/inventory/items/2c21767f-0f9a-4e9f-adc7-2730556c1801`.
+- `GET /api/v1/items` (también `/items`): lista plana de 10 artículos hardcoded con UUID válidos, sin paginación ni envoltorio. Acepta `q` (búsqueda por nombre sin distinguir mayúsculas).
+- `GET /items/{id}` (también bajo `/api/v1`) es compatible con la consulta por ID de Inventario: devuelve el objeto plano `{id, name, unit}`, o `404` con el sobre de error `{error: {message}}` si el ID no existe. Los IDs son strings opacos y se comparan exactamente. Ejemplo: `/api/v1/items/2c21767f-0f9a-4e9f-adc7-2730556c1801`.
 
-Para usarlo desde el cliente de este mismo backend, asignar `INVENTORY_BASE_URL=http://localhost:8080/api/v1` (ajustando el puerto si corresponde). El mock no necesita token, no usa base de datos ni llama al servicio externo. No se modifica el `.env` automáticamente.
+Para usarlo desde el cliente de este mismo backend, asignar `INVENTORY_BASE_URL=http://localhost:8080` (ajustando el puerto si corresponde; la base es la raíz del servicio, sin `/api/v1`). El mock no necesita token, no usa base de datos ni llama al servicio externo. No se modifica el `.env` automáticamente.
 
-`InventoryClient.find` hace una sola consulta a `GET /inventory/items/{id}` y consume `{data: {id, name, unit}}`, validando que el ID recibido coincida exactamente con el solicitado. Esa es la ruta correcta de servicio a servicio: no se cambia a `/inventory/item/{id}`, que aparece por error en el OpenAPI publicado de Menu (la corrección se hará en el repositorio de documentación). Devuelve vacío únicamente cuando Inventario confirma la inexistencia con un `404` que trae su sobre de error `{error: {message}}`; un `404` sin ese sobre (una URL base equivocada o un proxy), un `204`, cualquier otro error HTTP, un timeout o una respuesta incompleta se propagan como fallo de Inventario.
+`InventoryClient.find` hace una sola consulta a `GET {base-url}/items/{id}` y consume el objeto plano `{id, name, unit}` (sin envoltorio `data`), validando que el ID recibido coincida exactamente con el solicitado. Es la ruta de servicio a servicio; el OpenAPI publicado de Menu describe otra, la de búsqueda que usa el frontend. Devuelve vacío únicamente cuando Inventario confirma la inexistencia con un `404` que trae su sobre de error `{error: {message}}`; un `404` sin ese sobre (una URL base equivocada o un proxy), un `204`, cualquier otro error HTTP, un timeout o una respuesta incompleta se propagan como fallo de Inventario.
 
 | Resultado de la consulta | Respuesta de Menu en ofertas y recetas |
 | ------------------------ | -------------------------------------- |
@@ -195,7 +225,7 @@ El contrato servido en `src/main/resources/static/openapi.yaml` incluye este cam
 | Tema | Estado |
 | ---- | ------ |
 | Persistencia | Decidida: PostgreSQL 18.6 con Spring Data JPA. Sin migraciones: el esquema lo genera Hibernate en local. |
-| Topología | Sin decidir. `compose.yaml` es solo el entorno local. La conectividad base con RabbitMQ ya está configurada, pero no hay exchanges, colas, bindings ni contratos de mensajes hasta decidir la topología. |
+| Topología | Menu publica en `menu.topic` (`menu.source.created\|updated\|deleted`) y consume su cola de disponibilidad enlazada a `inventory.topic`; ver [Conexión con RabbitMQ](#conexión-con-rabbitmq). `compose.yaml` es solo el entorno local. |
 | Límites transaccionales | Sin decidir. |
 | AuthN/AuthZ | Sin decidir. No se incluye Spring Security, aunque el contrato OpenAPI 7.0.0 declara `bearerAuth` global; esto **no** significa que la API sea pública o anónima. Mientras tanto, las claves de idempotencia usan un sujeto fijo. |
 
