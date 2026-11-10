@@ -136,7 +136,7 @@ public class CategoryService {
 		if (name == null) {
 			return;
 		}
-		String normalizedName = name.strip();
+		String normalizedName = name.strip().toLowerCase();
 		boolean exists = excludedId == null
 				? categoryRepository.existsByMenuIdAndName(menuId, normalizedName)
 				: categoryRepository.existsByMenuIdAndNameAndIdNot(menuId, normalizedName, excludedId);
