@@ -106,3 +106,12 @@ Las pruebas con `@SpringBootTest` y las de `infrastructure` requieren Docker: [`
 ## Alternativa: multi-módulo Gradle
 
 Si en el futuro se necesita que el compilador **impida** dependencias incorrectas (por ejemplo, que `domain` importe algo de `infrastructure`), se puede migrar a un proyecto multi-módulo de Gradle (`menu-api`, `menu-application`, `menu-domain`, `menu-infrastructure`), equivalente a los proyectos de .NET. Para un solo microservicio se descartó por ahora: añade configuración sin aportar valor mientras el equipo respete la regla de dependencias en las revisiones de PR.
+
+## Decisiones pendientes
+
+| Tema | Estado |
+| ---- | ------ |
+| Persistencia | Decidida: PostgreSQL 18.6 con Spring Data JPA. Sin migraciones: el esquema lo genera Hibernate en desarrollo; los cambios en bases existentes se aplican con los scripts de [`sql/`](sql/). |
+| Topología | Menu publica en `menu.topic` y consume su cola de disponibilidad enlazada a `inventory.topic`; ver [messaging.md](messaging.md). `compose.yaml` es solo el entorno local. |
+| Límites transaccionales | Sin decidir. |
+| AuthN/AuthZ | Sin decidir. No se incluye Spring Security, aunque el contrato OpenAPI declara `bearerAuth` global; esto **no** significa que la API sea pública o anónima. Mientras tanto, las claves de idempotencia usan un sujeto fijo. |
