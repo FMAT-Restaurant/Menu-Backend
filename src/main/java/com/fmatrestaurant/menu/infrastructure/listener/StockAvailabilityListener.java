@@ -11,10 +11,10 @@ import org.springframework.stereotype.Component;
 public class StockAvailabilityListener {
 
 
-    private static final Logger log = LoggerFactory.getLogger(StockAvailabilityListener.class);
+    private static final Logger LOG = LoggerFactory.getLogger(StockAvailabilityListener.class);
 
     @RabbitListener(queues = RabbitMqConfig.AVAILABILITY_QUEUE)
     public void onInventoryItemOfferedAvailabilityChanged(InventorySourceAvailabilityChanged message) {
-        log.info("Received availability event: {}", message);
+        LOG.info("Received availability event: {}", message);
     }
 }

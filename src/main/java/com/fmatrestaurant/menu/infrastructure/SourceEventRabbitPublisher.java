@@ -33,7 +33,7 @@ import java.util.concurrent.TimeUnit;
 @Component
 public class SourceEventRabbitPublisher {
 
-    private static final Logger log = LoggerFactory.getLogger(SourceEventRabbitPublisher.class);
+    private static final Logger LOG = LoggerFactory.getLogger(SourceEventRabbitPublisher.class);
 
     /** How long the broker may take to confirm a message before it is reported as unconfirmed. */
     static final Duration CONFIRM_TIMEOUT = Duration.ofSeconds(10);
@@ -82,14 +82,14 @@ public class SourceEventRabbitPublisher {
         if (error != null) {
             logFailure("event not confirmed by the broker, it may be lost", event, error);
         } else if (!confirm.ack()) {
-            log.error("Menu event NOT published, the broker rejected it ({}): {}", confirm.reason(), describe(event));
+            LOG.error("Menu event NOT published, the broker rejected it ({}): {}", confirm.reason(), describe(event));
         } else {
-            log.debug("Menu event confirmed by the broker: {}", describe(event));
+            LOG.debug("Menu event confirmed by the broker: {}", describe(event));
         }
     }
 
     private static void logFailure(String what, SourceEvent event, Throwable cause) {
-        log.error("Menu {}: {}", what, describe(event), cause);
+        LOG.error("Menu {}: {}", what, describe(event), cause);
     }
 
     /** The data needed to announce the source again by hand. */

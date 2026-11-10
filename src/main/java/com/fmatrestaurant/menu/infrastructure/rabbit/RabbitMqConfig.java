@@ -38,7 +38,7 @@ public class RabbitMqConfig {
     public static final String AVAILABILITY_QUEUE = "menu.inventory.availability.queue";
     public static final String AVAILABILITY_DLQ = "menu.inventory.availability.dlq";
 
-    private static final Logger log = LoggerFactory.getLogger(RabbitMqConfig.class);
+    private static final Logger LOG = LoggerFactory.getLogger(RabbitMqConfig.class);
 
     // Spring Boot inyecta este converter en RabbitTemplate y en @RabbitListener
     @Bean
@@ -66,7 +66,7 @@ public class RabbitMqConfig {
      */
     @Bean
     public RabbitTemplateCustomizer logReturnedMessages() {
-        return template -> template.setReturnsCallback(returned -> log.warn(
+        return template -> template.setReturnsCallback(returned -> LOG.warn(
                 "Menu event not routed to any queue ({}): messageId={} exchange={} routingKey={}",
                 returned.getReplyText(), returned.getMessage().getMessageProperties().getMessageId(),
                 returned.getExchange(), returned.getRoutingKey()));

@@ -12,7 +12,7 @@ import java.util.UUID;
 public class AvailabilityService {
 
 
-    private static final Logger log = LoggerFactory.getLogger(AvailabilityService.class);
+    private static final Logger LOG = LoggerFactory.getLogger(AvailabilityService.class);
     private final RecipeRepository recipeRepository;
     private final RecipeRevisionRepository recipeRevisionRepository;
 
@@ -27,7 +27,7 @@ public class AvailabilityService {
                     revision.disable();
                     recipeRevisionRepository.save(revision);
                 },
-                () -> log.warn("Recipe with id {} not found", recipeId)
+                () -> LOG.warn("Recipe with id {} not found", recipeId)
         );
     }
 
@@ -37,7 +37,7 @@ public class AvailabilityService {
                     revision.enable();
                     recipeRevisionRepository.save(revision);
                 },
-                () -> log.warn("Recipe with id {} not found", recipeId)
+                () -> LOG.warn("Recipe with id {} not found", recipeId)
         );
     }
 
