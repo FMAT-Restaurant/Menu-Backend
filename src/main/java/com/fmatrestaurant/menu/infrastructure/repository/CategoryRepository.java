@@ -15,8 +15,8 @@ public interface CategoryRepository extends JpaRepository<Category, UUID> {
 
 	Page<Category> findByMenuId(Long menuId, Pageable pageable);
 
-	boolean existsByMenuIdAndName(Long menuId, String name);
+	boolean existsByMenuIdAndNameIgnoreCase(Long menuId, String name);
 
-	boolean existsByMenuIdAndNameAndIdNot(Long menuId, String name, UUID id);
+	boolean existsByMenuIdAndNameIgnoreCaseAndIdNot(Long menuId, String name, UUID id);
 
 }

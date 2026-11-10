@@ -225,6 +225,26 @@ class CategoryApiIntegrationTest {
 	}
 
 	@Test
+	void rejectsCategoryNamesThatDifferOnlyByCase() throws Exception {
+		categoryRepository.saveAndFlush(new Category(1L, "Desserts", null));
+		Category drinks = categoryRepository.saveAndFlush(new Category(1L, "Drinks", null));
+
+		mockMvc.perform(post(CATEGORIES).header("Idempotency-Key", UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON)
+				.content("{\"name\":\" DESSERTS \"}"))
+				.andExpect(status().isUnprocessableContent())
+				.andExpect(jsonPath(VIOLATION_PATH).value("/name"));
+		mockMvc.perform(patch(CATEGORIES + "/" + drinks.getId()).header(HttpHeaders.IF_MATCH, "\"rev-0\"")
+				.contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"desserts\"}"))
+				.andExpect(status().isUnprocessableContent())
+				.andExpect(jsonPath(VIOLATION_PATH).value("/name"));
+		mockMvc.perform(patch(CATEGORIES + "/" + drinks.getId()).header(HttpHeaders.IF_MATCH, "\"rev-0\"")
+				.contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"DRINKS\"}"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.name").value("DRINKS"));
+		assertEquals(2, categoryRepository.count());
+	}
+
+	@Test
 	void foreignCategoriesCannotBeUpdatedFromThisMenu() throws Exception {
 		Category foreign = categoryRepository.saveAndFlush(new Category(2L, "Foreign", "Original"));
 
