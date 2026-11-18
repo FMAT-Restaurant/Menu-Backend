@@ -125,3 +125,4 @@ No hay herramienta de migraciones: Hibernate (`ddl-auto=update`, solo desarrollo
 | ------ | ------ |
 | [`sql/inventory-item-id-to-text.sql`](sql/inventory-item-id-to-text.sql) | `component_ingredient.inventory_item_id` y `slot_option.inventory_item_id` pasan de UUID a `text` |
 | [`sql/recipe-deletion.sql`](sql/recipe-deletion.sql) | Agrega `recipe.deleted` para la baja lógica de recetas |
+| [`sql/source-availability.sql`](sql/source-availability.sql) | Agrega `slot_option.source_available` y la tabla `processed_event` para la disponibilidad que comunica Inventario |

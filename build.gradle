@@ -34,6 +34,7 @@ dependencies {
 	testImplementation 'org.springframework.boot:spring-boot-testcontainers'
 	testImplementation 'org.testcontainers:testcontainers-postgresql'
 	testImplementation 'org.testcontainers:testcontainers-rabbitmq'
+	testImplementation 'org.awaitility:awaitility'
 	// Valida en las pruebas las respuestas HTTP contra el contrato servido (static/openapi.yaml).
 	testImplementation 'com.atlassian.oai:swagger-request-validator-mockmvc:2.44.9'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
