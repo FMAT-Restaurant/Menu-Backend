@@ -172,11 +172,11 @@ public class ApiExceptionHandler {
 		return ResponseEntity.status(status).body(new ErrorEnvelope(new ErrorBody(message, null)));
 	}
 
-	record ErrorEnvelope(ErrorBody error) {
+	public record ErrorEnvelope(ErrorBody error) {
 	}
 
 	@JsonInclude(JsonInclude.Include.NON_NULL)
-	record ErrorBody(String message, Map<String, Object> details) {
+	public record ErrorBody(String message, Map<String, Object> details) {
 	}
 
 	record Violation(String path, String message) {

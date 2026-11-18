@@ -25,6 +25,7 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.fmatrestaurant.menu.TestcontainersConfiguration;
+import com.fmatrestaurant.menu.TestSecurityConfiguration;
 import com.fmatrestaurant.menu.application.service.CategoryService;
 import com.fmatrestaurant.menu.infrastructure.repository.CatalogEntryRepository;
 import com.fmatrestaurant.menu.infrastructure.repository.CatalogOfferRepository;
@@ -34,7 +35,7 @@ import com.fmatrestaurant.menu.infrastructure.repository.CategoryRepository;
  * The responses that already follow the contract are validated against it with {@link ContractValidation}.
  * Requires Docker.
  */
-@Import(TestcontainersConfiguration.class)
+@Import({ TestcontainersConfiguration.class, TestSecurityConfiguration.class })
 @SpringBootTest(properties = "spring.jpa.hibernate.ddl-auto=create-drop")
 @AutoConfigureMockMvc
 class ContractValidationIntegrationTest {

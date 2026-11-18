@@ -46,6 +46,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 
 import com.fmatrestaurant.menu.InventoryStub;
 import com.fmatrestaurant.menu.TestcontainersConfiguration;
+import com.fmatrestaurant.menu.TestSecurityConfiguration;
 import com.fmatrestaurant.menu.domain.model.CatalogEntry;
 import com.fmatrestaurant.menu.domain.model.Category;
 import com.fmatrestaurant.menu.domain.model.Image;
@@ -64,7 +65,7 @@ import com.jayway.jsonpath.JsonPath;
  * Idempotency-Key of the creations and of PATCH of offers, against PostgreSQL (Testcontainers) and
  * {@link InventoryStub}. Requires Docker.
  */
-@Import(TestcontainersConfiguration.class)
+@Import({ TestcontainersConfiguration.class, TestSecurityConfiguration.class })
 @SpringBootTest(properties = "spring.jpa.hibernate.ddl-auto=create-drop")
 @AutoConfigureMockMvc
 class IdempotencyApiIntegrationTest {

@@ -43,6 +43,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import com.fmatrestaurant.menu.InventoryStub;
 import com.fmatrestaurant.menu.TestcontainersConfiguration;
+import com.fmatrestaurant.menu.TestSecurityConfiguration;
 import com.fmatrestaurant.menu.application.service.CatalogOfferService;
 import com.fmatrestaurant.menu.application.service.CatalogOfferService.OfferInput;
 import com.fmatrestaurant.menu.domain.model.CatalogEntry;
@@ -60,7 +61,7 @@ import tools.jackson.databind.json.JsonMapper;
  * HTTP flows of offers and their compositions against PostgreSQL (Testcontainers). Inventory articles
  * are confirmed by the real client against {@link InventoryStub}. Requires Docker.
  */
-@Import(TestcontainersConfiguration.class)
+@Import({ TestcontainersConfiguration.class, TestSecurityConfiguration.class })
 @SpringBootTest(properties = { "spring.jpa.hibernate.ddl-auto=create-drop",
 		"spring.jpa.properties.hibernate.generate_statistics=true" })
 @AutoConfigureMockMvc

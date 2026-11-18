@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
@@ -120,6 +121,22 @@ public class CatalogOfferService {
 	@Transactional(readOnly = true)
 	public CatalogOffer get(UUID id) {
 		return offerRepository.findById(id).orElseThrow(() -> new CatalogOfferNotFoundException(id));
+	}
+
+	/**
+	 * The ids of the slots of the offer, in order, each with the ids of its options, in order; empty when the
+	 * offer does not exist. Lets authorization tell a change of statuses from a change of the composition.
+	 */
+	@Transactional(readOnly = true)
+	public Optional<List<CompositionShape>> compositionShape(UUID id) {
+		return offerRepository.findById(id).map(offer -> offer.getSlots().stream()
+				.map(slot -> new CompositionShape(slot.getId(),
+						slot.getOptions().stream().map(SlotOption::getId).toList()))
+				.toList());
+	}
+
+	/** A slot of the composition by its id and the ids of its options. */
+	public record CompositionShape(UUID slotId, List<UUID> optionIds) {
 	}
 
 	/**
