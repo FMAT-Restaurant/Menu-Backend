@@ -22,8 +22,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fmatrestaurant.menu.api.controller.ImageController.ImageResponse;
 import com.fmatrestaurant.menu.application.service.CatalogEntryService;
+import com.fmatrestaurant.menu.application.service.DerivedAvailability;
 import com.fmatrestaurant.menu.domain.model.CatalogEntry;
 import com.fmatrestaurant.menu.domain.model.Category;
 import com.fmatrestaurant.menu.domain.model.EntryStatus;
@@ -40,8 +42,11 @@ public class CatalogEntryController {
 
 	private final CatalogEntryService entryService;
 
-	public CatalogEntryController(CatalogEntryService entryService) {
+	private final DerivedAvailability availability;
+
+	public CatalogEntryController(CatalogEntryService entryService, DerivedAvailability availability) {
 		this.entryService = entryService;
+		this.availability = availability;
 	}
 
 	/** The initial status is always INACTIVE: a {@code status} sent by the client is ignored. */
@@ -49,8 +54,9 @@ public class CatalogEntryController {
 	public ResponseEntity<DataResponse<CatalogEntryDetail>> create(@RequestBody CatalogEntryRequest request) {
 		CatalogEntry entry = entryService.create(request.brandName(), request.description(), request.categoryIds(),
 				request.imageId());
-		return ResponseEntity.status(HttpStatus.CREATED).eTag(etag(entry))
-				.body(new DataResponse<>(CatalogEntryDetail.of(entry)));
+		boolean available = availability.entry(entry.getId());
+		return ResponseEntity.status(HttpStatus.CREATED).eTag(etag(entry, available))
+				.body(new DataResponse<>(CatalogEntryDetail.of(entry, available)));
 	}
 
 	@GetMapping
@@ -60,11 +66,13 @@ public class CatalogEntryController {
 			@RequestParam(defaultValue = "1") int page,
 			@RequestParam(defaultValue = "12") int pageSize) {
 		Page<CatalogEntry> entries = entryService.list(q, categoryId, status, page, pageSize);
-		Map<UUID, Long> offerCounts = entryService.offerCounts(
-				entries.getContent().stream().map(CatalogEntry::getId).toList());
+		List<UUID> ids = entries.getContent().stream().map(CatalogEntry::getId).toList();
+		Map<UUID, Long> offerCounts = entryService.offerCounts(ids);
+		Map<UUID, Boolean> available = availability.entries(ids);
 		return new CatalogEntryListResponse(
 				entries.getContent().stream()
-						.map(entry -> CatalogEntrySummary.of(entry, offerCounts.getOrDefault(entry.getId(), 0L)))
+						.map(entry -> CatalogEntrySummary.of(entry, offerCounts.getOrDefault(entry.getId(), 0L),
+								available.getOrDefault(entry.getId(), false)))
 						.toList(),
 				new PageMeta(page, pageSize, entries.getTotalElements(), entries.getTotalPages()));
 	}
@@ -72,8 +80,7 @@ public class CatalogEntryController {
 	/** Spring answers 304 when If-None-Match matches the ETag of the response. */
 	@GetMapping("/{entryId}")
 	public ResponseEntity<DataResponse<CatalogEntryDetail>> get(@PathVariable UUID entryId) {
-		CatalogEntry entry = entryService.get(entryId);
-		return ResponseEntity.ok().eTag(etag(entry)).body(new DataResponse<>(CatalogEntryDetail.of(entry)));
+		return detail(entryService.get(entryId));
 	}
 
 	@PatchMapping("/{entryId}")
@@ -81,7 +88,7 @@ public class CatalogEntryController {
 			@RequestHeader(HttpHeaders.IF_MATCH) String ifMatch, @RequestBody CatalogEntryRequest request) {
 		CatalogEntry entry = entryService.update(entryId, Revisions.strongVersion(ifMatch), request.brandName(),
 				request.description(), request.status(), request.categoryIds(), request.imageId());
-		return ResponseEntity.ok().eTag(etag(entry)).body(new DataResponse<>(CatalogEntryDetail.of(entry)));
+		return detail(entry);
 	}
 
 	/** Deletes an ARCHIVED entry and its offers; any other status is answered with 409. */
@@ -92,9 +99,18 @@ public class CatalogEntryController {
 		return ResponseEntity.noContent().build();
 	}
 
-	/** Strong, as the contract requires for If-Match. */
-	private static String etag(CatalogEntry entry) {
-		return Revisions.strong(entry.getVersion());
+	private ResponseEntity<DataResponse<CatalogEntryDetail>> detail(CatalogEntry entry) {
+		boolean available = availability.entry(entry.getId());
+		return ResponseEntity.ok().eTag(etag(entry, available))
+				.body(new DataResponse<>(CatalogEntryDetail.of(entry, available)));
+	}
+
+	/**
+	 * Strong, as the contract requires for If-Match; it also changes with the derived availability of the entry,
+	 * which follows its offers without a new version: a when it is available, u when it is not.
+	 */
+	private static String etag(CatalogEntry entry, boolean available) {
+		return Revisions.strong(entry.getVersion(), available ? "a" : "u");
 	}
 
 	/** Body of POST and PATCH; on PATCH, missing values keep the current ones. */
@@ -103,12 +119,12 @@ public class CatalogEntryController {
 	}
 
 	public record CatalogEntryDetail(UUID id, String brandName, String description, EntryStatus status,
-			ImageResponse image, List<UUID> categoryIds) {
+			ImageResponse image, List<UUID> categoryIds, @JsonProperty("isAvailable") boolean isAvailable) {
 
-		static CatalogEntryDetail of(CatalogEntry entry) {
+		static CatalogEntryDetail of(CatalogEntry entry, boolean available) {
 			return new CatalogEntryDetail(entry.getId(), entry.getBrandName(), entry.getDescription(),
 					entry.getStatus(), ImageResponse.of(entry.getImageId()),
-					entry.getCategories().stream().sorted(BY_NAME).map(Category::getId).toList());
+					entry.getCategories().stream().sorted(BY_NAME).map(Category::getId).toList(), available);
 		}
 
 	}
@@ -117,14 +133,15 @@ public class CatalogEntryController {
 	}
 
 	public record CatalogEntrySummary(UUID id, String brandName, String description, EntryStatus status,
-			ImageResponse image, List<CategoryReference> categories, int offerCount) {
+			ImageResponse image, List<CategoryReference> categories, int offerCount,
+			@JsonProperty("isAvailable") boolean isAvailable) {
 
-		static CatalogEntrySummary of(CatalogEntry entry, long offerCount) {
+		static CatalogEntrySummary of(CatalogEntry entry, long offerCount, boolean available) {
 			return new CatalogEntrySummary(entry.getId(), entry.getBrandName(), entry.getDescription(),
 					entry.getStatus(), ImageResponse.of(entry.getImageId()),
 					entry.getCategories().stream().sorted(BY_NAME)
 							.map(category -> new CategoryReference(category.getId(), category.getName())).toList(),
-					(int) offerCount);
+					(int) offerCount, available);
 		}
 
 	}

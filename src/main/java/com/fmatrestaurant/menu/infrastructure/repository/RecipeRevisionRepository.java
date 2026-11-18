@@ -1,6 +1,7 @@
 package com.fmatrestaurant.menu.infrastructure.repository;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -31,6 +32,14 @@ public interface RecipeRevisionRepository extends JpaRepository<RecipeRevision, 
 		"""
 	)
 	Optional<RecipeRevision> findCurrentByRecipeId(UUID recipeId);
+
+	/**
+	 * Pairs of recipe id and the availability Inventory communicated for it, read from the current revision; every
+	 * revision of a recipe holds the same value.
+	 */
+	@Query("select r.recipe.id, r.isAvailable from RecipeRevision r "
+			+ "where r.recipe.id in :recipeIds and r.revision = r.recipe.currentRevision")
+	List<Object[]> findAvailabilityByRecipeIds(@Param("recipeIds") Collection<UUID> recipeIds);
 
 	/**
 	 * Sets the availability that Inventory communicated for the recipe on every revision, since the content source

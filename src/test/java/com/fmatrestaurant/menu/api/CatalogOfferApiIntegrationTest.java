@@ -3,6 +3,7 @@ package com.fmatrestaurant.menu.api;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -128,7 +129,7 @@ class CatalogOfferApiIntegrationTest {
 	void createsSeveralInactiveOffersForAnEntry() throws Exception {
 		String response = createOffer(entryId, offerBody("Individual", "180.0"))
 				.andExpect(status().isCreated())
-				.andExpect(header().string(HttpHeaders.ETAG, "\"rev-0\""))
+				.andExpect(header().string(HttpHeaders.ETAG, startsWith("\"rev-0-")))
 				.andExpect(jsonPath("$.data.entryId").value(entryId.toString()))
 				.andExpect(jsonPath("$.data.presentationTag").value("Individual"))
 				.andExpect(jsonPath("$.data.basePrice").value(180.0))
@@ -161,7 +162,7 @@ class CatalogOfferApiIntegrationTest {
 
 		mockMvc.perform(get(OFFERS + "/" + individual))
 				.andExpect(status().isOk())
-				.andExpect(header().string(HttpHeaders.ETAG, "\"rev-0\""))
+				.andExpect(header().string(HttpHeaders.ETAG, startsWith("\"rev-0-")))
 				.andExpect(jsonPath("$.data.presentationTag").value("Individual"))
 				.andExpect(jsonPath("$.data.composition.slots[0].required").doesNotExist())
 				.andExpect(jsonPath("$.data.composition.slots[0].options[0].source").doesNotExist())
@@ -282,7 +283,7 @@ class CatalogOfferApiIntegrationTest {
 	void getAndListAnswerConditionalRequests() throws Exception {
 		String id = create(offerBody("Individual", "180"));
 
-		mockMvc.perform(get(OFFERS + "/" + id).header(HttpHeaders.IF_NONE_MATCH, "\"rev-0\""))
+		mockMvc.perform(get(OFFERS + "/" + id).header(HttpHeaders.IF_NONE_MATCH, etag(id)))
 				.andExpect(status().isNotModified());
 		String listEtag = mockMvc.perform(get(OFFERS)).andExpect(status().isOk())
 				.andReturn().getResponse().getHeader(HttpHeaders.ETAG);
@@ -623,7 +624,7 @@ class CatalogOfferApiIntegrationTest {
 		}));
 
 		mockMvc.perform(get(OFFERS + "/" + id))
-				.andExpect(header().string(HttpHeaders.ETAG, "\"rev-1\""))
+				.andExpect(header().string(HttpHeaders.ETAG, startsWith("\"rev-1-")))
 				.andExpect(jsonPath("$.data.composition.slots[0].options[0].status").value("INACTIVE"));
 	}
 
@@ -638,8 +639,9 @@ class CatalogOfferApiIntegrationTest {
 
 		mockMvc.perform(get(OFFERS)).andExpect(jsonPath("$.data", hasSize(5)));
 
-		// The page, its entries and its slots, whatever the page size; one query per offer would be 11.
-		assertEquals(3, statistics.getPrepareStatementCount());
+		// The page, its entries, its slots and their options (for isAvailable), whatever the page size; one query
+		// per offer would be 16.
+		assertEquals(4, statistics.getPrepareStatementCount());
 	}
 
 	private void expectRejected(String id, String etag, String json, String path) throws Exception {

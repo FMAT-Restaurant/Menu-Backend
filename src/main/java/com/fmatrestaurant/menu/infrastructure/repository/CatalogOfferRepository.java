@@ -51,6 +51,8 @@ public interface CatalogOfferRepository extends JpaRepository<CatalogOffer, UUID
 
 	List<CatalogOffer> findByEntryId(UUID entryId);
 
+	List<CatalogOffer> findByEntryIdIn(Collection<UUID> entryIds);
+
 	/** All persisted offers referencing the recipe, regardless of offer or option status or revision. */
 	@Query("select distinct o.id from CatalogOffer o join o.slots s join s.options opt "
 			+ "where opt.recipeId = :recipeId order by o.id")
