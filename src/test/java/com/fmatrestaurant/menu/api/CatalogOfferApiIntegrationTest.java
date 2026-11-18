@@ -199,7 +199,9 @@ class CatalogOfferApiIntegrationTest {
 		expectViolation(createOffer(entryId, offerBody("Individual", "180").replace("\"" + imageId + "\"", "null")),
 				"/imageId");
 		expectViolation(createOffer(entryId, """
-				{"presentationTag": "Individual", "basePrice": 10, "imageId": "%s"}""".formatted(imageId)),
+				{"presentationTag": "Individual", "basePrice": 10, "imageId": "%s"}""".formatted(imageId)), "/composition");
+		expectViolation(createOffer(entryId, """
+				{"presentationTag": "Individual", "basePrice": 10, "imageId": "%s", "composition": {"slots": []}}""".formatted(imageId)),
 				"/composition/slots");
 		expectViolation(createOffer(entryId, """
 				{"presentationTag": "Individual", "basePrice": 10, "imageId": "%s", "composition": {"slots": []}}""".formatted(imageId)),
