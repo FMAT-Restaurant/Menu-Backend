@@ -88,7 +88,8 @@ class ContractValidationIntegrationTest {
 		// The contract does not declare 422 for listMenuCategories: an invalid page must be caught.
 		var result = mockMvc.perform(get(ApiVersioning.BASE + "/menu/categories").param("page", "0")).andReturn();
 
-		assertThrows(AssertionError.class, () -> conformsToContract().match(result));
+		var contract = conformsToContract();
+		assertThrows(AssertionError.class, () -> contract.match(result));
 	}
 
 	private static byte[] png() throws IOException {
