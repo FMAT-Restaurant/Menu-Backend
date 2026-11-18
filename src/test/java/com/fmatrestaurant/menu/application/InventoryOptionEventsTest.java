@@ -28,7 +28,7 @@ class InventoryOptionEventsTest {
 
 	private static SlotOption inventoryOption(String item, String quantity) {
 		return new SlotOption("Option", OfferStatus.ACTIVE, new InventoryItem(item, "Name", "g"),
-				new BigDecimal(quantity), "g");
+				new BigDecimal(quantity));
 	}
 
 	private static CompositionSlot slot(SlotOption... options) {
@@ -59,7 +59,7 @@ class InventoryOptionEventsTest {
 	void anOptionWhoseArticleOrQuantityChangedIsAnnouncedAsUpdated() {
 		SlotOption option = inventoryOption("INV-1", "2");
 		var before = InventoryOptionEvents.snapshot(List.of(slot(option)));
-		option.update(null, null, new InventoryItem("INV-2", "Other", "g"), new BigDecimal("3"), "g");
+		option.update(null, null, new InventoryItem("INV-2", "Other", "g"), new BigDecimal("3"));
 
 		InventoryOptionEvents.publishChanges(publisher, before, InventoryOptionEvents.snapshot(List.of(slot(option))));
 
@@ -72,7 +72,7 @@ class InventoryOptionEventsTest {
 	void anUnchangedOptionOrOneChangedOnlyInScaleIsNotAnnounced() {
 		SlotOption option = inventoryOption("INV-1", "2");
 		var before = InventoryOptionEvents.snapshot(List.of(slot(option)));
-		option.update("Renamed", OfferStatus.INACTIVE, null, new BigDecimal("2.00"), null);
+		option.update("Renamed", OfferStatus.INACTIVE, null, new BigDecimal("2.00"));
 
 		InventoryOptionEvents.publishChanges(publisher, before, InventoryOptionEvents.snapshot(List.of(slot(option))));
 

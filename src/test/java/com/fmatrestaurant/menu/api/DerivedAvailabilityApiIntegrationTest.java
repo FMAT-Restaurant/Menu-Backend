@@ -566,7 +566,7 @@ class DerivedAvailabilityApiIntegrationTest {
 
 	private static String inventoryOption(String name) {
 		return "{\"displayName\": \"" + name + "\", \"sourceType\": \"INVENTORY_ITEM\", \"inventoryItemId\": \""
-				+ BEEF.id() + "\", \"quantity\": 150, \"unit\": \"g\"}";
+				+ BEEF.id() + "\", \"quantity\": 150}";
 	}
 
 	private static String slot(String name, String... options) {

@@ -282,7 +282,7 @@ class RecipeDeletionApiIntegrationTest {
 		List<SlotOption> options = List.of(
 				new SlotOption("Recipe", status, referencedRecipeId, 1),
 				new SlotOption("Same recipe", status, referencedRecipeId, 1),
-				new SlotOption("Inventory", OfferStatus.ACTIVE, BEEF, BigDecimal.ONE, BEEF.unit()));
+				new SlotOption("Inventory", OfferStatus.ACTIVE, BEEF, BigDecimal.ONE));
 		CatalogOffer offer = new CatalogOffer(entry, "Individual", BigDecimal.TEN, imageId,
 				List.of(new CompositionSlot("Main", BigDecimal.ONE, null, options)));
 		if (enabled) {

@@ -107,7 +107,7 @@ export function setup() {
         basePrice: 80 + 20 * j,
         imageId: image(`offer-${i}-${j}`),
         composition: { slots: [{ name: 'Proteína', quantity: 1, course: 'plato fuerte', options: [
-          { displayName: 'Pollo', sourceType: 'INVENTORY_ITEM', inventoryItemId: ITEM, quantity: 150, unit: 'kg' },
+          { displayName: 'Pollo', sourceType: 'INVENTORY_ITEM', inventoryItemId: ITEM, quantity: 150 },
         ] }] },
       }), json);
       const active = http.patch(`${BASE}/offers/${offer.id}`, JSON.stringify({ status: 'ACTIVE' }), {

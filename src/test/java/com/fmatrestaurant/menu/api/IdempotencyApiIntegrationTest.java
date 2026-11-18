@@ -384,7 +384,7 @@ class IdempotencyApiIntegrationTest {
 		return """
 				{"presentationTag": "Individual", "basePrice": 180, "imageId": "%s", "composition": {"slots": [
 				  {"name": "Main", "quantity": 1, "options": [{"displayName": "Beef", "sourceType": "INVENTORY_ITEM",
-				  "inventoryItemId": "%s", "quantity": 150, "unit": "g"}]}]}}
+				  "inventoryItemId": "%s", "quantity": 150}]}]}}
 				""".formatted(imageId, BEEF.id());
 	}
 

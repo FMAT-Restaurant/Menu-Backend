@@ -174,7 +174,7 @@ class PermissionsApiIntegrationTest {
 				.content("""
 						{"presentationTag": "Individual", "basePrice": 180, "imageId": "%s", "composition": {"slots": [
 						  {"name": "Side", "quantity": 1, "options": [{"displayName": "Fries",
-						   "sourceType": "INVENTORY_ITEM", "inventoryItemId": "%s", "quantity": 200, "unit": "g"}]}]}}
+						   "sourceType": "INVENTORY_ITEM", "inventoryItemId": "%s", "quantity": 200}]}]}}
 						""".formatted(imageId, POTATOES.id())))
 				.andExpect(status().isCreated())
 				.andReturn().getResponse().getContentAsString();

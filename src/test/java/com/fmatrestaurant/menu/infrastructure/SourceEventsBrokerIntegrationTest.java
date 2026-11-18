@@ -259,7 +259,7 @@ class SourceEventsBrokerIntegrationTest {
 				{"presentationTag": "Individual", "basePrice": 180, "imageId": "%s", "composition": {"slots": [
 				  {"name": "Side", "quantity": 1, "options": [
 				    {"displayName": "Fries", "sourceType": "INVENTORY_ITEM", "inventoryItemId": "%s",
-				     "quantity": %d, "unit": "g"}]}]}}
+				     "quantity": %d}]}]}}
 				""".formatted(imageId, item, quantity);
 	}
 

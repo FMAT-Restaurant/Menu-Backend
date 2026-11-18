@@ -517,7 +517,7 @@ class CatalogDeletionApiIntegrationTest {
 				{"presentationTag": "Individual", "basePrice": 180, "imageId": "%s", "composition": {"slots": [
 				  {"name": "Side", "quantity": 1, "options": [
 				    {"displayName": "Fries", "sourceType": "INVENTORY_ITEM", "inventoryItemId": "%s",
-				     "quantity": 200, "unit": "g"}]}]}}
+				     "quantity": 200}]}]}}
 				""".formatted(imageId, POTATOES.id());
 	}
 

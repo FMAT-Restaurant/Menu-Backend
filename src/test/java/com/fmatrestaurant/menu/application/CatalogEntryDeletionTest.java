@@ -144,7 +144,7 @@ class CatalogEntryDeletionTest {
 
 	private static CatalogOffer offer(CatalogEntry entry) {
 		SlotOption option = new SlotOption("Fries", OfferStatus.ACTIVE,
-				new InventoryItem("INV-" + UUID.randomUUID(), "Potatoes", "g"), new BigDecimal("200"), "g");
+				new InventoryItem("INV-" + UUID.randomUUID(), "Potatoes", "g"), new BigDecimal("200"));
 		CompositionSlot slot = new CompositionSlot("Side", BigDecimal.ONE, null, List.of(option));
 		return new CatalogOffer(entry, "Individual", BigDecimal.TEN, UUID.randomUUID(), List.of(slot));
 	}
