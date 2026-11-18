@@ -13,7 +13,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import com.fmatrestaurant.menu.application.service.ImageService;
 import com.fmatrestaurant.menu.domain.model.Image;
@@ -21,7 +20,7 @@ import com.fmatrestaurant.menu.domain.model.Image;
 @MenuApi(ImageController.PATH)
 public class ImageController {
 
-	/** Relative to the API version; also where {@code url} of an image points to. */
+	/** Relative to the API version. */
 	static final String PATH = "/menu/media/images";
 
 	private final ImageService imageService;
@@ -61,8 +60,7 @@ public class ImageController {
 	public record ImageResponse(UUID id, String url, String thumbnailUrl) {
 
 		public static ImageResponse of(UUID id) {
-			String url = ServletUriComponentsBuilder.fromCurrentContextPath()
-					.path(PublicImageController.PATH + "/{id}").buildAndExpand(id).toUriString();
+			String url = PublicImageController.url(id);
 			// ponytail: no thumbnails are generated yet, the original is served for both.
 			return new ImageResponse(id, url, url);
 		}

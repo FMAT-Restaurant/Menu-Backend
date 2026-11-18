@@ -114,8 +114,8 @@ class CatalogEntryApiIntegrationTest {
 				.andExpect(jsonPath("$.data.description").value("Tasty"))
 				.andExpect(jsonPath("$.data.status").value("INACTIVE"))
 				.andExpect(jsonPath("$.data.image.id").value(imageId.toString()))
-				.andExpect(jsonPath("$.data.image.url").value("http://localhost/media/images/" + imageId))
-				.andExpect(jsonPath("$.data.image.thumbnailUrl").value("http://localhost/media/images/" + imageId))
+				.andExpect(jsonPath("$.data.image.url").value("http://localhost" + IMAGES + "/" + imageId + "/file"))
+				.andExpect(jsonPath("$.data.image.thumbnailUrl").value("http://localhost" + IMAGES + "/" + imageId + "/file"))
 				.andExpect(jsonPath("$.data.categoryIds", contains(burgers.toString(), drinks.toString())))
 				.andReturn().getResponse().getContentAsString();
 		String id = JsonPath.read(location, "$.data.id");

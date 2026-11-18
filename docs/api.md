@@ -31,14 +31,17 @@ Cada operación exige los permisos de su `x-required-permission` en el contrato 
 - **403** (`Forbidden`): falta un permiso exigido. Se responde antes de la idempotencia y de cualquier escritura, así que no queda ningún efecto: ni datos ni `Idempotency-Key` ligada.
 - Un token **sin** `permissions` equivale a una lista vacía: 403, no 401.
 - **`"*"`** concede todos los permisos (administradores). El comodín no aparece en la ERS ni en el contrato.
-- **Sin credencial:** `/openapi.yaml`, el preflight `OPTIONS`, los archivos de imagen (`GET` y `HEAD /media/images/{imageId}`) y el mock de Inventario del perfil `local` (`/items`, `/api/v1/items`).
+- **Sin credencial:** `/openapi.yaml`, el preflight `OPTIONS`, los archivos de imagen (`GET` y `HEAD /api/v1/menu/media/images/{imageId}/file`) y el mock de Inventario del perfil `local` (`/items`, `/api/v1/items`).
 - **Rutas que no existen:** con una credencial legible siguen respondiendo `404`/`400`. No tienen handler, así que no hay nada que proteger.
 - **PATCH de entradas y ofertas** (RF-GEN-01.CA3): el cuerpo decide el permiso.
   - Solo cambios de `status` → `…:status`.
   - Sin cambios de `status` → `…:write`.
   - Ambos → los dos.
   - En ofertas, el `status` de una opción existente cuenta como cambio de estado. La `composition` solo cuenta como cambio de estado si lista exactamente los grupos y opciones actuales, en el mismo orden, y no trae más que sus ids, `sourceType` y `status`; si añade, quita, reordena o edita miembros, exige `write`.
-- **Imágenes públicas (#87):** `url` y `thumbnailUrl` apuntan a `GET /media/images/{imageId}`. Esa ruta está fuera de la API versionada y del contrato, como lo estaría un CDN, y sirve el archivo **sin permisos ni token**, así que un `<img src>` funciona.
+- **Imágenes públicas (#87):** `url` y `thumbnailUrl` apuntan a `GET /api/v1/menu/media/images/{imageId}/file`.
+  - La ruta está dentro de la API, con sus prefijos comunes y junto a la imagen, así que el Gateway la reenvía igual que el resto de `/api/v1/menu/**`.
+  - Sirve el archivo **sin permisos ni token**, así que un `<img src>` funciona.
+  - El contrato no la define.
   - Responde con `Content-Type`, `Cache-Control: no-cache, public` y un `ETag`, que es el SHA-256 del archivo y cambia si se reemplaza (BE-17). Con un `If-None-Match` vigente responde 304.
   - `GET /menu/media/images/{imageId}` (`getMenuImage`) sigue exigiendo `menu:images:write`, como dice el contrato. Solo sirve para obtener el ETag y preparar el reemplazo del archivo.
 

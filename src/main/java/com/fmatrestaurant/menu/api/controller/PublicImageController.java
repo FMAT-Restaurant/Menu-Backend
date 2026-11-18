@@ -10,22 +10,30 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import com.fmatrestaurant.menu.api.ApiVersioning;
+import com.fmatrestaurant.menu.api.MenuApi;
 import com.fmatrestaurant.menu.application.service.ImageService;
 import com.fmatrestaurant.menu.domain.model.Image;
 
 /**
  * The files of the images, public: no permission nor token, so a browser can show them with {@code <img src>}.
- * {@code url} and {@code thumbnailUrl} of every response point here. It is outside the versioned API and the
- * contract, like a CDN would be; {@code GET /api/v1/menu/media/images/{imageId}} keeps requiring
- * {@code menu:images:write}, as the contract says, to prepare the replacement of a file.
+ * They live in the API with its common prefixes, next to the image ({@code /api/v1/menu/media/images/{id}/file}),
+ * and {@code url} and {@code thumbnailUrl} of every response point here. The contract does not define this route;
+ * getMenuImage ({@code GET /api/v1/menu/media/images/{imageId}}) keeps requiring {@code menu:images:write}.
  */
-@RestController
+@MenuApi(PublicImageController.IMAGES)
 public class PublicImageController {
 
-	/** Unversioned path of the public files; {@code SecurityConfiguration} lets anyone read it. */
-	public static final String PATH = "/media/images";
+	/** Path of the images, relative to the API version. */
+	static final String IMAGES = "/menu/media/images";
+
+	/** Path of the file of an image, relative to the API version. */
+	public static final String FILE = IMAGES + "/{imageId}/file";
+
+	/** Ant pattern of the public files, for {@code SecurityConfiguration}. */
+	public static final String PUBLIC_PATTERN = ApiVersioning.BASE + IMAGES + "/*/file";
 
 	private final ImageService imageService;
 
@@ -33,11 +41,17 @@ public class PublicImageController {
 		this.imageService = imageService;
 	}
 
+	/** The absolute URL of the file of an image, from the current request. */
+	static String url(UUID imageId) {
+		return ServletUriComponentsBuilder.fromCurrentContextPath()
+				.path(ApiVersioning.BASE + FILE).buildAndExpand(imageId).toUriString();
+	}
+
 	/**
 	 * The ETag is a digest of the bytes, so it changes if the file is replaced (BE-17) while the id stays. Clients
 	 * revalidate every time ({@code no-cache}) and an unchanged image answers 304 without its bytes.
 	 */
-	@GetMapping(PATH + "/{imageId}")
+	@GetMapping("/{imageId}/file")
 	public ResponseEntity<byte[]> file(@PathVariable UUID imageId) {
 		Image image = imageService.get(imageId);
 		return ResponseEntity.ok()

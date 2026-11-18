@@ -31,6 +31,7 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
 
 import com.fmatrestaurant.menu.TestTokens;
 import com.fmatrestaurant.menu.TestcontainersConfiguration;
+import com.fmatrestaurant.menu.api.controller.PublicImageController;
 import com.fmatrestaurant.menu.api.security.OperationPermissions;
 import com.fmatrestaurant.menu.api.security.OperationPermissions.Kind;
 import com.fmatrestaurant.menu.api.security.OperationPermissions.Rule;
@@ -91,7 +92,8 @@ class OperationPermissionsContractTest {
 					continue;
 				}
 				String path = pattern.substring(VERSIONED_PREFIX.length());
-				if (INVENTORY_PATHS.contains(path)) {
+				// The public image files (#87) need no permission, outside the contract.
+				if (INVENTORY_PATHS.contains(path) || PublicImageController.FILE.equals(path)) {
 					continue;
 				}
 				info.getMethodsCondition().getMethods().forEach(method -> {
