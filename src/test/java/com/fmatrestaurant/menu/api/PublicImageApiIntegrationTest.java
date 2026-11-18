@@ -3,6 +3,7 @@ package com.fmatrestaurant.menu.api;
 import static com.fmatrestaurant.menu.TestTokens.bearer;
 import static org.hamcrest.Matchers.containsString;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.head;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -47,6 +48,9 @@ import com.jayway.jsonpath.JsonPath;
 @AutoConfigureMockMvc
 class PublicImageApiIntegrationTest {
 
+	/** The images, with the common prefixes of the API; the public file is {@code FILE + id + "/file"}. */
+	private static final String FILE = "/api/v1/menu/media/images/";
+
 	@Autowired
 	private MockMvc mockMvc;
 
@@ -78,6 +82,7 @@ class PublicImageApiIntegrationTest {
 				.header(HttpHeaders.AUTHORIZATION, bearer(TestTokens.ADMIN)))
 				.andReturn().getResponse().getContentAsString().transform(body -> JsonPath.read(body, "$.data.image.url"));
 		String path = URI.create(url).getPath();
+		assertEquals(FILE + imageId + "/file", path, "the file lives in the API with its common prefixes");
 
 		byte[] served = mockMvc.perform(get(path))
 				.andExpect(status().isOk())
@@ -93,18 +98,18 @@ class PublicImageApiIntegrationTest {
 	@Test
 	@DisplayName("Un If-None-Match vigente responde 304 y HEAD también es público")
 	void conditionalAndHeadRequests() throws Exception {
-		String etag = mockMvc.perform(get("/media/images/" + imageId)).andReturn().getResponse()
+		String etag = mockMvc.perform(get(FILE + imageId + "/file")).andReturn().getResponse()
 				.getHeader(HttpHeaders.ETAG);
 
-		mockMvc.perform(get("/media/images/" + imageId).header(HttpHeaders.IF_NONE_MATCH, etag))
+		mockMvc.perform(get(FILE + imageId + "/file").header(HttpHeaders.IF_NONE_MATCH, etag))
 				.andExpect(status().isNotModified());
-		mockMvc.perform(head("/media/images/" + imageId)).andExpect(status().isOk());
+		mockMvc.perform(head(FILE + imageId + "/file")).andExpect(status().isOk());
 	}
 
 	@Test
 	@DisplayName("Una imagen inexistente responde 404")
 	void anUnknownImageIsNotFound() throws Exception {
-		mockMvc.perform(get("/media/images/" + UUID.randomUUID())).andExpect(status().isNotFound());
+		mockMvc.perform(get(FILE + UUID.randomUUID() + "/file")).andExpect(status().isNotFound());
 	}
 
 	@Test

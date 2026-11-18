@@ -51,8 +51,8 @@ public class SecurityConfiguration {
 						.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 						.requestMatchers("/openapi.yaml", "/error").permitAll()
 						// Image files are public, so a browser shows them with <img src> (url and thumbnailUrl).
-						.requestMatchers(HttpMethod.GET, PublicImageController.PATH + "/*").permitAll()
-						.requestMatchers(HttpMethod.HEAD, PublicImageController.PATH + "/*").permitAll()
+						.requestMatchers(HttpMethod.GET, PublicImageController.PUBLIC_PATTERN).permitAll()
+						.requestMatchers(HttpMethod.HEAD, PublicImageController.PUBLIC_PATTERN).permitAll()
 						// Mock of Inventario (profile local): it stands for another service.
 						.requestMatchers("/items", "/items/**", ApiVersioning.BASE + "/items",
 								ApiVersioning.BASE + "/items/**").permitAll()
