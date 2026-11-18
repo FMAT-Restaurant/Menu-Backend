@@ -24,6 +24,7 @@ import javax.imageio.ImageIO;
 import org.hibernate.SessionFactory;
 import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -136,7 +137,7 @@ class CatalogOfferApiIntegrationTest {
 				.andExpect(jsonPath("$.data.composition.slots[0].slotId").exists())
 				.andExpect(jsonPath("$.data.composition.slots[0].name").value("Side"))
 				.andExpect(jsonPath("$.data.composition.slots[0].required").doesNotExist())
-				.andExpect(jsonPath("$.data.composition.slots[0].status").value("ACTIVE"))
+				.andExpect(jsonPath("$.data.composition.slots[0].status").doesNotExist())
 				.andExpect(jsonPath("$.data.composition.slots[0].quantity").value(1))
 				.andExpect(jsonPath("$.data.composition.slots[0].course").value("entrada"))
 				.andExpect(jsonPath("$.data.composition.slots[0].options[0].optionId").exists())
@@ -228,6 +229,24 @@ class CatalogOfferApiIntegrationTest {
 	}
 
 	@Test
+	@DisplayName("TC-OPC-01-CA2: an option starts ACTIVE unless another status is sent, on POST and PATCH")
+	void theStatusOfANewOptionIsOptional() throws Exception {
+		String id = create(offerWith(option(POTATOES.id(), "g"),
+				option(JUICE.id(), "ml").replace("\"sourceType\"", "\"status\": \"INACTIVE\", \"sourceType\"")));
+		mockMvc.perform(get(OFFERS + "/" + id))
+				.andExpect(jsonPath("$.data.composition.slots[0].status").doesNotExist())
+				.andExpect(jsonPath("$.data.composition.slots[0].options[0].status").value("ACTIVE"))
+				.andExpect(jsonPath("$.data.composition.slots[0].options[1].status").value("INACTIVE"));
+		String slot = JsonPath.read(read(id), "$.data.composition.slots[0].slotId");
+
+		patchOffer(id, etag(id), """
+				{"composition": {"slots": [{"slotId": "%s"}, {"name": "Drink", "quantity": 1, "options": [%s]}]}}
+				""".formatted(slot, option(JUICE.id(), "ml")))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.composition.slots[1].options[0].status").value("ACTIVE"));
+	}
+
+	@Test
 	void createRejectsFieldsThatItsSchemaDoesNotReceive() throws Exception {
 		String body = offerBody("Individual", "180");
 		String slot = "{\"name\": \"Side\"";
@@ -244,8 +263,8 @@ class CatalogOfferApiIntegrationTest {
 				"/composition/slots/0/required");
 		expectViolation(createOffer(entryId, body.replace(option, "{\"optionId\": \"" + UUID.randomUUID() + "\", "
 				+ option.substring(1))), "/composition/slots/0/options/0/optionId");
-		expectViolation(createOffer(entryId, body.replace(option, "{\"status\": \"ACTIVE\", " + option.substring(1))),
-				"/composition/slots/0/options/0/status");
+		expectViolation(createOffer(entryId, body.replace(slot, "{\"status\": \"ACTIVE\", " + slot.substring(1))),
+				"/composition/slots/0/status");
 		expectViolation(createOffer(entryId, body.replace(option, "{\"recipeId\": null, " + option.substring(1))),
 				"/composition/slots/0/options/0/recipeId");
 		expectViolation(createOffer(entryId, body.replace(option, "{\"source\": {\"id\": \"" + POTATOES.id() + "\"}, "
@@ -321,7 +340,7 @@ class CatalogOfferApiIntegrationTest {
 				.andExpect(jsonPath("$.data.composition.slots[0].options[0].source").doesNotExist())
 				.andExpect(jsonPath("$.data.composition.slots[1].name").value("Drink"))
 				.andExpect(jsonPath("$.data.composition.slots[1].quantity").value(2))
-				.andExpect(jsonPath("$.data.composition.slots[1].status").value("ACTIVE"))
+				.andExpect(jsonPath("$.data.composition.slots[1].options[0].status").value("ACTIVE"))
 				.andReturn().getResponse().getContentAsString();
 		String drink = JsonPath.read(patched, "$.data.composition.slots[1].slotId");
 
@@ -334,7 +353,7 @@ class CatalogOfferApiIntegrationTest {
 				""".formatted(slot, fries, drink))
 				.andExpect(status().isOk())
 				.andExpect(header().string(HttpHeaders.ETAG, not(before)))
-				.andExpect(jsonPath("$.data.composition.slots[0].status").value("INACTIVE"))
+				.andExpect(jsonPath("$.data.composition.slots[0].options[0].status").value("INACTIVE"))
 				.andExpect(jsonPath("$.data.composition.slots[1].options", hasSize(1)))
 				.andReturn().getResponse().getHeader(HttpHeaders.ETAG);
 		assertEquals(after, etag(id));
@@ -373,7 +392,7 @@ class CatalogOfferApiIntegrationTest {
 		patchOffer(id, etag(id), optionStatus(slot, option, "INACTIVE"))
 				.andExpect(jsonPath("$.data.status").value("INACTIVE"))
 				.andExpect(jsonPath("$.data.composition.slots[0].course").value("entrada"))
-				.andExpect(jsonPath("$.data.composition.slots[0].status").value("INACTIVE"));
+				.andExpect(jsonPath("$.data.composition.slots[0].options[0].status").value("INACTIVE"));
 		patchOffer(id, etag(id), optionStatus(slot, option, "ACTIVE"))
 				.andExpect(jsonPath("$.data.status").value("ACTIVE"));
 
@@ -381,7 +400,7 @@ class CatalogOfferApiIntegrationTest {
 		patchOffer(id, etag(id), "{\"status\": \"INACTIVE\"}").andExpect(jsonPath("$.data.status").value("INACTIVE"));
 		patchOffer(id, etag(id), optionStatus(slot, option, "INACTIVE")).andExpect(status().isOk());
 		patchOffer(id, etag(id), optionStatus(slot, option, "ACTIVE"))
-				.andExpect(jsonPath("$.data.composition.slots[0].status").value("ACTIVE"))
+				.andExpect(jsonPath("$.data.composition.slots[0].options[0].status").value("ACTIVE"))
 				.andExpect(jsonPath("$.data.status").value("INACTIVE"));
 		patchOffer(id, etag(id), "{\"status\": \"ACTIVE\"}").andExpect(jsonPath("$.data.status").value("ACTIVE"));
 
@@ -418,7 +437,6 @@ class CatalogOfferApiIntegrationTest {
 				"/composition/slots/0/options/0/sourceType");
 		expectRejected(offer, inSlot + existing(fries, "").replace("INVENTORY_ITEM", "RECIPE") + "]}]}}",
 				"/composition/slots/0/options/0/sourceType");
-		expectRejected(offer, inSlot + option(POTATOES.id(), "g") + "]}]}}", "/composition/slots/0/options/0/status");
 		expectRejected(offer, prefix + "{\"slotId\": \"" + slot + "\"}, {\"quantity\": 1, \"options\": ["
 				+ newOption(POTATOES.id(), "g") + "]}]}}", "/composition/slots/1/name");
 		// Fields that the contract does not define.
