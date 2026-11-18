@@ -1,5 +1,6 @@
 package com.fmatrestaurant.menu.api;
 
+import static org.hamcrest.Matchers.startsWith;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -250,9 +251,9 @@ class IdempotencyApiIntegrationTest {
 				.contentType(MediaType.APPLICATION_JSON).content(rename))
 				.andExpect(status().isPreconditionRequired());
 		MvcResult first = patchOffer(offer, key, "\"rev-0\"", rename)
-				.andExpect(status().isOk()).andExpect(header().string(HttpHeaders.ETAG, "\"rev-1\"")).andReturn();
+				.andExpect(status().isOk()).andExpect(header().string(HttpHeaders.ETAG, startsWith("\"rev-1-"))).andReturn();
 		patchOffer(offer, UUID.randomUUID().toString(), "\"rev-1\"", "{\"basePrice\": 200}")
-				.andExpect(header().string(HttpHeaders.ETAG, "\"rev-2\""));
+				.andExpect(header().string(HttpHeaders.ETAG, startsWith("\"rev-2-")));
 
 		assertSameResponse(first, patchOffer(offer, key, "\"rev-0\"", rename).andExpect(status().isOk()).andReturn());
 		mockMvc.perform(patch("/api/v1/menu/offers/" + offer).header(KEY, key)

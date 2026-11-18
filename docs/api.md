@@ -56,6 +56,29 @@ Cada operación exige los permisos de su `x-required-permission` en el contrato 
   - `TestSecurityConfiguration` envía TK-ADMIN por defecto en MockMvc;
   - `PermissionsApiIntegrationTest` no lo importa: cada solicitud lleva su propia credencial.
 
+## Disponibilidad
+
+`isAvailable` es la disponibilidad derivada y de solo lectura de opciones, grupos de selección, ofertas y entradas (RF-DISP-01 a RF-DISP-04). `DerivedAvailability` la calcula al armar cada respuesta, a partir de lo que comunicó Inventario ([messaging.md](messaging.md)), de la composición y de los estados, así que nunca queda desactualizada y nada se propaga. No cambia ningún `status`, y un `isAvailable` enviado en un POST o PATCH se ignora.
+
+| Elemento | Disponible si y solo si |
+| -------- | ----------------------- |
+| Opción `RECIPE` | Inventario comunicó su receta como disponible (todas las revisiones valen lo mismo) |
+| Opción `INVENTORY_ITEM` | Inventario comunicó la propia opción como disponible |
+| Grupo | Al menos una de sus opciones está `ACTIVE` y disponible |
+| Oferta | Todos sus grupos están disponibles (su `status` no interviene) |
+| Entrada | Al menos una de sus ofertas está `ACTIVE` y disponible; sin ofertas activas, `false` |
+
+El `status` de una opción no interviene en su propia disponibilidad (RF-DISP-01.CA3). Hasta que Inventario comunica un origen, este no está disponible.
+
+### ETag de entradas y ofertas
+
+La disponibilidad cambia sin que cambie la versión de la entrada o la oferta, por un evento de Inventario o por activar o inactivar ofertas. Por eso su ETag lleva una huella: `"rev-<versión>-<huella>"`.
+
+- **Entrada:** la huella es `a` (disponible) o `u` (no disponible).
+- **Oferta:** la huella es un CRC32 de los valores `isAvailable` de la oferta, sus grupos y sus opciones.
+
+Así, un `If-None-Match` con un ETag anterior al cambio responde 200 con el valor nuevo, no 304. `If-Match` compara solo la versión, así que un cambio de disponibilidad no hace fallar con 412 la edición de un administrador; también se acepta `"rev-<versión>"`. Categorías y recetas siguen con `"rev-<versión>"`.
+
 ## Versionado
 
 Todas las rutas de Menu viven bajo `/api/{version}` (hoy `/api/v1`). Usa el versionado nativo de Spring Framework 7: la versión es el segundo segmento del path, es obligatoria bajo `/api` y una versión que ningún controlador declare (`/api/v2/...`) responde `400` con el sobre de error.
