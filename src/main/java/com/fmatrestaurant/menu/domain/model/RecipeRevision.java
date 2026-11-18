@@ -6,6 +6,7 @@ import java.util.UUID;
 
 import com.fmatrestaurant.menu.domain.exception.Fields;
 import com.fmatrestaurant.menu.domain.exception.InvalidFieldException;
+import org.hibernate.annotations.ColumnDefault;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -56,8 +57,13 @@ public class RecipeRevision {
 	@Column(nullable = false, columnDefinition = "text")
 	private String instructions;
 
-	@Column(nullable = false)
-	private boolean isAvailable = true;
+	/**
+	 * Availability of the recipe as Inventory communicated it (RF-DISP-01.CA1); false until Inventory communicates
+	 * it. Only the event of Inventory changes it, with a bulk update, so the entity never writes it back.
+	 */
+	@Column(nullable = false, updatable = false)
+	@ColumnDefault("false")
+	private boolean isAvailable;
 
 	@OneToMany(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
 	@JoinColumn(name = "revision_id", nullable = false)
@@ -84,12 +90,12 @@ public class RecipeRevision {
 		this.ingredients.addAll(ingredients);
 	}
 
-	public void disable() {
-		this.isAvailable = false;
-	}
-
-	public void enable() {
-		this.isAvailable = true;
+	/**
+	 * A new revision is the same content source, so it keeps the availability Inventory communicated for the recipe
+	 * until Inventory evaluates the new content.
+	 */
+	public void inheritAvailability(RecipeRevision previous) {
+		this.isAvailable = previous.isAvailable;
 	}
 
 	public UUID getId() {

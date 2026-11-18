@@ -6,6 +6,7 @@ import java.util.UUID;
 import com.fmatrestaurant.menu.domain.exception.Fields;
 import com.fmatrestaurant.menu.domain.exception.InvalidFieldException;
 import jakarta.persistence.CheckConstraint;
+import org.hibernate.annotations.ColumnDefault;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -105,6 +106,15 @@ public class SlotOption {
 
 	@Column(name = "recipe_revision")
 	private Integer recipeRevision;
+
+	/**
+	 * Only for Inventory content: whether Inventory communicated that this option, as a content source, is available
+	 * (RF-DISP-01.CA2); false until it does. Only the event of Inventory changes it, with a bulk update, so a
+	 * concurrent edit of the option never writes back an old value.
+	 */
+	@Column(name = "source_available", nullable = false, updatable = false)
+	@ColumnDefault("false")
+	private boolean sourceAvailable;
 
 	protected SlotOption() {
 		// Required by JPA.
@@ -291,6 +301,10 @@ public class SlotOption {
 
 	public Integer getRecipeRevision() {
 		return recipeRevision;
+	}
+
+	public boolean isSourceAvailable() {
+		return sourceAvailable;
 	}
 
 }

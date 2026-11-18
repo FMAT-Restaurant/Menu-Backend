@@ -150,6 +150,7 @@ public class RecipeService {
 				instructions == null ? current.getInstructions() : instructions,
 				supplies == null ? current.getIngredients().stream().map(ComponentIngredient::copy).toList()
 						: ingredients(supplies));
+		next.inheritAvailability(current);
 		recipe.publishNextRevision();
 		recipeRepository.saveAndFlush(recipe);
 		var savedNext = revisionRepository.saveAndFlush(next);

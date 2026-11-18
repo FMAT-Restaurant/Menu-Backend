@@ -37,7 +37,7 @@ src/
 
 `MenuBackendApplication` se queda en el paquete raíz porque `@SpringBootApplication` escanea su paquete y todos los subpaquetes; si se moviera a una capa, Spring no encontraría los componentes de las demás.
 
-> **Nota:** la persistencia es PostgreSQL 18.6 + Spring Data JPA. RabbitMQ (Spring AMQP): Menu publica en el exchange `menu.topic` los eventos de sus fuentes (recetas y opciones de Inventario) con las routing keys `menu.source.created`, `menu.source.updated` y `menu.source.deleted`, una vez confirmada la transacción, y consume su cola de disponibilidad enlazada a `inventory.topic` (detalle en el README, sección «Conexión con RabbitMQ»). Los límites transaccionales y AuthN/AuthZ siguen pendientes.
+> **Nota:** la persistencia es PostgreSQL 18.6 + Spring Data JPA. RabbitMQ (Spring AMQP): Menu publica en el exchange `menu.topic` los eventos de sus fuentes (recetas y opciones de Inventario) con las routing keys `menu.source.created`, `menu.source.updated` y `menu.source.deleted`, una vez confirmada la transacción, y consume su cola de disponibilidad enlazada a `inventory.topic` para guardar la disponibilidad de cada origen (detalle en [messaging.md](messaging.md)). Los permisos se autorizan en la cadena de Spring Security (ver [api.md](api.md#permisos)); los límites transaccionales y la verificación de la firma del JWT (BE-12) siguen pendientes.
 
 ## Responsabilidades
 
