@@ -1,6 +1,5 @@
 package com.fmatrestaurant.menu.api.controller;
 
-import com.fmatrestaurant.menu.api.ApiVersioning;
 import com.fmatrestaurant.menu.api.MenuApi;
 import java.io.IOException;
 import java.util.UUID;
@@ -40,7 +39,10 @@ public class ImageController {
 				.body(new DataResponse<>(ImageResponse.of(image.getId())));
 	}
 
-	/** Serves the file. Not part of the contract, but it is where {@code url} points to. */
+	/**
+	 * getMenuImage: the file and its current ETag, to send in If-Match when the file is replaced. It requires
+	 * {@code menu:images:write}; clients show images from the public {@code url} ({@link PublicImageController}).
+	 */
 	@GetMapping("/{imageId}")
 	public ResponseEntity<byte[]> get(@PathVariable UUID imageId) {
 		Image image = imageService.get(imageId);
@@ -55,11 +57,12 @@ public class ImageController {
 		return "\"" + image.getId() + "\"";
 	}
 
+	/** {@code url} and {@code thumbnailUrl} are the public file, readable without permissions nor token. */
 	public record ImageResponse(UUID id, String url, String thumbnailUrl) {
 
 		public static ImageResponse of(UUID id) {
 			String url = ServletUriComponentsBuilder.fromCurrentContextPath()
-					.path(ApiVersioning.BASE + PATH + "/{id}").buildAndExpand(id).toUriString();
+					.path(PublicImageController.PATH + "/{id}").buildAndExpand(id).toUriString();
 			// ponytail: no thumbnails are generated yet, the original is served for both.
 			return new ImageResponse(id, url, url);
 		}
