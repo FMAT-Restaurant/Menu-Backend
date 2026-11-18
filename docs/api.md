@@ -79,6 +79,20 @@ La disponibilidad cambia sin que cambie la versión de la entrada o la oferta, p
 
 Así, un `If-None-Match` con un ETag anterior al cambio responde 200 con el valor nuevo, no 304. `If-Match` compara solo la versión, así que un cambio de disponibilidad no hace fallar con 412 la edición de un administrador; también se acepta `"rev-<versión>"`. Categorías y recetas siguen con `"rev-<versión>"`.
 
+## Catálogo visible
+
+`GET /menu/catalog` y `GET /menu/catalog/categories` presentan el catálogo a quien tiene «Ver catálogo» (`menu:catalog:read`), conforme a RF-CONS-01 a RF-CONS-03.
+
+- **Qué se presenta:** solo las entradas `ACTIVE`, sus ofertas `ACTIVE` y, en cada grupo, sus opciones `ACTIVE`. Lo que no está disponible sí se presenta, con `isAvailable: false`, para que el cliente lo muestre deshabilitado. Una entrada `ACTIVE` sin ofertas `ACTIVE` aparece con `offers: []` e `isAvailable: false`.
+- **Orden:**
+  - entradas por nombre comercial;
+  - ofertas por etiqueta de presentación;
+  - grupos y opciones en el orden del administrador.
+- **Campos:** solo los que presenta el cliente. No hay `status`, origen, cantidades de Inventario ni opción predeterminada.
+- **Búsqueda y filtro:** `q` busca en el nombre comercial, la descripción y los nombres de categoría. `categoryId` admite una categoría o `__uncategorized__`; una categoría inexistente devuelve una página vacía.
+- **Categorías:** se devuelven todas, sin paginar y en orden alfabético, también las vacías. `entryCount` cuenta solo las entradas `ACTIVE`, y `uncategorized.entryCount`, las entradas `ACTIVE` sin categorías.
+- **ETag:** ambas respuestas llevan un ETag calculado sobre el cuerpo. Por eso cambia también con `isAvailable`, y un `If-None-Match` vigente responde 304.
+
 ## Versionado
 
 Todas las rutas de Menu viven bajo `/api/{version}` (hoy `/api/v1`). Usa el versionado nativo de Spring Framework 7: la versión es el segundo segmento del path, es obligatoria bajo `/api` y una versión que ningún controlador declare (`/api/v2/...`) responde `400` con el sobre de error.
