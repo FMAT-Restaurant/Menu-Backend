@@ -258,14 +258,29 @@ class CatalogEntryApiIntegrationTest {
 	}
 
 	@Test
+	@DisplayName("TC-ENT-02-CA4: an ARCHIVED entry admits only being unarchived to INACTIVE")
+	void anArchivedEntryCanOnlyBeUnarchived() throws Exception {
+		String id = create("Burger", burgers);
+		changeStatus(id, 0, "ARCHIVED").andExpect(status().isOk());
+
+		patchEntry(id, "\"rev-1\"", "{\"brandName\": \"Intento de edición\"}").andExpect(status().isConflict());
+		patchEntry(id, "\"rev-1\"", "{\"status\": \"INACTIVE\", \"description\": \"x\"}")
+				.andExpect(status().isConflict());
+		mockMvc.perform(get(ENTRIES + "/" + id))
+				.andExpect(header().string(HttpHeaders.ETAG, org.hamcrest.Matchers.startsWith("\"rev-1")))
+				.andExpect(jsonPath("$.data.brandName").value("Burger"));
+
+		changeStatus(id, 1, "INACTIVE").andExpect(status().isOk());
+		patchEntry(id, "\"rev-2\"", "{\"brandName\": \"Renamed\"}").andExpect(status().isOk());
+	}
+
+	@Test
 	void statusTransitions() throws Exception {
 		String id = create("Burger", burgers);
 
 		changeStatus(id, 0, "ACTIVE").andExpect(status().isOk());
 		changeStatus(id, 1, "ARCHIVED").andExpect(status().isOk());
-		changeStatus(id, 2, "ACTIVE")
-				.andExpect(status().isUnprocessableContent())
-				.andExpect(jsonPath(VIOLATION_PATH).value("/status"));
+		changeStatus(id, 2, "ACTIVE").andExpect(status().isConflict());
 		changeStatus(id, 2, "INACTIVE")
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.status").value("INACTIVE"));
