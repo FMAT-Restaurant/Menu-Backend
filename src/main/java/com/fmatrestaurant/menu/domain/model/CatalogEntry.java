@@ -71,7 +71,7 @@ public class CatalogEntry {
 	}
 
 	/**
-	 * Creates an entry. Every new entry starts {@link EntryStatus#INACTIVE}.
+	 * Creates an entry. Every new entry starts {@link EntryStatus#INACTIVE}; without categories, it has none.
 	 *
 	 * @throws InvalidFieldException if any value is missing or invalid, or a category belongs to another menu
 	 */
@@ -87,10 +87,9 @@ public class CatalogEntry {
 			throw new InvalidFieldException("/imageId", "The catalog entry image is required");
 		}
 		this.imageId = imageId;
-		if (categories == null) {
-			throw new InvalidFieldException("/categoryIds", "The catalog entry categories are required");
+		if (categories != null) {
+			this.categories.addAll(sameMenu(categories));
 		}
-		this.categories.addAll(sameMenu(categories));
 		this.status = EntryStatus.INACTIVE;
 	}
 
@@ -102,8 +101,7 @@ public class CatalogEntry {
 	 *
 	 * @throws InvalidFieldException if any value is invalid or the status transition is not allowed
 	 */
-	public void update(String brandName, String description, UUID imageId, Collection<Category> categories,
-			EntryStatus status) {
+	public void update(String brandName, String description, Collection<Category> categories, EntryStatus status) {
 		String newBrandName = brandName == null ? this.brandName
 				: text("/brandName", "brand name", brandName, BRAND_NAME_MAX_LENGTH);
 		String newDescription = description == null ? this.description
@@ -115,9 +113,6 @@ public class CatalogEntry {
 		}
 		this.brandName = newBrandName;
 		this.description = newDescription;
-		if (imageId != null) {
-			this.imageId = imageId;
-		}
 		// Replacing an equal set would still mark the collection dirty and bump the version.
 		if (newCategories != null && !this.categories.equals(newCategories)) {
 			this.categories.clear();

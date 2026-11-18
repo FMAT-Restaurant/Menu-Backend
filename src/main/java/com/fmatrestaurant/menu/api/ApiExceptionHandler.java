@@ -44,6 +44,7 @@ import com.fmatrestaurant.menu.domain.exception.InvalidFieldException;
 
 import tools.jackson.databind.exc.InvalidNullException;
 import tools.jackson.databind.exc.MismatchedInputException;
+import tools.jackson.databind.exc.UnrecognizedPropertyException;
 
 /**
  * Translates errors into the error envelopes of the API contract.
@@ -91,6 +92,9 @@ public class ApiExceptionHandler {
 					.map(reference -> "/" + (reference.getPropertyName() != null ? reference.getPropertyName()
 							: reference.getIndex()))
 					.collect(Collectors.joining());
+			if (mismatch instanceof UnrecognizedPropertyException unknown) {
+				return invalid(path, "The field " + unknown.getPropertyName() + " is not allowed");
+			}
 			return invalid(path, mismatch instanceof InvalidNullException ? "The value must not be null"
 					: wrongTypeMessage(mismatch.getTargetType()));
 		}

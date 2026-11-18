@@ -182,7 +182,7 @@ class CatalogOfferDeletionTest {
 
 	private CatalogEntry entry(EntryStatus status) {
 		CatalogEntry entry = new CatalogEntry(1L, "Hawaiian burger", "Tasty", UUID.randomUUID(), List.of());
-		entry.update(null, null, null, null, status);
+		entry.update(null, null, null, status);
 		ReflectionTestUtils.setField(entry, "id", ENTRY_ID);
 		when(entryRepository.findWithLockById(ENTRY_ID)).thenReturn(Optional.of(entry));
 		return entry;

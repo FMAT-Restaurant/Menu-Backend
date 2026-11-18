@@ -93,7 +93,7 @@ class DomainMappingIntegrationTest {
 		CatalogEntry entry = offer.getEntry();
 		offers.recordRevision(offer);
 		entityManager.flush();
-		offer.update("Family", BigDecimal.valueOf(20), null);
+		offer.update("Family", BigDecimal.valueOf(20));
 		offer.getSlots().getFirst().getOptions().getFirst().updateRecipe(null, OfferStatus.INACTIVE, null, null);
 		offers.saveAndFlush(offer);
 		offers.recordRevision(offer);

@@ -24,6 +24,7 @@ import javax.imageio.ImageIO;
 import org.hibernate.SessionFactory;
 import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -225,6 +226,19 @@ class CatalogOfferApiIntegrationTest {
 				"/composition/slots/0/quantity");
 
 		assertEquals(0, offerRepository.count());
+	}
+
+	@Test
+	@DisplayName("TC-IMG-03-CA2: PATCH of an offer rejects the image, which is fixed at creation")
+	void patchRejectsTheImage() throws Exception {
+		String id = create(offerBody("Individual", "180"));
+		String etag = etag(id);
+
+		expectViolation(patchOffer(id, etag, "{\"basePrice\": 1, \"imageId\": \"" + imageId + "\"}"), "/imageId");
+
+		mockMvc.perform(get(OFFERS + "/" + id))
+				.andExpect(header().string(HttpHeaders.ETAG, etag))
+				.andExpect(jsonPath("$.data.basePrice").value(180));
 	}
 
 	@Test

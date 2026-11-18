@@ -24,6 +24,7 @@ import java.util.stream.Collectors;
 import javax.imageio.ImageIO;
 
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -189,9 +190,8 @@ class CatalogEntryApiIntegrationTest {
 	}
 
 	@Test
-	void patchKeepsOmittedFieldsAndReplacesCategoriesAndImage() throws Exception {
+	void patchKeepsOmittedFieldsAndReplacesCategories() throws Exception {
 		String id = create("Burger", burgers);
-		UUID newImage = upload(png(30, 30));
 
 		patchEntry(id, "\"rev-0\"", "{\"description\": \"New\", \"categoryIds\": [\"" + drinks + "\"]}")
 				.andExpect(status().isOk())
@@ -201,14 +201,39 @@ class CatalogEntryApiIntegrationTest {
 				.andExpect(jsonPath("$.data.status").value("INACTIVE"))
 				.andExpect(jsonPath("$.data.image.id").value(imageId.toString()))
 				.andExpect(jsonPath("$.data.categoryIds", contains(drinks.toString())));
-		patchEntry(id, "\"rev-1\"", "{\"imageId\": \"" + newImage + "\"}")
-				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.data.image.id").value(newImage.toString()))
-				.andExpect(jsonPath("$.data.description").value("New"))
-				.andExpect(jsonPath("$.data.categoryIds", contains(drinks.toString())));
-		patchEntry(id, "\"rev-2\"", "{\"categoryIds\": []}")
+		patchEntry(id, "\"rev-1\"", "{\"categoryIds\": []}")
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.categoryIds", hasSize(0)));
+	}
+
+	@Test
+	@DisplayName("TC-ENT-01-CA4: an entry can be created without categories")
+	void createWithoutCategoriesDefaultsToNone() throws Exception {
+		createEntry("{\"brandName\": \"Burger\", \"description\": \"Tasty\", \"imageId\": \"" + imageId + "\"}")
+				.andExpect(status().isCreated())
+				.andExpect(jsonPath("$.data.categoryIds", hasSize(0)));
+	}
+
+	@Test
+	@DisplayName("TC-IMG-03-CA2: PATCH rejects the image and any field outside its schema")
+	void patchRejectsTheImageAndUnknownFields() throws Exception {
+		String id = create("Burger", burgers);
+		UUID newImage = upload(png(30, 30));
+
+		patchEntry(id, "\"rev-0\"", "{\"imageId\": \"" + newImage + "\"}")
+				.andExpect(status().isUnprocessableContent())
+				.andExpect(jsonPath(VIOLATION_PATH).value("/imageId"));
+		patchEntry(id, "\"rev-0\"", "{\"brandName\": \"New\", \"extra\": 1}")
+				.andExpect(status().isUnprocessableContent())
+				.andExpect(jsonPath(VIOLATION_PATH).value("/extra"));
+		createEntry(body("Burger", imageId, burgers).replace("\"description\"", "\"status\": \"ACTIVE\", \"description\""))
+				.andExpect(status().isUnprocessableContent())
+				.andExpect(jsonPath(VIOLATION_PATH).value("/status"));
+
+		mockMvc.perform(get(ENTRIES + "/" + id))
+				.andExpect(header().string(HttpHeaders.ETAG, "\"rev-0\""))
+				.andExpect(jsonPath("$.data.brandName").value("Burger"))
+				.andExpect(jsonPath("$.data.image.id").value(imageId.toString()));
 	}
 
 	@Test
@@ -292,7 +317,7 @@ class CatalogEntryApiIntegrationTest {
 		// MockMvc runs in this thread, so the PATCH joins the slow transaction, which already read rev-0.
 		slowRequest.executeWithoutResult(transaction -> {
 			entryRepository.findById(id).orElseThrow();
-			fastRequest.executeWithoutResult(_ -> entryService.update(id, 0, "First", null, null, null, null));
+			fastRequest.executeWithoutResult(_ -> entryService.update(id, 0, "First", null, null, null));
 			try {
 				patchEntry(id.toString(), "\"rev-0\"", "{\"brandName\": \"Second\"}")
 						.andExpect(status().isPreconditionFailed())
@@ -433,11 +458,11 @@ class CatalogEntryApiIntegrationTest {
 		return mockMvc.perform(multipart(IMAGES).header("Idempotency-Key", UUID.randomUUID()).file(file));
 	}
 
-	/** The client sends ACTIVE, but every new entry must start INACTIVE. */
+	/** A body of POST; every new entry starts INACTIVE. */
 	private static String body(String brandName, UUID image, UUID... categoryIds) {
 		String ids = Arrays.stream(categoryIds).map(id -> "\"" + id + "\"").collect(Collectors.joining(", "));
 		return """
-				{"brandName": "%s", "description": "Tasty", "status": "ACTIVE", "imageId": "%s", "categoryIds": [%s]}
+				{"brandName": "%s", "description": "Tasty", "imageId": "%s", "categoryIds": [%s]}
 				""".formatted(brandName, image, ids);
 	}
 
