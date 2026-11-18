@@ -55,6 +55,8 @@ Si el log muestra `Sensor JaCoCo XML Report Importer` seguido de `Importing 1 re
 
 `setup()` siembra 12 categorías, 150 entradas activas (una de cada diez sin categoría) y 2 ofertas por entrada a través de la API. La mezcla de operaciones (catálogo, ofertas de una entrada, composición, búsqueda por texto y filtro por categoría) se reparte por igual mientras OPEN-009 no fije la proporción. El resumen (`k6-summary.json`, artefacto `k6-summary`) incluye las solicitudes completadas, fallidas y descartadas (`dropped_iterations`) que pide RNF-REND-03.CA2.
 
+En CI, la imagen de Menu se construye antes de levantar Compose con `docker/build-push-action` y la caché de GitHub Actions (`type=gha`), la misma que usa `build-and-push`. Así las dependencias de Gradle se descargan solo cuando cambia `build.gradle` y Maven Central no corta el job con un `429 Too Many Requests`; Compose arranca con `--no-build` usando esa imagen (`menu-backend-api`).
+
 Ejecutarlo localmente (sin instalar k6):
 
 ```bash
