@@ -13,6 +13,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.intercept.AuthorizationFilter;
 
 import com.fmatrestaurant.menu.api.ApiVersioning;
+import com.fmatrestaurant.menu.api.controller.PublicImageController;
 import com.fmatrestaurant.menu.api.security.BearerPermissionsFilter;
 import com.fmatrestaurant.menu.api.security.PermissionAuthorizationManager;
 import com.fmatrestaurant.menu.api.security.SecurityErrors;
@@ -49,6 +50,9 @@ public class SecurityConfiguration {
 				.authorizeHttpRequests(requests -> requests
 						.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 						.requestMatchers("/openapi.yaml", "/error").permitAll()
+						// Image files are public, so a browser shows them with <img src> (url and thumbnailUrl).
+						.requestMatchers(HttpMethod.GET, PublicImageController.PATH + "/*").permitAll()
+						.requestMatchers(HttpMethod.HEAD, PublicImageController.PATH + "/*").permitAll()
 						// Mock of Inventario (profile local): it stands for another service.
 						.requestMatchers("/items", "/items/**", ApiVersioning.BASE + "/items",
 								ApiVersioning.BASE + "/items/**").permitAll()

@@ -2,7 +2,6 @@ package com.fmatrestaurant.menu.api;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.startsWith;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -115,8 +114,8 @@ class CatalogEntryApiIntegrationTest {
 				.andExpect(jsonPath("$.data.description").value("Tasty"))
 				.andExpect(jsonPath("$.data.status").value("INACTIVE"))
 				.andExpect(jsonPath("$.data.image.id").value(imageId.toString()))
-				.andExpect(jsonPath("$.data.image.url").value(endsWith(IMAGES + "/" + imageId)))
-				.andExpect(jsonPath("$.data.image.thumbnailUrl").value(endsWith(IMAGES + "/" + imageId)))
+				.andExpect(jsonPath("$.data.image.url").value("http://localhost/media/images/" + imageId))
+				.andExpect(jsonPath("$.data.image.thumbnailUrl").value("http://localhost/media/images/" + imageId))
 				.andExpect(jsonPath("$.data.categoryIds", contains(burgers.toString(), drinks.toString())))
 				.andReturn().getResponse().getContentAsString();
 		String id = JsonPath.read(location, "$.data.id");
