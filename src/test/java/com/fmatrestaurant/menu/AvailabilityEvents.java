@@ -3,8 +3,8 @@ package com.fmatrestaurant.menu;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 
+import org.awaitility.Awaitility;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessageProperties;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -66,18 +66,8 @@ public final class AvailabilityEvents {
 	}
 
 	private void awaitProcessed(String eventId) {
-		long deadline = System.nanoTime() + TIMEOUT.toNanos();
-		while (!processedEvents.existsById(eventId)) {
-			if (System.nanoTime() > deadline) {
-				throw new AssertionError("Menu did not process the availability event " + eventId);
-			}
-			try {
-				TimeUnit.MILLISECONDS.sleep(50);
-			} catch (InterruptedException e) {
-				Thread.currentThread().interrupt();
-				throw new AssertionError("Interrupted while waiting for the event " + eventId, e);
-			}
-		}
+		Awaitility.await("Menu processes the availability event " + eventId).atMost(TIMEOUT)
+				.pollInterval(Duration.ofMillis(50)).until(() -> processedEvents.existsById(eventId));
 	}
 
 	private static String payload(UUID sourceId, boolean available) {
