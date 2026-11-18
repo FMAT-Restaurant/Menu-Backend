@@ -109,7 +109,56 @@ jobs:
 
 
   # ----------------------------------------------------------------------------
-  # JOB: CONTRATO - El contrato servido debe ser idéntico al publicado y válido
+  # JOB 2: PRUEBAS DE RENDIMIENTO (k6) - RNF-REND-01, 02 y 03 de la ERS
+  # ----------------------------------------------------------------------------
+  performance:
+    name: Performance (k6)
+    needs: [test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    env:
+      # Perfil `local`: Menu se consulta a sí mismo como Inventario (InventoryMockController) para sembrar ofertas.
+      POSTGRES_PASSWORD: perf
+      SPRING_PROFILES_ACTIVE: local
+      INVENTORY_BASE_URL: http://localhost:8080
+      # RNF-REND-02 pide 30 minutos sostenidos; en PRs se acorta a 5 para no frenar la revisión.
+      NOMINAL_DURATION: ${{ github.event_name == 'pull_request' && '5m' || '30m' }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      # Compose declara restaurant-network como externa.
+      - name: Start Menu with PostgreSQL and RabbitMQ
+        run: |
+          docker network create restaurant-network
+          docker compose up -d --build
+          timeout 120 bash -c 'until curl -sf -o /dev/null http://localhost:8080/api/v1/menu/categories; do sleep 2; done'
+
+      - name: Set up k6
+        uses: grafana/setup-k6-action@v1
+
+      - name: Run performance tests
+        run: k6 run -e BASE_URL=http://localhost:8080 --summary-export=k6-summary.json k6/catalog.js
+
+      - name: API logs
+        if: failure()
+        run: docker compose logs api
+
+      # RNF-REND-03.CA2: el resumen conserva las solicitudes completadas, fallidas y descartadas.
+      - name: Upload k6 summary
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: k6-summary
+          path: k6-summary.json
+          retention-days: 14
+          if-no-files-found: warn
+
+  # ----------------------------------------------------------------------------
+  # JOB 3: CONTRATO - El contrato servido debe ser idéntico al publicado y válido
   # ----------------------------------------------------------------------------
   contract:
     # 'name': Úsalo como status check requerido en la protección de 'main'.
@@ -147,12 +196,12 @@ jobs:
 
 
   # ----------------------------------------------------------------------------
-  # JOB 2: ENTREGA CONTINUA (CD) - Empaquetado y Publicación de Contenedor Docker
+  # JOB 4: ENTREGA CONTINUA (CD) - Empaquetado y Publicación de Contenedor Docker
   # ----------------------------------------------------------------------------
   build-and-push:
     name: Build and Push Docker Image
-    # 'needs': Solo inicia si las pruebas y la verificación del contrato tuvieron éxito.
-    needs: [test, contract]
+    # 'needs': Solo inicia si las pruebas, las de rendimiento y la verificación del contrato tuvieron éxito.
+    needs: [test, performance, contract]
     # 'if': Solo se publica con commits en 'main' (no en PRs ni otras ramas).
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
