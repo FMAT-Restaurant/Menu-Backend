@@ -46,7 +46,7 @@ public class CatalogOfferController {
 		this.offerService = offerService;
 	}
 
-	/** The initial status is always INACTIVE, its options start ACTIVE and the server assigns every id. */
+	/** The initial status is always INACTIVE, its options start ACTIVE by default and the server assigns every id. */
 	@PostMapping("/entries/{entryId}/offers")
 	public ResponseEntity<DataResponse<OfferDetail>> create(@PathVariable UUID entryId,
                                                             @RequestBody OfferInput request) {
@@ -118,14 +118,14 @@ public class CatalogOfferController {
 	}
 
 	/**
-	 * The derived status is always included, as PATCH requires it. A missing course is left out, as the
-	 * contract types it as a string.
+	 * A slot has no status of its own in the contract. A missing course is left out, as the contract types
+	 * it as a string.
 	 */
-	public record Slot(UUID slotId, String name, OfferStatus status, int quantity,
+	public record Slot(UUID slotId, String name, int quantity,
 			@JsonInclude(NON_NULL) String course, List<Option> options) {
 
 		static Slot of(CompositionSlot slot) {
-			return new Slot(slot.getId(), slot.getName(), slot.getStatus(), slot.getQuantity(), slot.getCourse(),
+			return new Slot(slot.getId(), slot.getName(), slot.getQuantity(), slot.getCourse(),
 					slot.getOptions().stream().map(Option::of).toList());
 		}
 
@@ -133,7 +133,7 @@ public class CatalogOfferController {
 
 	/**
 	 * An INVENTORY_ITEM option ({@code additionalProperties: false}): only the fields of its source type.
-	 * The status is always included, as PATCH requires it.
+	 * The status is always included.
 	 */
 	public record Option(UUID optionId, SourceType sourceType, @JsonInclude(NON_NULL) String inventoryItemId,
 			@JsonInclude(NON_NULL) BigDecimal quantity, @JsonInclude(NON_NULL) String unit,

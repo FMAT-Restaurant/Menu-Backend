@@ -32,9 +32,8 @@ class SlotOptionRecipeTest {
 	}
 
 	@Test
-	void rejectsAMissingStatusDisplayNameRecipeOrRevision() {
-		assertEquals("/status", assertThrows(InvalidFieldException.class,
-				() -> new SlotOption("House burger", null, RECIPE, 1)).getPath());
+	void startsActiveWithoutStatusAndRejectsAMissingDisplayNameRecipeOrRevision() {
+		assertEquals(OfferStatus.ACTIVE, new SlotOption("House burger", null, RECIPE, 1).getStatus());
 		assertEquals("/displayName", assertThrows(InvalidFieldException.class,
 				() -> new SlotOption(" ", OfferStatus.ACTIVE, RECIPE, 1)).getPath());
 		assertEquals("/recipeId", assertThrows(InvalidFieldException.class,
