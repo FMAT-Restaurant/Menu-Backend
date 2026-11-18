@@ -80,8 +80,8 @@ supplies(request.supplies()));
 	@DeleteMapping("/{recipeId}")
 	public ResponseEntity<Void> delete(@PathVariable UUID recipeId,
 			@RequestHeader(HttpHeaders.IF_MATCH) String ifMatch) {
-		long version = recipeService.delete(recipeId, Revisions.strongVersion(ifMatch));
-		return ResponseEntity.noContent().eTag(Revisions.strong(version)).build();
+		recipeService.delete(recipeId, Revisions.strongVersion(ifMatch));
+		return ResponseEntity.noContent().build();
 	}
 
 	private static List<SupplyData> supplies(List<SupplyRequest> supplies) {

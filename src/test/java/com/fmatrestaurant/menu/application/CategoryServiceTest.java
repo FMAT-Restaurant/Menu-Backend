@@ -17,9 +17,11 @@ import java.util.UUID;
 import com.fmatrestaurant.menu.application.exception.CategoryNotFoundException;
 import com.fmatrestaurant.menu.application.service.CategoryService;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import com.fmatrestaurant.menu.domain.model.Category;
 import com.fmatrestaurant.menu.domain.exception.InvalidCategoryException;
@@ -89,10 +91,14 @@ class CategoryServiceTest {
 	}
 
 	@Test
+	@DisplayName("TC-CAT-01-CA4: a name equal to another one ignoring spaces, case and accents is rejected")
 	void createRejectsDuplicateNameWithoutSaving() {
-		when(repository.existsByMenuIdAndNameIgnoreCase(CategoryService.DEFAULT_MENU_ID, "Drinks")).thenReturn(true);
+		Category drinks = new Category(CategoryService.DEFAULT_MENU_ID, "Bebidas", null);
+		ReflectionTestUtils.setField(drinks, "id", UUID.randomUUID());
+		when(repository.findByMenuId(CategoryService.DEFAULT_MENU_ID)).thenReturn(List.of(drinks));
 
-		assertThrows(InvalidCategoryException.class, () -> service.create("Drinks", null));
+		assertThrows(InvalidCategoryException.class, () -> service.create(" bebídas ", null));
+		assertThrows(InvalidCategoryException.class, () -> service.create("BEBIDAS", null));
 
 		verify(repository, never()).saveAndFlush(any(Category.class));
 	}
@@ -155,9 +161,11 @@ class CategoryServiceTest {
 		when(existing.getMenuId()).thenReturn(CategoryService.DEFAULT_MENU_ID);
 		when(existing.getName()).thenReturn("Drinks");
 		when(repository.findById(ID)).thenReturn(Optional.of(existing));
-		when(repository.existsByMenuIdAndNameIgnoreCaseAndIdNot(CategoryService.DEFAULT_MENU_ID, "Food", ID)).thenReturn(true);
+		Category food = new Category(CategoryService.DEFAULT_MENU_ID, "Food", null);
+		ReflectionTestUtils.setField(food, "id", UUID.randomUUID());
+		when(repository.findByMenuId(CategoryService.DEFAULT_MENU_ID)).thenReturn(List.of(existing, food));
 
-		assertThrows(InvalidCategoryException.class, () -> service.update(ID, "Food", "New"));
+		assertThrows(InvalidCategoryException.class, () -> service.update(ID, "Fóod", "New"));
 
 		assertEquals("Drinks", existing.getName());
 		verify(repository, never()).saveAndFlush(any(Category.class));

@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -162,7 +163,7 @@ class CategoryApiIntegrationTest {
 		mockMvc.perform(delete(CATEGORIES + "/" + category.getId())
 				.header(HttpHeaders.IF_MATCH, "\"rev-0\""))
 				.andExpect(status().isNoContent())
-				.andExpect(header().string(HttpHeaders.ETAG, "\"rev-0\""));
+				.andExpect(header().doesNotExist(HttpHeaders.ETAG));
 
 		assertEquals(0, categoryRepository.count());
 		assertEquals(1, entryRepository.count());
@@ -226,12 +227,21 @@ class CategoryApiIntegrationTest {
 	}
 
 	@Test
-	void rejectsCategoryNamesThatDifferOnlyByCase() throws Exception {
+	@DisplayName("TC-CAT-01-CA4: names that differ only by spaces, case or accents are duplicates")
+	void rejectsCategoryNamesThatDifferOnlyByCaseOrAccents() throws Exception {
 		categoryRepository.saveAndFlush(new Category(1L, "Desserts", null));
 		Category drinks = categoryRepository.saveAndFlush(new Category(1L, "Drinks", null));
 
 		mockMvc.perform(post(CATEGORIES).header("Idempotency-Key", UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON)
 				.content("{\"name\":\" DESSERTS \"}"))
+				.andExpect(status().isUnprocessableContent())
+				.andExpect(jsonPath(VIOLATION_PATH).value("/name"));
+		mockMvc.perform(post(CATEGORIES).header("Idempotency-Key", UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON)
+				.content("{\"name\":\"dessérts\"}"))
+				.andExpect(status().isUnprocessableContent())
+				.andExpect(jsonPath(VIOLATION_PATH).value("/name"));
+		mockMvc.perform(patch(CATEGORIES + "/" + drinks.getId()).header(HttpHeaders.IF_MATCH, "\"rev-0\"")
+				.contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"DÉSSERTS\"}"))
 				.andExpect(status().isUnprocessableContent())
 				.andExpect(jsonPath(VIOLATION_PATH).value("/name"));
 		mockMvc.perform(patch(CATEGORIES + "/" + drinks.getId()).header(HttpHeaders.IF_MATCH, "\"rev-0\"")

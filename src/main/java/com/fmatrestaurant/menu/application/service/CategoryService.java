@@ -1,7 +1,9 @@
 package com.fmatrestaurant.menu.application.service;
 
+import java.text.Normalizer;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
@@ -136,13 +138,19 @@ public class CategoryService {
 		if (name == null) {
 			return;
 		}
-		String normalizedName = name.strip();
-		boolean exists = excludedId == null
-				? categoryRepository.existsByMenuIdAndNameIgnoreCase(menuId, normalizedName)
-				: categoryRepository.existsByMenuIdAndNameIgnoreCaseAndIdNot(menuId, normalizedName, excludedId);
+		String key = comparisonKey(name);
+		// ponytail: compares against every category of the menu in memory; a unique normalized column if menus grow.
+		boolean exists = categoryRepository.findByMenuId(menuId).stream()
+				.anyMatch(other -> (excludedId == null || !excludedId.equals(other.getId()))
+						&& comparisonKey(other.getName()).equals(key));
 		if (exists) {
 			throw new InvalidCategoryException("/name", "A category with this name already exists in this menu");
 		}
+	}
+
+	/** Names are unique ignoring surrounding spaces, case and accents (RF-CAT-01.CA4): "Bebídas" equals "bebidas". */
+	static String comparisonKey(String name) {
+		return Normalizer.normalize(name.strip(), Normalizer.Form.NFD).replaceAll("\\p{M}", "").toLowerCase(Locale.ROOT);
 	}
 
 	@Transactional(readOnly = true)
