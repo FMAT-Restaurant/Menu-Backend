@@ -11,6 +11,7 @@ import java.util.UUID;
 import java.util.stream.Stream;
 
 import com.fmatrestaurant.menu.api.controller.CategoryController;
+import com.fmatrestaurant.menu.WebSliceSecurityConfiguration;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -31,7 +32,7 @@ import com.fmatrestaurant.menu.domain.model.Category;
 
 @WebMvcTest(controllers = CategoryController.class, properties = {
 		"menu.cors.allowed-origins=https://menu.example.com, https://admin.example.com" })
-@Import(CorsConfiguration.class)
+@Import({ CorsConfiguration.class, WebSliceSecurityConfiguration.class })
 class NotFoundAndCorsTest {
 
 	private static final UUID ID = UUID.fromString("00000000-0000-0000-0000-000000000007");

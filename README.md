@@ -31,6 +31,12 @@ Esto levanta el API, PostgreSQL y RabbitMQ; el API espera a que ambos estén san
 - API: <http://localhost:8080>
 - Contrato OpenAPI: <http://localhost:8080/openapi.yaml>
 
+Todas las operaciones de `/api/v1/menu` exigen un JWT Bearer con la claim `permissions` (ver [Permisos](docs/api.md#permisos)). Mientras Menu no verifique la firma (BE-12), en local sirve este token sin firmar con el comodín de administrador:
+
+```bash
+curl -H "Authorization: Bearer eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiJrNiIsInBlcm1pc3Npb25zIjpbIioiXX0." http://localhost:8080/api/v1/menu/categories
+```
+
 Para detenerlo: `docker compose down` (agregar `-v` borra también los datos de PostgreSQL).
 
 ### Variables de entorno

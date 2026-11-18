@@ -12,6 +12,7 @@ import java.util.Map;
 
 import com.fmatrestaurant.menu.api.controller.CategoryController;
 import com.fmatrestaurant.menu.application.service.CategoryService;
+import com.fmatrestaurant.menu.WebSliceSecurityConfiguration;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -21,7 +22,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(controllers = CategoryController.class)
-@Import(ApiVersioningConfiguration.class)
+@Import({ ApiVersioningConfiguration.class, WebSliceSecurityConfiguration.class })
 class ApiVersioningTest {
 
 	@Autowired

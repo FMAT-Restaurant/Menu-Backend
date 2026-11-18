@@ -37,6 +37,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
 import com.fmatrestaurant.menu.TestcontainersConfiguration;
+import com.fmatrestaurant.menu.TestSecurityConfiguration;
 import com.fmatrestaurant.menu.application.service.RecipeService;
 import com.fmatrestaurant.menu.domain.model.CatalogEntry;
 import com.fmatrestaurant.menu.domain.model.CatalogOffer;
@@ -56,7 +57,7 @@ import com.fmatrestaurant.menu.infrastructure.repository.RecipeRepository;
 import com.fmatrestaurant.menu.infrastructure.repository.RecipeRevisionRepository;
 
 /** HTTP contract of REQ-MENU-REC-005 and BR-MENU-031 with PostgreSQL persistence. */
-@Import(TestcontainersConfiguration.class)
+@Import({ TestcontainersConfiguration.class, TestSecurityConfiguration.class })
 @SpringBootTest(properties = "spring.jpa.hibernate.ddl-auto=create-drop")
 @AutoConfigureMockMvc
 class RecipeDeletionApiIntegrationTest {

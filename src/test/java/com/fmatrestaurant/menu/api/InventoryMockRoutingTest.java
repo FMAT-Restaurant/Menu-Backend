@@ -4,6 +4,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.fmatrestaurant.menu.WebSliceSecurityConfiguration;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -22,7 +23,7 @@ import com.fmatrestaurant.menu.application.service.CategoryService;
  */
 // A Menu controller declares v1, as in the full application; alone, the mock would not make v1 a known version.
 @WebMvcTest(controllers = { InventoryMockController.class, CategoryController.class })
-@Import({ ApiVersioningConfiguration.class, ApiExceptionHandler.class })
+@Import({ ApiVersioningConfiguration.class, ApiExceptionHandler.class, WebSliceSecurityConfiguration.class })
 @ActiveProfiles("local")
 class InventoryMockRoutingTest {
 

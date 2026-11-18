@@ -40,6 +40,7 @@ import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.fmatrestaurant.menu.TestcontainersConfiguration;
+import com.fmatrestaurant.menu.TestSecurityConfiguration;
 import com.fmatrestaurant.menu.application.service.CatalogEntryService;
 import com.fmatrestaurant.menu.domain.model.Category;
 import com.fmatrestaurant.menu.domain.model.Image;
@@ -52,7 +53,7 @@ import com.jayway.jsonpath.JsonPath;
 /**
  * HTTP flows of catalog entries and images against PostgreSQL (Testcontainers). Requires Docker.
  */
-@Import(TestcontainersConfiguration.class)
+@Import({ TestcontainersConfiguration.class, TestSecurityConfiguration.class })
 @SpringBootTest(properties = "spring.jpa.hibernate.ddl-auto=create-drop")
 @AutoConfigureMockMvc
 class CatalogEntryApiIntegrationTest {

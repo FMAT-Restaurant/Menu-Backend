@@ -23,6 +23,11 @@ const ITEM = '2c21767f-0f9a-4e9f-adc7-2730556c1802';
 // PNG de 1x1 px: Menu exige imagen en entradas y ofertas.
 const PNG = encoding.b64decode(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC');
+// Menu exige un JWT con permissions (BE-13). Mientras no verifique la firma (BE-12), basta uno sin firmar con
+// el comodín de administrador; TOKEN permite usar uno real.
+const TOKEN = __ENV.TOKEN || [{ alg: 'none', typ: 'JWT' }, { sub: 'k6', permissions: ['*'] }]
+  .map((part) => encoding.b64encode(JSON.stringify(part), 'rawurl')).join('.') + '.';
+const AUTH = { Authorization: `Bearer ${TOKEN}` };
 
 export const options = {
   setupTimeout: '10m',
@@ -64,7 +69,7 @@ export const options = {
 function post(path, body, params = {}) {
   const res = http.post(`${BASE}${path}`, body, {
     ...params,
-    headers: { 'Idempotency-Key': crypto.randomUUID(), ...params.headers },
+    headers: { ...AUTH, 'Idempotency-Key': crypto.randomUUID(), ...params.headers },
     tags: { name: 'setup' },
   });
   if (res.status !== 201) fail(`POST ${path} -> ${res.status} ${res.body}`);
@@ -90,7 +95,7 @@ export function setup() {
       categoryIds: i % 10 === 0 ? [] : [categories[i % CATEGORIES], categories[(i + 5) % CATEGORIES]],
     }), json);
     const activated = http.patch(`${BASE}/entries/${entry.id}`, JSON.stringify({ status: 'ACTIVE' }),
-      { headers: { ...json.headers, 'If-Match': entry.etag }, tags: { name: 'setup' } });
+      { headers: { ...AUTH, ...json.headers, 'If-Match': entry.etag }, tags: { name: 'setup' } });
     if (activated.status !== 200) fail(`PATCH entry -> ${activated.status} ${activated.body}`);
     entries.push(entry.id);
     for (let j = 0; j < OFFERS_PER_ENTRY; j++) {
@@ -112,16 +117,16 @@ const pick = (list) => list[Math.floor(Math.random() * list.length)];
 // La mezcla de clases está pendiente (OPEN-009): se reparte por igual entre las cinco operaciones.
 const OPERATIONS = [
   // RF-CONS-01: catálogo de entradas.
-  (d) => http.get(`${BASE}/entries?page=${1 + Math.floor(Math.random() * 5)}&pageSize=12`, { tags: { name: 'catalog' } }),
+  (d) => http.get(`${BASE}/entries?page=${1 + Math.floor(Math.random() * 5)}&pageSize=12`, { headers: AUTH, tags: { name: 'catalog' } }),
   // RF-CONS-01/02: ofertas vendibles de una entrada.
-  (d) => http.get(`${BASE}/offers?entryId=${pick(d.entries)}`, { tags: { name: 'offers' } }),
+  (d) => http.get(`${BASE}/offers?entryId=${pick(d.entries)}`, { headers: AUTH, tags: { name: 'offers' } }),
   // RF-CONS-01.CA3: composición de una oferta.
-  (d) => http.get(`${BASE}/offers/${pick(d.offers)}`, { tags: { name: 'composition' } }),
+  (d) => http.get(`${BASE}/offers/${pick(d.offers)}`, { headers: AUTH, tags: { name: 'composition' } }),
   // RF-CONS-03.CA1: búsqueda por texto.
-  (d) => http.get(`${BASE}/entries?q=${pick(WORDS)}`, { tags: { name: 'search' } }),
+  (d) => http.get(`${BASE}/entries?q=${pick(WORDS)}`, { headers: AUTH, tags: { name: 'search' } }),
   // RF-CONS-03.CA2: filtro por categoría o «sin categoría».
   (d) => http.get(`${BASE}/entries?categoryId=${Math.random() < 0.1 ? UNCATEGORIZED : pick(d.categories)}`,
-    { tags: { name: 'filter' } }),
+    { headers: AUTH, tags: { name: 'filter' } }),
 ];
 
 export default function (data) {
@@ -131,5 +136,5 @@ export default function (data) {
 
 // RNF-REND-03.CA1: Menu no cae ni reinicia durante la ráfaga.
 export function teardown() {
-  check(http.get(`${BASE}/categories`), { 'alive after burst': (r) => r.status === 200 });
+  check(http.get(`${BASE}/categories`, { headers: AUTH }), { 'alive after burst': (r) => r.status === 200 });
 }

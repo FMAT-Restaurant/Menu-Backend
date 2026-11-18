@@ -29,6 +29,7 @@ import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.fmatrestaurant.menu.TestcontainersConfiguration;
+import com.fmatrestaurant.menu.TestSecurityConfiguration;
 import com.fmatrestaurant.menu.application.service.CategoryService;
 import com.fmatrestaurant.menu.domain.model.CatalogEntry;
 import com.fmatrestaurant.menu.domain.model.Category;
@@ -38,7 +39,7 @@ import com.fmatrestaurant.menu.infrastructure.repository.CategoryRepository;
 import com.jayway.jsonpath.JsonPath;
 
 /** HTTP flows of categories against PostgreSQL (Testcontainers). Requires Docker. */
-@Import(TestcontainersConfiguration.class)
+@Import({ TestcontainersConfiguration.class, TestSecurityConfiguration.class })
 @SpringBootTest(properties = "spring.jpa.hibernate.ddl-auto=create-drop")
 @AutoConfigureMockMvc
 class CategoryApiIntegrationTest {

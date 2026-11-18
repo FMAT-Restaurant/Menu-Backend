@@ -27,6 +27,7 @@ import org.springframework.test.web.servlet.ResultActions;
 
 import com.fmatrestaurant.menu.InventoryStub;
 import com.fmatrestaurant.menu.TestcontainersConfiguration;
+import com.fmatrestaurant.menu.TestSecurityConfiguration;
 import com.fmatrestaurant.menu.domain.model.InventoryItem;
 import com.fmatrestaurant.menu.domain.model.RecipeRevision;
 import com.fmatrestaurant.menu.infrastructure.repository.RecipeRepository;
@@ -37,7 +38,7 @@ import com.jayway.jsonpath.JsonPath;
  * HTTP flows of the recipe library against PostgreSQL (Testcontainers). Inventory articles are confirmed
  * by the real client against {@link InventoryStub}. Requires Docker.
  */
-@Import(TestcontainersConfiguration.class)
+@Import({ TestcontainersConfiguration.class, TestSecurityConfiguration.class })
 @SpringBootTest(properties = "spring.jpa.hibernate.ddl-auto=create-drop")
 @AutoConfigureMockMvc
 class RecipeApiIntegrationTest {

@@ -135,7 +135,8 @@ jobs:
         run: |
           docker network create restaurant-network
           docker compose up -d --build
-          timeout 120 bash -c 'until curl -sf -o /dev/null http://localhost:8080/api/v1/menu/categories; do sleep 2; done'
+          # /openapi.yaml no requiere credencial; las rutas de /api/v1/menu responden 401 sin token (BE-13).
+          timeout 120 bash -c 'until curl -sf -o /dev/null http://localhost:8080/openapi.yaml; do sleep 2; done'
 
       - name: Set up k6
         uses: grafana/setup-k6-action@v1

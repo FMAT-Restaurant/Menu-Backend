@@ -30,6 +30,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
 import com.fmatrestaurant.menu.TestcontainersConfiguration;
+import com.fmatrestaurant.menu.TestSecurityConfiguration;
 import com.fmatrestaurant.menu.domain.model.CatalogEntry;
 import com.fmatrestaurant.menu.domain.model.ComponentIngredient;
 import com.fmatrestaurant.menu.domain.model.Image;
@@ -44,7 +45,7 @@ import com.fmatrestaurant.menu.infrastructure.repository.RecipeRevisionRepositor
 import com.jayway.jsonpath.JsonPath;
 
 /** Optional slot courses over HTTP and PostgreSQL, using recipe options without Inventory calls. */
-@Import(TestcontainersConfiguration.class)
+@Import({ TestcontainersConfiguration.class, TestSecurityConfiguration.class })
 @SpringBootTest(properties = "spring.jpa.hibernate.ddl-auto=create-drop")
 @AutoConfigureMockMvc
 class CatalogOfferCourseApiIntegrationTest {
