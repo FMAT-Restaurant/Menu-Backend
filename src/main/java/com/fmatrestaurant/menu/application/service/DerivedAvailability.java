@@ -64,8 +64,8 @@ public class DerivedAvailability {
 		 */
 		public String fingerprint() {
 			StringBuilder bits = new StringBuilder(available ? "1" : "0");
-			slots.forEach((id, value) -> bits.append(id).append(value ? '1' : '0'));
-			options.forEach((id, value) -> bits.append(id).append(value ? '1' : '0'));
+			slots.forEach((id, value) -> bits.append(id).append(Boolean.TRUE.equals(value) ? '1' : '0'));
+			options.forEach((id, value) -> bits.append(id).append(Boolean.TRUE.equals(value) ? '1' : '0'));
 			CRC32 crc = new CRC32();
 			crc.update(bits.toString().getBytes(StandardCharsets.US_ASCII));
 			return Long.toHexString(crc.getValue());
