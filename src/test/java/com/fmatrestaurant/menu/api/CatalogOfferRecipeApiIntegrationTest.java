@@ -41,7 +41,7 @@ import com.fmatrestaurant.menu.InventoryStub;
 import com.fmatrestaurant.menu.TestcontainersConfiguration;
 import com.fmatrestaurant.menu.TestSecurityConfiguration;
 import com.fmatrestaurant.menu.application.service.RecipeService;
-import com.fmatrestaurant.menu.application.service.RecipeService.SupplyData;
+import com.fmatrestaurant.menu.application.service.RecipeService.IngredientData;
 import com.fmatrestaurant.menu.domain.model.CatalogEntry;
 import com.fmatrestaurant.menu.domain.model.Image;
 import com.fmatrestaurant.menu.domain.model.InventoryItem;
@@ -125,7 +125,7 @@ class CatalogOfferRecipeApiIntegrationTest {
 		imageId = imageRepository.save(new Image("image/png", png())).getId();
 		entryId = newEntry();
 		recipeId = recipeService.create("Burger", "Classic", "Grill and serve",
-				List.of(new SupplyData(BEEF.id(), BigDecimal.TWO)))
+				List.of(new IngredientData(BEEF.id(), BigDecimal.TWO)))
 				.getRecipe().getId();
 		recipeService.update(recipeId, 0, "Better burger", null, null, null);
 	}
@@ -361,7 +361,7 @@ class CatalogOfferRecipeApiIntegrationTest {
 	}
 
 	private UUID newRecipe() {
-		return recipeService.create("Salad", "Fresh", "Mix", List.of(new SupplyData(POTATOES.id(), BigDecimal.ONE)))
+		return recipeService.create("Salad", "Fresh", "Mix", List.of(new IngredientData(POTATOES.id(), BigDecimal.ONE)))
 				.getRecipe().getId();
 	}
 

@@ -195,7 +195,7 @@ class IdempotencyApiIntegrationTest {
 		expectReused(createCategory(key, "{\"name\": \"Starters\"}"));
 		// The same key on another route is another operation.
 		mockMvc.perform(post("/api/v1/menu/recipes").header(KEY, key).contentType(MediaType.APPLICATION_JSON)
-				.content("{\"name\": \"Burger\", \"description\": \"x\", \"instructions\": \"y\", \"supplies\": "
+				.content("{\"name\": \"Burger\", \"description\": \"x\", \"instructions\": \"y\", \"ingredients\": "
 						+ "[{\"inventoryItemId\": \"" + BEEF.id() + "\", \"quantity\": 150}]}"))
 				.andExpect(status().isCreated());
 	}
@@ -390,7 +390,7 @@ class IdempotencyApiIntegrationTest {
 
 	private static String recipe(String quantity) {
 		return "{\"name\": \"Burger\", \"description\": \"Classic\", \"instructions\": \"Grill and serve\", "
-				+ "\"supplies\": [{\"inventoryItemId\": \"" + BEEF.id() + "\", \"quantity\": " + quantity + "}]}";
+				+ "\"ingredients\": [{\"inventoryItemId\": \"" + BEEF.id() + "\", \"quantity\": " + quantity + "}]}";
 	}
 
 	private static byte[] png(int size) throws IOException {

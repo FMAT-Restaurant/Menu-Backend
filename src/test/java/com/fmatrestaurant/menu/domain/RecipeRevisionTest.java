@@ -80,9 +80,9 @@ class RecipeRevisionTest {
 
 	@Test
 	void rejectsARecipeWithoutIngredients() {
-		assertEquals("/supplies", assertThrows(InvalidFieldException.class,
+		assertEquals("/ingredients", assertThrows(InvalidFieldException.class,
 				() -> revision("Burger", "Classic", "Grill", null)).getPath());
-		assertEquals("/supplies", assertThrows(InvalidFieldException.class,
+		assertEquals("/ingredients", assertThrows(InvalidFieldException.class,
 				() -> revision("Burger", "Classic", "Grill", List.of())).getPath());
 	}
 

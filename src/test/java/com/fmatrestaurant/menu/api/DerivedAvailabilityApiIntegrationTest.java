@@ -554,7 +554,7 @@ class DerivedAvailabilityApiIntegrationTest {
 		String json = mockMvc.perform(post("/api/v1/menu/recipes").header("Idempotency-Key", UUID.randomUUID())
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("{\"name\": \"" + name + "\", \"description\": \"Receta\", \"instructions\": \"Preparar\", "
-						+ "\"supplies\": [{\"inventoryItemId\": \"" + BEEF.id() + "\", \"quantity\": 150}]}"))
+						+ "\"ingredients\": [{\"inventoryItemId\": \"" + BEEF.id() + "\", \"quantity\": 150}]}"))
 				.andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
 		return UUID.fromString(JsonPath.read(json, "$.data.id"));
 	}
