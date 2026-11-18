@@ -5,13 +5,16 @@ El pipeline vive en [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) y 
 | Job | Qué hace | Cuándo |
 | --- | -------- | ------ |
 | `Test (Java 25)` | Pruebas JUnit con Testcontainers (PostgreSQL y RabbitMQ), cobertura JaCoCo, Checkstyle, análisis SonarQube (solo si existe `SONAR_TOKEN`). | Siempre |
-| `Build and Push Docker Image` | Construye la imagen del [`Dockerfile`](../Dockerfile) y la publica en `ghcr.io/fmat-restaurant/menu-backend` con las etiquetas `latest` y el SHA del commit. | Solo push a `main` |
+| `Contract (OpenAPI)` | Descarga el contrato publicado en el `ref` de `gradle.properties`, comprueba su versión, lo compara con el servido con oasdiff (`diff --fail-on-diff`) y valida el servido con `redocly lint`. | Siempre |
+| `Build and Push Docker Image` | Construye la imagen del [`Dockerfile`](../Dockerfile) y la publica en `ghcr.io/fmat-restaurant/menu-backend` con las etiquetas `latest` y el SHA del commit. | Solo push a `main`, si `test` y `contract` pasan |
 
 Reproducir la verificación localmente:
 
 ```bash
 ./gradlew checkstyleMain checkstyleTest test jacocoTestReport
 ```
+
+`Test (Java 25)` y `Contract (OpenAPI)` deben ser checks requeridos en la protección de `main` (*Settings > Branches*); quien administre el repositorio los agrega ahí.
 
 ## Cobertura con JaCoCo
 

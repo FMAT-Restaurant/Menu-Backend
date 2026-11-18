@@ -1,6 +1,24 @@
 # Comportamiento de la API
 
-El contrato servido está en [`src/main/resources/static/openapi.yaml`](../src/main/resources/static/openapi.yaml) (`http://localhost:8080/openapi.yaml`). Es una copia de [`docs/apis/menu/openapi.yaml`](https://github.com/FMAT-Restaurant/Menu-Documentation/blob/main/docs/apis/menu/openapi.yaml) del repositorio de documentación, que es la fuente de verdad: cualquier cambio al contrato se hace primero allá y luego se copia aquí.
+El contrato servido está en [`src/main/resources/static/openapi.yaml`](../src/main/resources/static/openapi.yaml) (`http://localhost:8080/openapi.yaml`). Es el bundle publicado [`docs/apis/menu/dist/openapi.yaml`](https://github.com/FMAT-Restaurant/Menu-Documentation/blob/main/docs/apis/menu/dist/openapi.yaml) del repositorio de documentación, que es la fuente de verdad: no se edita a mano.
+
+## Sincronizar el contrato
+
+La versión del contrato se fija en [`gradle.properties`](../gradle.properties):
+
+- `menu.contract.version`: el `info.version` esperado (hoy `8.0.1`).
+- `menu.contract.ref`: tag o commit de Menu-Documentation del que se descarga (hoy el commit `566db96`, porque aún no hay tags).
+
+```bash
+./gradlew syncOpenApi
+```
+
+La tarea descarga el bundle de ese `ref`, falla si su `info.version` no coincide y lo escribe en `static/openapi.yaml`. Para subir de versión: cambiar ambas propiedades, ejecutar la tarea y commitear el contrato. El job `contract` de CI falla si el contrato servido difiere del publicado (ver [`ci.md`](ci.md)).
+
+### Pruebas de contrato
+
+- `ContractValidation.conformsToContract()` (en `src/test/.../api/`) valida una respuesta de MockMvc contra el contrato servido: `.andExpect(conformsToContract())`. Solo valida la respuesta; la solicitud y la autenticación no se revisan.
+- `OpenApiSpecTest` compara los `operationId` del contrato con los handlers registrados. Las operaciones sin implementar están en la lista `PENDING`; cada ticket que implementa una la quita de ahí. `/items` y `/items/{id}` se excluyen porque los sirve Inventario.
 
 ## Versionado
 
