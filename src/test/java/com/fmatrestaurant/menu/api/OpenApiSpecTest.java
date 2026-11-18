@@ -42,8 +42,6 @@ class OpenApiSpecTest {
 	 * adds the handler; the test fails if one is implemented and still listed.
 	 */
 	private static final Set<String> PENDING = Set.of(
-			// BE-14 (#65)
-			"getMenuCatalog", "listMenuCatalogCategories",
 			// BE-15 (#66)
 			"getPrintableMenu",
 			// BE-16 (#67)

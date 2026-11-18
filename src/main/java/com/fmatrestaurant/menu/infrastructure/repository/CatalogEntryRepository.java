@@ -44,6 +44,19 @@ public interface CatalogEntryRepository extends JpaRepository<CatalogEntry, UUID
 	List<CategoryEntryCount> countDistinctEntriesByCategory(@Param("menuId") Long menuId,
 			@Param("categoryIds") Collection<UUID> categoryIds);
 
+	/** Counts the entries in the given status of the menu for each category that classifies any. */
+	@Query("""
+			select category.id as categoryId, count(distinct entry.id) as entryCount
+			from CatalogEntry entry join entry.categories category
+			where entry.menuId = :menuId and entry.status = :status
+			group by category.id
+			""")
+	List<CategoryEntryCount> countEntriesByCategoryAndStatus(@Param("menuId") Long menuId,
+			@Param("status") EntryStatus status);
+
+	/** The entries in the given status of the menu that no category classifies. */
+	long countByMenuIdAndStatusAndCategoriesIsEmpty(Long menuId, EntryStatus status);
+
 	interface CategoryEntryCount {
 		UUID getCategoryId();
 
