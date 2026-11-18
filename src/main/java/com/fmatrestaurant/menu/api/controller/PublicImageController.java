@@ -52,7 +52,7 @@ public class PublicImageController {
 	 * revalidate every time ({@code no-cache}) and an unchanged image answers 304 without its bytes.
 	 */
 	@GetMapping("/{imageId}/file")
-	public ResponseEntity<byte[]> file(@PathVariable UUID imageId) {
+	public ResponseEntity<byte[]> download(@PathVariable UUID imageId) {
 		Image image = imageService.get(imageId);
 		return ResponseEntity.ok()
 				.contentType(MediaType.parseMediaType(image.getContentType()))
