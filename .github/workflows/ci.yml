@@ -158,12 +158,50 @@ jobs:
           if-no-files-found: warn
 
   # ----------------------------------------------------------------------------
-  # JOB 3: ENTREGA CONTINUA (CD) - Empaquetado y Publicación de Contenedor Docker
+  # JOB 3: CONTRATO - El contrato servido debe ser idéntico al publicado y válido
+  # ----------------------------------------------------------------------------
+  contract:
+    # 'name': Úsalo como status check requerido en la protección de 'main'.
+    name: Contract (OpenAPI)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      # Versión y ref (tag o commit de Menu-Documentation) fijados en gradle.properties.
+      - name: Read pinned contract version
+        run: |
+          echo "CONTRACT_VERSION=$(grep '^menu.contract.version=' gradle.properties | cut -d= -f2)" >> "$GITHUB_ENV"
+          echo "CONTRACT_REF=$(grep '^menu.contract.ref=' gradle.properties | cut -d= -f2)" >> "$GITHUB_ENV"
+
+      - name: Download published contract
+        run: |
+          mkdir -p build/contract
+          curl -fsSL -o build/contract/published.yaml \
+            "https://raw.githubusercontent.com/FMAT-Restaurant/Menu-Documentation/${CONTRACT_REF}/docs/apis/menu/dist/openapi.yaml"
+          grep -qx "  version: ${CONTRACT_VERSION}" build/contract/published.yaml \
+            || { echo "::error::El contrato publicado en ${CONTRACT_REF} no es la versión ${CONTRACT_VERSION}"; exit 1; }
+
+      # Falla ante cualquier diferencia entre el contrato publicado y el servido.
+      - name: Compare with oasdiff
+        run: |
+          docker run --rm -v "$PWD:/work" -w /work tufin/oasdiff:v1.39.0 \
+            diff build/contract/published.yaml src/main/resources/static/openapi.yaml --fail-on-diff
+
+      - name: Lint with Redocly
+        run: npx --yes @redocly/cli@2.79.0 lint src/main/resources/static/openapi.yaml
+
+
+  # ----------------------------------------------------------------------------
+  # JOB 4: ENTREGA CONTINUA (CD) - Empaquetado y Publicación de Contenedor Docker
   # ----------------------------------------------------------------------------
   build-and-push:
     name: Build and Push Docker Image
-    # 'needs': Solo inicia si las pruebas y las de rendimiento tuvieron éxito.
-    needs: [test, performance]
+    # 'needs': Solo inicia si las pruebas, las de rendimiento y la verificación del contrato tuvieron éxito.
+    needs: [test, performance, contract]
     # 'if': Solo se publica con commits en 'main' (no en PRs ni otras ramas).
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest

@@ -32,6 +32,8 @@ dependencies {
 	testImplementation 'org.springframework.boot:spring-boot-testcontainers'
 	testImplementation 'org.testcontainers:testcontainers-postgresql'
 	testImplementation 'org.testcontainers:testcontainers-rabbitmq'
+	// Valida en las pruebas las respuestas HTTP contra el contrato servido (static/openapi.yaml).
+	testImplementation 'com.atlassian.oai:swagger-request-validator-mockmvc:2.44.9'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
@@ -79,4 +81,26 @@ tasks.register('prepareSonarLibraries') {
 
 tasks.withType(JavaCompile).configureEach {
 	options.compilerArgs.add("-Xlint:all")
+}
+
+// Descarga el contrato publicado en Menu-Documentation fijado por menu.contract.ref y comprueba su versión.
+tasks.register('syncOpenApi') {
+	group = 'contract'
+	description = 'Descarga dist/openapi.yaml de Menu-Documentation y verifica que info.version coincide.'
+	def expectedVersion = providers.gradleProperty('menu.contract.version')
+	def ref = providers.gradleProperty('menu.contract.ref')
+	def target = layout.projectDirectory.file('src/main/resources/static/openapi.yaml')
+	outputs.file(target)
+	outputs.upToDateWhen { false }
+	doLast {
+		def url = "https://raw.githubusercontent.com/FMAT-Restaurant/Menu-Documentation/${ref.get()}/docs/apis/menu/dist/openapi.yaml"
+		def text = new URI(url).toURL().getText('UTF-8')
+		def matcher = text =~ /(?m)^  version: (.+)$/
+		def actualVersion = matcher.find() ? matcher.group(1).strip() : null
+		if (actualVersion != expectedVersion.get()) {
+			throw new GradleException("El contrato de ${ref.get()} tiene info.version ${actualVersion}; se esperaba ${expectedVersion.get()}")
+		}
+		target.asFile.setText(text, 'UTF-8')
+		logger.lifecycle("Contrato ${actualVersion} sincronizado desde ${ref.get()}")
+	}
 }
