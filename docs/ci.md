@@ -5,7 +5,8 @@ El pipeline vive en [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) y 
 | Job | Qué hace | Cuándo |
 | --- | -------- | ------ |
 | `Test (Java 25)` | Pruebas JUnit con Testcontainers (PostgreSQL y RabbitMQ), cobertura JaCoCo, Checkstyle, análisis SonarQube (solo si existe `SONAR_TOKEN`). | Siempre |
-| `Build and Push Docker Image` | Construye la imagen del [`Dockerfile`](../Dockerfile) y la publica en `ghcr.io/fmat-restaurant/menu-backend` con las etiquetas `latest` y el SHA del commit. | Solo push a `main` |
+| `Performance (k6)` | Levanta Menu con Compose (perfil `local`), siembra un catálogo y ejecuta [`k6/catalog.js`](../k6/catalog.js) contra los RNF de rendimiento. | Siempre, tras `Test (Java 25)` |
+| `Build and Push Docker Image` | Construye la imagen del [`Dockerfile`](../Dockerfile) y la publica en `ghcr.io/fmat-restaurant/menu-backend` con las etiquetas `latest` y el SHA del commit. | Solo push a `main`, si ambos jobs anteriores pasan |
 
 Reproducir la verificación localmente:
 
@@ -39,3 +40,25 @@ Si el log muestra `Sensor JaCoCo XML Report Importer` seguido de `Importing 1 re
 3. **Proyecto**: ajustar `sonar.organization` y `sonar.projectKey` en `sonar-project.properties` si difieren.
 4. **GHCR** (*Settings > Actions > General*): *Workflow permissions* en **Read and write permissions**.
 5. **Protección de `main`**: exigir el status check `Test (Java 25)`.
+
+## Pruebas de rendimiento con k6
+
+[`k6/catalog.js`](../k6/catalog.js) verifica los [requisitos no funcionales](https://fmat-restaurant.github.io/Menu-Documentation/specification/non-functional-requirements/) de la consulta, búsqueda y filtrado del catálogo:
+
+| Requisito | Escenario | Umbral (falla el job si no se cumple) |
+| --------- | --------- | ------------------------------------- |
+| RNF-REND-02 | `nominal`: 30 solicitudes/s con hasta 40 sesiones, 30 min (5 min en PRs) | p95 ≤ 200 ms, p99 ≤ 1 s, errores < 0.1 % |
+| RNF-REND-03 | `burst`: 100 solicitudes/s con hasta 40 sesiones, 60 s, después del nominal | Menu sigue respondiendo al terminar; sin umbral de latencia |
+
+`setup()` siembra 12 categorías, 150 entradas activas (una de cada diez sin categoría) y 2 ofertas por entrada a través de la API. La mezcla de operaciones (catálogo, ofertas de una entrada, composición, búsqueda por texto y filtro por categoría) se reparte por igual mientras OPEN-009 no fije la proporción. El resumen (`k6-summary.json`, artefacto `k6-summary`) incluye las solicitudes completadas, fallidas y descartadas (`dropped_iterations`) que pide RNF-REND-03.CA2.
+
+Ejecutarlo localmente (sin instalar k6):
+
+```bash
+docker network create restaurant-network   # una sola vez
+POSTGRES_PASSWORD=perf SPRING_PROFILES_ACTIVE=local INVENTORY_BASE_URL=http://localhost:8080 docker compose up -d --build
+docker run --rm --network menu-backend_default -v "$PWD/k6:/k6" grafana/k6 run \
+  -e BASE_URL=http://api:8080 -e NOMINAL_DURATION=2m /k6/catalog.js
+```
+
+`NOMINAL_DURATION`, `BURST_DURATION`, `CATEGORIES` y `ENTRIES` ajustan la duración y el tamaño del catálogo.
