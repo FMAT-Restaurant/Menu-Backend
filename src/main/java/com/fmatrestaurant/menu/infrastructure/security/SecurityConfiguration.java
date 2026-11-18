@@ -33,7 +33,9 @@ public class SecurityConfiguration {
 		http
 				// The CorsFilter registered first already answers preflights and adds the CORS headers.
 				.cors(AbstractHttpConfigurer::disable)
-				.csrf(AbstractHttpConfigurer::disable)
+				// CSRF does not apply: the credential travels only in the Authorization header, never in a cookie,
+				// so a browser cannot attach it to a forged cross-site request. Sessions are not created either.
+				.csrf(AbstractHttpConfigurer::disable) // NOSONAR java:S4502 stateless Bearer API without cookies
 				.formLogin(AbstractHttpConfigurer::disable)
 				.httpBasic(AbstractHttpConfigurer::disable)
 				.logout(AbstractHttpConfigurer::disable)

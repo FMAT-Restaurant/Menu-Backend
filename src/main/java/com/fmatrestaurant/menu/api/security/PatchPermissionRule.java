@@ -28,9 +28,15 @@ public final class PatchPermissionRule {
 
 	private static final String STATUS = "status";
 
-	private static final Set<String> SLOT_IDENTITY = Set.of("slotId", "options");
+	private static final String SLOT_ID = "slotId";
 
-	private static final Set<String> OPTION_IDENTITY = Set.of("optionId", "sourceType", STATUS);
+	private static final String OPTIONS = "options";
+
+	private static final String OPTION_ID = "optionId";
+
+	private static final Set<String> SLOT_IDENTITY = Set.of(SLOT_ID, OPTIONS);
+
+	private static final Set<String> OPTION_IDENTITY = Set.of(OPTION_ID, "sourceType", STATUS);
 
 	private PatchPermissionRule() {
 	}
@@ -80,42 +86,50 @@ public final class PatchPermissionRule {
 	 * option (without id) is created with its status, which is part of the management change.
 	 */
 	private static Set<Change> compositionChanges(JsonNode composition, Optional<List<CompositionShape>> current) {
-		Set<Change> changes = EnumSet.noneOf(Change.class);
 		JsonNode slots = composition.get("slots");
 		if (!composition.isObject() || composition.size() != 1 || slots == null || !slots.isArray()) {
 			return EnumSet.of(Change.WRITE);
 		}
 		List<CompositionShape> shape = current.orElse(List.of());
+		Set<Change> changes = EnumSet.noneOf(Change.class);
 		if (current.isEmpty() || slots.size() != shape.size()) {
 			changes.add(Change.WRITE);
 		}
 		for (int index = 0; index < slots.size(); index++) {
-			JsonNode slot = slots.get(index);
-			if (!slot.isObject()) {
-				changes.add(Change.WRITE);
-				continue;
-			}
-			CompositionShape existing = index < shape.size() ? shape.get(index) : null;
-			if (!onlyFields(slot, SLOT_IDENTITY) || existing == null
-					|| !existing.slotId().equals(uuid(slot.get("slotId")))) {
-				changes.add(Change.WRITE);
-			}
-			JsonNode options = slot.get("options");
-			if (options == null) {
-				continue;
-			}
-			if (!options.isArray() || existing == null || !existing.optionIds().equals(optionIds(options))) {
-				changes.add(Change.WRITE);
-			}
-			if (options.isArray()) {
-				options.forEach(option -> changes.addAll(optionChanges(option)));
-			}
+			changes.addAll(slotChanges(slots.get(index), index < shape.size() ? shape.get(index) : null));
 		}
 		return changes;
 	}
 
+	/**
+	 * @param existing the slot at the same position in the current composition, or {@code null}
+	 */
+	private static Set<Change> slotChanges(JsonNode slot, CompositionShape existing) {
+		if (!slot.isObject()) {
+			return EnumSet.of(Change.WRITE);
+		}
+		Set<Change> changes = EnumSet.noneOf(Change.class);
+		if (!onlyFields(slot, SLOT_IDENTITY) || existing == null
+				|| !existing.slotId().equals(uuid(slot.get(SLOT_ID)))) {
+			changes.add(Change.WRITE);
+		}
+		JsonNode options = slot.get(OPTIONS);
+		if (options == null) {
+			return changes;
+		}
+		if (!options.isArray()) {
+			changes.add(Change.WRITE);
+			return changes;
+		}
+		if (existing == null || !existing.optionIds().equals(optionIds(options))) {
+			changes.add(Change.WRITE);
+		}
+		options.forEach(option -> changes.addAll(optionChanges(option)));
+		return changes;
+	}
+
 	private static Set<Change> optionChanges(JsonNode option) {
-		if (!option.isObject() || uuid(option.get("optionId")) == null) {
+		if (!option.isObject() || uuid(option.get(OPTION_ID)) == null) {
 			return EnumSet.of(Change.WRITE);
 		}
 		Set<Change> changes = EnumSet.noneOf(Change.class);
@@ -136,7 +150,7 @@ public final class PatchPermissionRule {
 	private static List<UUID> optionIds(JsonNode options) {
 		List<UUID> ids = new ArrayList<>();
 		for (JsonNode option : options) {
-			ids.add(option.isObject() ? uuid(option.get("optionId")) : null);
+			ids.add(option.isObject() ? uuid(option.get(OPTION_ID)) : null);
 		}
 		return ids;
 	}

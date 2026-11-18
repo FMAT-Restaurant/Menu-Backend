@@ -50,37 +50,43 @@ public final class OperationPermissions {
 
 	}
 
+	private static final String CATEGORY = "/menu/categories/{categoryId}";
+	private static final String ENTRY = "/menu/entries/{entryId}";
+	private static final String OFFER = "/menu/offers/{offerId}";
+	private static final String RECIPE = "/menu/recipes/{recipeId}";
+	private static final String IMAGE = "/menu/media/images/{imageId}";
+
 	public static final List<Rule> RULES = List.of(
 			fixed(HttpMethod.GET, "/menu/catalog", CATALOG_READ),
 			fixed(HttpMethod.GET, "/menu/catalog/categories", CATALOG_READ),
 			fixed(HttpMethod.GET, "/menu/catalog/printable", CATALOG_PRINT),
 			fixed(HttpMethod.GET, "/menu/categories", CATEGORIES_READ),
 			fixed(HttpMethod.POST, "/menu/categories", CATEGORIES_WRITE),
-			fixed(HttpMethod.GET, "/menu/categories/{categoryId}", CATEGORIES_READ),
-			fixed(HttpMethod.PATCH, "/menu/categories/{categoryId}", CATEGORIES_WRITE),
-			fixed(HttpMethod.DELETE, "/menu/categories/{categoryId}", CATEGORIES_WRITE),
+			fixed(HttpMethod.GET, CATEGORY, CATEGORIES_READ),
+			fixed(HttpMethod.PATCH, CATEGORY, CATEGORIES_WRITE),
+			fixed(HttpMethod.DELETE, CATEGORY, CATEGORIES_WRITE),
 			fixed(HttpMethod.GET, "/menu/entries", ENTRIES_READ),
 			fixed(HttpMethod.POST, "/menu/entries", ENTRIES_WRITE),
-			fixed(HttpMethod.GET, "/menu/entries/{entryId}", ENTRIES_READ),
-			new Rule(HttpMethod.PATCH, "/menu/entries/{entryId}", Set.of(ENTRIES_WRITE, ENTRIES_STATUS),
+			fixed(HttpMethod.GET, ENTRY, ENTRIES_READ),
+			new Rule(HttpMethod.PATCH, ENTRY, Set.of(ENTRIES_WRITE, ENTRIES_STATUS),
 					Kind.ENTRY_PATCH),
-			fixed(HttpMethod.DELETE, "/menu/entries/{entryId}", ENTRIES_WRITE),
+			fixed(HttpMethod.DELETE, ENTRY, ENTRIES_WRITE),
 			fixed(HttpMethod.GET, "/menu/offers", OFFERS_READ),
-			fixed(HttpMethod.POST, "/menu/entries/{entryId}/offers", OFFERS_WRITE),
-			fixed(HttpMethod.GET, "/menu/offers/{offerId}", OFFERS_READ),
-			new Rule(HttpMethod.PATCH, "/menu/offers/{offerId}", Set.of(OFFERS_WRITE, OFFERS_STATUS),
+			fixed(HttpMethod.POST, ENTRY + "/offers", OFFERS_WRITE),
+			fixed(HttpMethod.GET, OFFER, OFFERS_READ),
+			new Rule(HttpMethod.PATCH, OFFER, Set.of(OFFERS_WRITE, OFFERS_STATUS),
 					Kind.OFFER_PATCH),
-			fixed(HttpMethod.DELETE, "/menu/offers/{offerId}", OFFERS_WRITE),
+			fixed(HttpMethod.DELETE, OFFER, OFFERS_WRITE),
 			fixed(HttpMethod.GET, "/menu/recipes", RECIPES_READ),
 			fixed(HttpMethod.POST, "/menu/recipes", RECIPES_WRITE),
-			fixed(HttpMethod.GET, "/menu/recipes/{recipeId}", RECIPES_READ),
-			fixed(HttpMethod.PATCH, "/menu/recipes/{recipeId}", RECIPES_WRITE),
-			fixed(HttpMethod.DELETE, "/menu/recipes/{recipeId}", RECIPES_WRITE),
-			fixed(HttpMethod.GET, "/menu/recipes/{recipeId}/revisions", RECIPES_READ),
-			fixed(HttpMethod.GET, "/menu/recipes/{recipeId}/revisions/{revision}", RECIPES_READ),
+			fixed(HttpMethod.GET, RECIPE, RECIPES_READ),
+			fixed(HttpMethod.PATCH, RECIPE, RECIPES_WRITE),
+			fixed(HttpMethod.DELETE, RECIPE, RECIPES_WRITE),
+			fixed(HttpMethod.GET, RECIPE + "/revisions", RECIPES_READ),
+			fixed(HttpMethod.GET, RECIPE + "/revisions/{revision}", RECIPES_READ),
 			fixed(HttpMethod.POST, "/menu/media/images", IMAGES_WRITE),
-			fixed(HttpMethod.GET, "/menu/media/images/{imageId}", IMAGES_WRITE),
-			fixed(HttpMethod.PUT, "/menu/media/images/{imageId}", IMAGES_WRITE));
+			fixed(HttpMethod.GET, IMAGE, IMAGES_WRITE),
+			fixed(HttpMethod.PUT, IMAGE, IMAGES_WRITE));
 
 	private OperationPermissions() {
 	}
