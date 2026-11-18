@@ -1,6 +1,7 @@
 package com.fmatrestaurant.menu.api;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
@@ -49,6 +50,7 @@ import com.fmatrestaurant.menu.TestSecurityConfiguration;
 import com.fmatrestaurant.menu.application.service.CatalogOfferService;
 import com.fmatrestaurant.menu.application.service.CatalogOfferService.OfferInput;
 import com.fmatrestaurant.menu.domain.model.CatalogEntry;
+import com.fmatrestaurant.menu.domain.model.EntryStatus;
 import com.fmatrestaurant.menu.domain.model.Image;
 import com.fmatrestaurant.menu.domain.model.InventoryItem;
 import com.fmatrestaurant.menu.infrastructure.repository.CatalogEntryRepository;
@@ -639,6 +641,23 @@ class CatalogOfferApiIntegrationTest {
 		mockMvc.perform(get(OFFERS + "/" + id))
 				.andExpect(header().string(HttpHeaders.ETAG, startsWith("\"rev-1-")))
 				.andExpect(jsonPath("$.data.composition.slots[0].options[0].status").value("INACTIVE"));
+	}
+
+	@Test
+	@DisplayName("TC-COMP-12-CA1: excludeArchivedEntries leaves out the offers of ARCHIVED entries")
+	void listCanExcludeTheOffersOfArchivedEntries() throws Exception {
+		String kept = create(offerBody("Individual", "180"));
+		CatalogEntry old = entryRepository.save(new CatalogEntry(1L, "Old burger", "Archived", imageId, List.of()));
+		String archived = JsonPath.read(createOffer(old.getId(), offerBody("Family", "300"))
+				.andExpect(status().isCreated()).andReturn().getResponse().getContentAsString(), "$.data.id");
+		old.update(null, null, null, EntryStatus.ARCHIVED);
+		entryRepository.save(old);
+
+		mockMvc.perform(get(OFFERS)).andExpect(jsonPath("$.data[*].id", containsInAnyOrder(kept, archived)));
+		mockMvc.perform(get(OFFERS).param("excludeArchivedEntries", "true"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data[*].id", contains(kept)))
+				.andExpect(jsonPath("$.meta.total").value(1));
 	}
 
 	@Test

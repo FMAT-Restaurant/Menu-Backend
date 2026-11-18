@@ -15,6 +15,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import com.fmatrestaurant.menu.domain.model.CatalogOffer;
+import com.fmatrestaurant.menu.domain.model.EntryStatus;
 
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.criteria.Predicate;
@@ -65,8 +66,9 @@ public interface CatalogOfferRepository extends JpaRepository<CatalogOffer, UUID
 	/**
 	 * @param entryId only offers of this entry
 	 * @param excludeOfferId leaves this offer out
+	 * @param excludeArchivedEntries leaves out the offers of ARCHIVED entries
 	 */
-	static Specification<CatalogOffer> search(UUID entryId, UUID excludeOfferId) {
+	static Specification<CatalogOffer> search(UUID entryId, UUID excludeOfferId, boolean excludeArchivedEntries) {
 		return (root, _, cb) -> {
 			List<Predicate> predicates = new ArrayList<>();
 			if (entryId != null) {
@@ -74,6 +76,9 @@ public interface CatalogOfferRepository extends JpaRepository<CatalogOffer, UUID
 			}
 			if (excludeOfferId != null) {
 				predicates.add(cb.notEqual(root.get("id"), excludeOfferId));
+			}
+			if (excludeArchivedEntries) {
+				predicates.add(cb.notEqual(root.get("entry").get("status"), EntryStatus.ARCHIVED));
 			}
 			return cb.and(predicates.toArray(Predicate[]::new));
 		};
