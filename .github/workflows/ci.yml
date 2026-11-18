@@ -90,6 +90,23 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
 
+      # El JAR de la aplicación, compilado aquí con la caché de Gradle: performance y build-and-push lo empaquetan
+      # en Docker (etapa prebuilt) sin descargar dependencias de Maven Central, que a veces responde 429.
+      - name: Build application JAR
+        run: |
+          ./gradlew bootJar
+          mkdir -p build/docker
+          find build/libs -name '*.jar' ! -name '*-plain.jar' -exec cp {} build/docker/app.jar \;
+          test -s build/docker/app.jar
+
+      - name: Upload application JAR
+        uses: actions/upload-artifact@v7
+        with:
+          name: app-jar
+          path: build/docker/app.jar
+          retention-days: 1
+          if-no-files-found: error
+
       # El scanner CLI necesita los classpaths resueltos de producción y pruebas.
       - name: Prepare Java libraries for SonarQube
         if: env.SONAR_TOKEN != ''
@@ -123,7 +140,7 @@ jobs:
       POSTGRES_PASSWORD: perf
       SPRING_PROFILES_ACTIVE: local
       INVENTORY_BASE_URL: http://localhost:8080
-      # Fija el nombre de la imagen del servicio api de Compose (<proyecto>-api), que se construye antes con caché.
+      # Fija el nombre de la imagen del servicio api de Compose (<proyecto>-api), que se construye antes del up.
       COMPOSE_PROJECT_NAME: menu-backend
       # RNF-REND-02 pide 30 minutos sostenidos; en PRs se acorta a 5 para no frenar la revisión.
       NOMINAL_DURATION: ${{ github.event_name == 'pull_request' && '5m' || '30m' }}
@@ -132,19 +149,24 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
+      - name: Download application JAR
+        uses: actions/download-artifact@v8
+        with:
+          name: app-jar
+          path: build/docker
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      # Construye la imagen de Compose con la caché de GitHub Actions que comparte con build-and-push: la capa de
-      # dependencias de Gradle solo se descarga cuando cambia build.gradle, así Maven Central no responde 429.
+      # Empaqueta el JAR del job de pruebas (etapa prebuilt) con el nombre de imagen que espera Compose.
       - name: Build Menu image
         uses: docker/build-push-action@v7
         with:
           context: .
+          target: prebuilt
+          build-contexts: jar=build/docker
           load: true
           tags: ${{ env.COMPOSE_PROJECT_NAME }}-api:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
       # Compose declara restaurant-network como externa.
       - name: Start Menu with PostgreSQL and RabbitMQ
@@ -231,6 +253,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
+      - name: Download application JAR
+        uses: actions/download-artifact@v8
+        with:
+          name: app-jar
+          path: build/docker
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
@@ -246,11 +274,13 @@ jobs:
         run: |
           echo "IMAGE_NAME=ghcr.io/$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
 
-      # Construye la imagen multi-etapa (JDK Temurin 25 -> JRE Temurin 25) definida en el Dockerfile.
+      # Empaqueta en la imagen JRE Temurin 25 del Dockerfile (etapa prebuilt) el JAR que compiló y probó el job test.
       - name: Build and push Docker Image
         uses: docker/build-push-action@v7
         with:
           context: .
+          target: prebuilt
+          build-contexts: jar=build/docker
           push: true
           tags: |
             ${{ env.IMAGE_NAME }}:latest
