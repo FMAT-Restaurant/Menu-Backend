@@ -5,6 +5,7 @@ import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import com.fmatrestaurant.menu.api.dto.DataResponse;
@@ -24,9 +25,12 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fmatrestaurant.menu.api.controller.ImageController.ImageResponse;
 import com.fmatrestaurant.menu.application.service.CatalogOfferService;
 import com.fmatrestaurant.menu.application.service.CatalogOfferService.OfferInput;
+import com.fmatrestaurant.menu.application.service.DerivedAvailability;
+import com.fmatrestaurant.menu.application.service.DerivedAvailability.OfferAvailability;
 import com.fmatrestaurant.menu.domain.model.CatalogOffer;
 import com.fmatrestaurant.menu.domain.model.CompositionSlot;
 import com.fmatrestaurant.menu.domain.model.OfferStatus;
@@ -42,16 +46,21 @@ public class CatalogOfferController {
 
 	private final CatalogOfferService offerService;
 
-	public CatalogOfferController(CatalogOfferService offerService) {
+	private final DerivedAvailability availability;
+
+	public CatalogOfferController(CatalogOfferService offerService, DerivedAvailability availability) {
 		this.offerService = offerService;
+		this.availability = availability;
 	}
 
-	/** The initial status is always INACTIVE, its options start ACTIVE and the server assigns every id. */
+	/** The initial status is always INACTIVE, its options start ACTIVE by default and the server assigns every id. */
 	@PostMapping("/entries/{entryId}/offers")
 	public ResponseEntity<DataResponse<OfferDetail>> create(@PathVariable UUID entryId,
                                                             @RequestBody OfferInput request) {
 		CatalogOffer offer = offerService.create(entryId, request);
-		return ResponseEntity.status(HttpStatus.CREATED).eTag(etag(offer)).body(new DataResponse<>(OfferDetail.of(offer)));
+		OfferAvailability available = availability.offer(offer);
+		return ResponseEntity.status(HttpStatus.CREATED).eTag(etag(offer, available))
+				.body(new DataResponse<>(OfferDetail.of(offer, available)));
 	}
 
 	@GetMapping("/offers")
@@ -60,22 +69,22 @@ public class CatalogOfferController {
 			@RequestParam(defaultValue = "1") int page,
 			@RequestParam(defaultValue = "12") int pageSize) {
 		Page<CatalogOffer> offers = offerService.list(entryId, excludeOfferId, page, pageSize);
-		return new OfferListResponse(offers.getContent().stream().map(OfferSummary::of).toList(),
+		Map<UUID, OfferAvailability> available = availability.offers(offers.getContent());
+		return new OfferListResponse(offers.getContent().stream()
+				.map(offer -> OfferSummary.of(offer, available.get(offer.getId()))).toList(),
 				new PageMeta(page, pageSize, offers.getTotalElements(), offers.getTotalPages()));
 	}
 
 	/** Spring answers 304 when If-None-Match matches the ETag of the response. */
 	@GetMapping("/offers/{offerId}")
 	public ResponseEntity<DataResponse<OfferDetail>> get(@PathVariable UUID offerId) {
-		CatalogOffer offer = offerService.get(offerId);
-		return ResponseEntity.ok().eTag(etag(offer)).body(new DataResponse<>(OfferDetail.of(offer)));
+		return detail(offerService.get(offerId));
 	}
 
 	@PatchMapping("/offers/{offerId}")
 	public ResponseEntity<DataResponse<OfferDetail>> update(@PathVariable UUID offerId,
 			@RequestHeader(HttpHeaders.IF_MATCH) String ifMatch, @RequestBody OfferInput request) {
-		CatalogOffer offer = offerService.update(offerId, Revisions.strongVersion(ifMatch), request);
-		return ResponseEntity.ok().eTag(etag(offer)).body(new DataResponse<>(OfferDetail.of(offer)));
+		return detail(offerService.update(offerId, Revisions.strongVersion(ifMatch), request));
 	}
 
 	/** Deletes an INACTIVE offer; when the preconditions are not met, it answers 409. */
@@ -86,30 +95,40 @@ public class CatalogOfferController {
 		return ResponseEntity.noContent().build();
 	}
 
-	/** Strong, as the contract requires for If-Match; it changes with every change of the composition. */
-	private static String etag(CatalogOffer offer) {
-		return Revisions.strong(offer.getVersion());
+	private ResponseEntity<DataResponse<OfferDetail>> detail(CatalogOffer offer) {
+		OfferAvailability available = availability.offer(offer);
+		return ResponseEntity.ok().eTag(etag(offer, available))
+				.body(new DataResponse<>(OfferDetail.of(offer, available)));
+	}
+
+	/**
+	 * Strong, as the contract requires for If-Match; it changes with every change of the composition and of the
+	 * derived availability of the offer, its slots and its options.
+	 */
+	private static String etag(CatalogOffer offer, OfferAvailability available) {
+		return Revisions.strong(offer.getVersion(), available.fingerprint());
 	}
 
 	public record OfferSummary(UUID id, UUID entryId, String entryName,
 			String presentationTag, BigDecimal basePrice, OfferStatus status,
-			ImageResponse image, int slotCount) {
+			ImageResponse image, int slotCount, @JsonProperty("isAvailable") boolean isAvailable) {
 
-		static OfferSummary of(CatalogOffer offer) {
+		static OfferSummary of(CatalogOffer offer, OfferAvailability available) {
 			return new OfferSummary(offer.getId(), offer.getEntry().getId(), offer.getEntry().getBrandName(),
 					offer.getPresentationTag(), offer.getBasePrice(), offer.getStatus(),
-					ImageResponse.of(offer.getImageId()), offer.getSlots().size());
+					ImageResponse.of(offer.getImageId()), offer.getSlots().size(), available.available());
 		}
 
 	}
 
 	public record OfferDetail(UUID id, UUID entryId, String presentationTag,
-			BigDecimal basePrice, OfferStatus status, ImageResponse image, Composition composition) {
+			BigDecimal basePrice, OfferStatus status, ImageResponse image,
+			@JsonProperty("isAvailable") boolean isAvailable, Composition composition) {
 
-		static OfferDetail of(CatalogOffer offer) {
+		static OfferDetail of(CatalogOffer offer, OfferAvailability available) {
 			return new OfferDetail(offer.getId(), offer.getEntry().getId(), offer.getPresentationTag(),
-					offer.getBasePrice(), offer.getStatus(), ImageResponse.of(offer.getImageId()),
-					new Composition(offer.getSlots().stream().map(Slot::of).toList()));
+					offer.getBasePrice(), offer.getStatus(), ImageResponse.of(offer.getImageId()), available.available(),
+					new Composition(offer.getSlots().stream().map(slot -> Slot.of(slot, available)).toList()));
 		}
 
 	}
@@ -118,31 +137,34 @@ public class CatalogOfferController {
 	}
 
 	/**
-	 * The derived status is always included, as PATCH requires it. A missing course is left out, as the
-	 * contract types it as a string.
+	 * A slot has no status of its own in the contract. A missing course is left out, as the contract types
+	 * it as a string.
 	 */
-	public record Slot(UUID slotId, String name, OfferStatus status, int quantity,
-			@JsonInclude(NON_NULL) String course, List<Option> options) {
+	public record Slot(UUID slotId, String name, int quantity,
+			@JsonInclude(NON_NULL) String course, @JsonProperty("isAvailable") boolean isAvailable,
+			List<Option> options) {
 
-		static Slot of(CompositionSlot slot) {
-			return new Slot(slot.getId(), slot.getName(), slot.getStatus(), slot.getQuantity(), slot.getCourse(),
-					slot.getOptions().stream().map(Option::of).toList());
+		static Slot of(CompositionSlot slot, OfferAvailability available) {
+			return new Slot(slot.getId(), slot.getName(), slot.getQuantity(), slot.getCourse(),
+					available.slot(slot.getId()),
+					slot.getOptions().stream().map(option -> Option.of(option, available)).toList());
 		}
 
 	}
 
 	/**
 	 * An INVENTORY_ITEM option ({@code additionalProperties: false}): only the fields of its source type.
-	 * The status is always included, as PATCH requires it.
+	 * The status is always included.
 	 */
 	public record Option(UUID optionId, SourceType sourceType, @JsonInclude(NON_NULL) String inventoryItemId,
 			@JsonInclude(NON_NULL) BigDecimal quantity, @JsonInclude(NON_NULL) String unit,
-			@JsonInclude(NON_NULL) UUID recipeId, OfferStatus status, String displayName) {
+			@JsonInclude(NON_NULL) UUID recipeId, OfferStatus status, String displayName,
+			@JsonProperty("isAvailable") boolean isAvailable) {
 
-		static Option of(SlotOption option) {
+		static Option of(SlotOption option, OfferAvailability available) {
 			return new Option(option.getId(), option.getSourceType(), option.getInventoryItemId(),
 					option.getQuantity(), option.getUnit(), option.getRecipeId(), option.getStatus(),
-					option.getDisplayName());
+					option.getDisplayName(), available.option(option.getId()));
 		}
 
 	}

@@ -25,13 +25,16 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-amqp'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+	implementation 'org.springframework.boot:spring-boot-starter-security'
 	// ImageIO del JDK no decodifica WebP; este plugin agrega el lector.
 	implementation 'com.twelvemonkeys.imageio:imageio-webp:3.15.3'
 	runtimeOnly 'org.postgresql:postgresql'
 	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+	testImplementation 'org.springframework.boot:spring-boot-starter-security-test'
 	testImplementation 'org.springframework.boot:spring-boot-testcontainers'
 	testImplementation 'org.testcontainers:testcontainers-postgresql'
 	testImplementation 'org.testcontainers:testcontainers-rabbitmq'
+	testImplementation 'org.awaitility:awaitility'
 	// Valida en las pruebas las respuestas HTTP contra el contrato servido (static/openapi.yaml).
 	testImplementation 'com.atlassian.oai:swagger-request-validator-mockmvc:2.44.9'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'

@@ -23,6 +23,13 @@ const ITEM = '2c21767f-0f9a-4e9f-adc7-2730556c1802';
 // PNG de 1x1 px: Menu exige imagen en entradas y ofertas.
 const PNG = encoding.b64decode(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC');
+// Menu exige un JWT con permissions (BE-13). Mientras no verifique la firma (BE-12), bastan tokens sin firmar:
+// el comodín de administrador para sembrar y solo «Ver catálogo» para consultar, como quien consulta el catálogo.
+// TOKEN y CATALOG_TOKEN permiten usar tokens reales.
+const unsigned = (permissions) => [{ alg: 'none', typ: 'JWT' }, { sub: 'k6', permissions }]
+  .map((part) => encoding.b64encode(JSON.stringify(part), 'rawurl')).join('.') + '.';
+const AUTH = { Authorization: `Bearer ${__ENV.TOKEN || unsigned(['*'])}` };
+const CATALOG_AUTH = { Authorization: `Bearer ${__ENV.CATALOG_TOKEN || unsigned(['menu:catalog:read'])}` };
 
 export const options = {
   setupTimeout: '10m',
@@ -54,7 +61,7 @@ export const options = {
     // RNF-REND-03: sin latencias nominales; solo se exige que Menu siga en pie (ver teardown).
     'checks{check:alive after burst}': ['rate==1'],
     // Desglose por operación, para ubicar cuál se degrada.
-    ...Object.fromEntries(['catalog', 'offers', 'composition', 'search', 'filter'].map(
+    ...Object.fromEntries(['catalog', 'search', 'filter', 'categories'].map(
       (name) => [`http_req_duration{scenario:nominal,name:${name}}`, ['p(95)<=200']])),
   },
   // RNF-REND-03.CA2: el reporte cuenta completadas, fallidas y pendientes (dropped_iterations).
@@ -64,7 +71,7 @@ export const options = {
 function post(path, body, params = {}) {
   const res = http.post(`${BASE}${path}`, body, {
     ...params,
-    headers: { 'Idempotency-Key': crypto.randomUUID(), ...params.headers },
+    headers: { ...AUTH, 'Idempotency-Key': crypto.randomUUID(), ...params.headers },
     tags: { name: 'setup' },
   });
   if (res.status !== 201) fail(`POST ${path} -> ${res.status} ${res.body}`);
@@ -73,7 +80,8 @@ function post(path, body, params = {}) {
 
 const json = { headers: { 'Content-Type': 'application/json' } };
 
-// Dataset representativo: categorías, entradas activas (una de cada diez sin categoría) y sus ofertas.
+// Dataset representativo: categorías, entradas activas (una de cada diez sin categoría) y sus ofertas activas,
+// porque el catálogo solo presenta lo ACTIVE.
 export function setup() {
   const image = (name) => post('/media/images', { file: http.file(PNG, `${name}.png`, 'image/png') }).id;
   const categories = [];
@@ -90,18 +98,24 @@ export function setup() {
       categoryIds: i % 10 === 0 ? [] : [categories[i % CATEGORIES], categories[(i + 5) % CATEGORIES]],
     }), json);
     const activated = http.patch(`${BASE}/entries/${entry.id}`, JSON.stringify({ status: 'ACTIVE' }),
-      { headers: { ...json.headers, 'If-Match': entry.etag }, tags: { name: 'setup' } });
+      { headers: { ...AUTH, ...json.headers, 'If-Match': entry.etag }, tags: { name: 'setup' } });
     if (activated.status !== 200) fail(`PATCH entry -> ${activated.status} ${activated.body}`);
     entries.push(entry.id);
     for (let j = 0; j < OFFERS_PER_ENTRY; j++) {
-      offers.push(post(`/entries/${entry.id}/offers`, JSON.stringify({
+      const offer = post(`/entries/${entry.id}/offers`, JSON.stringify({
         presentationTag: j === 0 ? 'Individual' : 'Orden',
         basePrice: 80 + 20 * j,
         imageId: image(`offer-${i}-${j}`),
         composition: { slots: [{ name: 'Proteína', quantity: 1, course: 'plato fuerte', options: [
           { displayName: 'Pollo', sourceType: 'INVENTORY_ITEM', inventoryItemId: ITEM, quantity: 150, unit: 'kg' },
         ] }] },
-      }), json).id);
+      }), json);
+      const active = http.patch(`${BASE}/offers/${offer.id}`, JSON.stringify({ status: 'ACTIVE' }), {
+        headers: { ...AUTH, ...json.headers, 'If-Match': offer.etag, 'Idempotency-Key': crypto.randomUUID() },
+        tags: { name: 'setup' },
+      });
+      if (active.status !== 200) fail(`PATCH offer -> ${active.status} ${active.body}`);
+      offers.push(offer.id);
     }
   }
   return { categories, entries, offers };
@@ -109,19 +123,19 @@ export function setup() {
 
 const pick = (list) => list[Math.floor(Math.random() * list.length)];
 
-// La mezcla de clases está pendiente (OPEN-009): se reparte por igual entre las cinco operaciones.
+// La mezcla de clases está pendiente (OPEN-009): se reparte por igual entre las cuatro operaciones del catálogo
+// visible (BE-14), consultadas con solo «Ver catálogo».
 const OPERATIONS = [
-  // RF-CONS-01: catálogo de entradas.
-  (d) => http.get(`${BASE}/entries?page=${1 + Math.floor(Math.random() * 5)}&pageSize=12`, { tags: { name: 'catalog' } }),
-  // RF-CONS-01/02: ofertas vendibles de una entrada.
-  (d) => http.get(`${BASE}/offers?entryId=${pick(d.entries)}`, { tags: { name: 'offers' } }),
-  // RF-CONS-01.CA3: composición de una oferta.
-  (d) => http.get(`${BASE}/offers/${pick(d.offers)}`, { tags: { name: 'composition' } }),
+  // RF-CONS-01/02: página de entradas con sus ofertas vendibles y su composición.
+  (d) => http.get(`${BASE}/catalog?page=${1 + Math.floor(Math.random() * 5)}&pageSize=12`,
+    { headers: CATALOG_AUTH, tags: { name: 'catalog' } }),
   // RF-CONS-03.CA1: búsqueda por texto.
-  (d) => http.get(`${BASE}/entries?q=${pick(WORDS)}`, { tags: { name: 'search' } }),
+  (d) => http.get(`${BASE}/catalog?q=${pick(WORDS)}`, { headers: CATALOG_AUTH, tags: { name: 'search' } }),
   // RF-CONS-03.CA2: filtro por categoría o «sin categoría».
-  (d) => http.get(`${BASE}/entries?categoryId=${Math.random() < 0.1 ? UNCATEGORIZED : pick(d.categories)}`,
-    { tags: { name: 'filter' } }),
+  (d) => http.get(`${BASE}/catalog?categoryId=${Math.random() < 0.1 ? UNCATEGORIZED : pick(d.categories)}`,
+    { headers: CATALOG_AUTH, tags: { name: 'filter' } }),
+  // RF-CONS-01.CA4: categorías del catálogo y la agrupación «sin categoría».
+  () => http.get(`${BASE}/catalog/categories`, { headers: CATALOG_AUTH, tags: { name: 'categories' } }),
 ];
 
 export default function (data) {
@@ -131,5 +145,6 @@ export default function (data) {
 
 // RNF-REND-03.CA1: Menu no cae ni reinicia durante la ráfaga.
 export function teardown() {
-  check(http.get(`${BASE}/categories`), { 'alive after burst': (r) => r.status === 200 });
+  check(http.get(`${BASE}/catalog/categories`, { headers: CATALOG_AUTH }),
+    { 'alive after burst': (r) => r.status === 200 });
 }

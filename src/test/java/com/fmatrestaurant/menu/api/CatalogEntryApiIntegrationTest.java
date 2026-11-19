@@ -2,8 +2,8 @@ package com.fmatrestaurant.menu.api;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.startsWith;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -41,6 +41,7 @@ import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.fmatrestaurant.menu.TestcontainersConfiguration;
+import com.fmatrestaurant.menu.TestSecurityConfiguration;
 import com.fmatrestaurant.menu.application.service.CatalogEntryService;
 import com.fmatrestaurant.menu.domain.model.Category;
 import com.fmatrestaurant.menu.domain.model.Image;
@@ -53,7 +54,7 @@ import com.jayway.jsonpath.JsonPath;
 /**
  * HTTP flows of catalog entries and images against PostgreSQL (Testcontainers). Requires Docker.
  */
-@Import(TestcontainersConfiguration.class)
+@Import({ TestcontainersConfiguration.class, TestSecurityConfiguration.class })
 @SpringBootTest(properties = "spring.jpa.hibernate.ddl-auto=create-drop")
 @AutoConfigureMockMvc
 class CatalogEntryApiIntegrationTest {
@@ -109,20 +110,20 @@ class CatalogEntryApiIntegrationTest {
 	void createsAnInactiveEntryWithItsImageAndCategories() throws Exception {
 		String location = createEntry(body("Hawaiian burger", imageId, burgers, burgers, drinks))
 				.andExpect(status().isCreated())
-				.andExpect(header().string(HttpHeaders.ETAG, "\"rev-0\""))
+				.andExpect(header().string(HttpHeaders.ETAG, startsWith("\"rev-0-")))
 				.andExpect(jsonPath("$.data.brandName").value("Hawaiian burger"))
 				.andExpect(jsonPath("$.data.description").value("Tasty"))
 				.andExpect(jsonPath("$.data.status").value("INACTIVE"))
 				.andExpect(jsonPath("$.data.image.id").value(imageId.toString()))
-				.andExpect(jsonPath("$.data.image.url").value(endsWith(IMAGES + "/" + imageId)))
-				.andExpect(jsonPath("$.data.image.thumbnailUrl").value(endsWith(IMAGES + "/" + imageId)))
+				.andExpect(jsonPath("$.data.image.url").value("http://localhost" + IMAGES + "/" + imageId + "/file"))
+				.andExpect(jsonPath("$.data.image.thumbnailUrl").value("http://localhost" + IMAGES + "/" + imageId + "/file"))
 				.andExpect(jsonPath("$.data.categoryIds", contains(burgers.toString(), drinks.toString())))
 				.andReturn().getResponse().getContentAsString();
 		String id = JsonPath.read(location, "$.data.id");
 
 		mockMvc.perform(get(ENTRIES + "/" + id))
 				.andExpect(status().isOk())
-				.andExpect(header().string(HttpHeaders.ETAG, "\"rev-0\""))
+				.andExpect(header().string(HttpHeaders.ETAG, startsWith("\"rev-0-")))
 				.andExpect(jsonPath("$.data.status").value("INACTIVE"))
 				.andExpect(jsonPath("$.data.categoryIds", hasSize(2)));
 		mockMvc.perform(get(IMAGES + "/" + imageId))
@@ -195,7 +196,7 @@ class CatalogEntryApiIntegrationTest {
 
 		patchEntry(id, "\"rev-0\"", "{\"description\": \"New\", \"categoryIds\": [\"" + drinks + "\"]}")
 				.andExpect(status().isOk())
-				.andExpect(header().string(HttpHeaders.ETAG, "\"rev-1\""))
+				.andExpect(header().string(HttpHeaders.ETAG, startsWith("\"rev-1-")))
 				.andExpect(jsonPath("$.data.brandName").value("Burger"))
 				.andExpect(jsonPath("$.data.description").value("New"))
 				.andExpect(jsonPath("$.data.status").value("INACTIVE"))
@@ -231,7 +232,7 @@ class CatalogEntryApiIntegrationTest {
 				.andExpect(jsonPath(VIOLATION_PATH).value("/status"));
 
 		mockMvc.perform(get(ENTRIES + "/" + id))
-				.andExpect(header().string(HttpHeaders.ETAG, "\"rev-0\""))
+				.andExpect(header().string(HttpHeaders.ETAG, startsWith("\"rev-0-")))
 				.andExpect(jsonPath("$.data.brandName").value("Burger"))
 				.andExpect(jsonPath("$.data.image.id").value(imageId.toString()));
 	}
@@ -250,7 +251,7 @@ class CatalogEntryApiIntegrationTest {
 				.andExpect(status().isUnprocessableContent());
 
 		mockMvc.perform(get(ENTRIES + "/" + id))
-				.andExpect(header().string(HttpHeaders.ETAG, "\"rev-0\""))
+				.andExpect(header().string(HttpHeaders.ETAG, startsWith("\"rev-0-")))
 				.andExpect(jsonPath("$.data.brandName").value("Burger"))
 				.andExpect(jsonPath("$.data.image.id").value(imageId.toString()))
 				.andExpect(jsonPath("$.data.categoryIds", contains(burgers.toString())));
@@ -299,7 +300,7 @@ class CatalogEntryApiIntegrationTest {
 				.andExpect(status().isPreconditionRequired());
 
 		mockMvc.perform(get(ENTRIES + "/" + id))
-				.andExpect(header().string(HttpHeaders.ETAG, "\"rev-1\""))
+				.andExpect(header().string(HttpHeaders.ETAG, startsWith("\"rev-1-")))
 				.andExpect(jsonPath("$.data.brandName").value("First"));
 	}
 
@@ -329,7 +330,7 @@ class CatalogEntryApiIntegrationTest {
 		});
 
 		mockMvc.perform(get(ENTRIES + "/" + id))
-				.andExpect(header().string(HttpHeaders.ETAG, "\"rev-1\""))
+				.andExpect(header().string(HttpHeaders.ETAG, startsWith("\"rev-1-")))
 				.andExpect(jsonPath("$.data.brandName").value("First"));
 	}
 
@@ -340,15 +341,16 @@ class CatalogEntryApiIntegrationTest {
 		patchEntry(id, "\"rev-0\"", "{\"status\": \"INACTIVE\", \"categoryIds\": [\"" + burgers + "\", \""
 				+ burgers + "\"]}")
 				.andExpect(status().isOk())
-				.andExpect(header().string(HttpHeaders.ETAG, "\"rev-0\""))
+				.andExpect(header().string(HttpHeaders.ETAG, startsWith("\"rev-0-")))
 				.andExpect(jsonPath("$.data.categoryIds", contains(burgers.toString())));
 	}
 
 	@Test
 	void conditionalReads() throws Exception {
 		String id = create("Burger", burgers);
+		String etag = mockMvc.perform(get(ENTRIES + "/" + id)).andReturn().getResponse().getHeader(HttpHeaders.ETAG);
 
-		mockMvc.perform(get(ENTRIES + "/" + id).header(HttpHeaders.IF_NONE_MATCH, "W/\"rev-0\""))
+		mockMvc.perform(get(ENTRIES + "/" + id).header(HttpHeaders.IF_NONE_MATCH, "W/" + etag))
 				.andExpect(status().isNotModified());
 		String listEtag = mockMvc.perform(get(ENTRIES))
 				.andExpect(status().isOk())
@@ -358,7 +360,7 @@ class CatalogEntryApiIntegrationTest {
 
 		changeStatus(id, 0, "ACTIVE").andExpect(status().isOk());
 
-		mockMvc.perform(get(ENTRIES + "/" + id).header(HttpHeaders.IF_NONE_MATCH, "W/\"rev-0\""))
+		mockMvc.perform(get(ENTRIES + "/" + id).header(HttpHeaders.IF_NONE_MATCH, "W/" + etag))
 				.andExpect(status().isOk());
 		mockMvc.perform(get(ENTRIES).header(HttpHeaders.IF_NONE_MATCH, listEtag))
 				.andExpect(status().isOk());

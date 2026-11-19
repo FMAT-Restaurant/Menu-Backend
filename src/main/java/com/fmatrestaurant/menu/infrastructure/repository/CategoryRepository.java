@@ -15,6 +15,9 @@ public interface CategoryRepository extends JpaRepository<Category, UUID> {
 
 	Page<Category> findByMenuId(Long menuId, Pageable pageable);
 
+	/** Every category of the menu in alphabetical order, the order of the visible catalog. */
+	List<Category> findByMenuIdOrderByNameAscIdAsc(Long menuId);
+
 	boolean existsByMenuIdAndNameIgnoreCase(Long menuId, String name);
 
 	boolean existsByMenuIdAndNameIgnoreCaseAndIdNot(Long menuId, String name, UUID id);

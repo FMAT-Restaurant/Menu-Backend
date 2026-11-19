@@ -39,6 +39,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import com.fmatrestaurant.menu.InventoryStub;
 import com.fmatrestaurant.menu.TestcontainersConfiguration;
+import com.fmatrestaurant.menu.TestSecurityConfiguration;
 import com.fmatrestaurant.menu.application.service.RecipeService;
 import com.fmatrestaurant.menu.application.service.RecipeService.SupplyData;
 import com.fmatrestaurant.menu.domain.model.CatalogEntry;
@@ -56,7 +57,7 @@ import com.jayway.jsonpath.JsonPath;
  * (Testcontainers). Inventory articles are confirmed by the real client against {@link InventoryStub}.
  * Requires Docker.
  */
-@Import(TestcontainersConfiguration.class)
+@Import({ TestcontainersConfiguration.class, TestSecurityConfiguration.class })
 @SpringBootTest(properties = "spring.jpa.hibernate.ddl-auto=create-drop")
 @AutoConfigureMockMvc
 class CatalogOfferRecipeApiIntegrationTest {

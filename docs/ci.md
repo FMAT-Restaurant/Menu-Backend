@@ -53,7 +53,16 @@ Si el log muestra `Sensor JaCoCo XML Report Importer` seguido de `Importing 1 re
 | RNF-REND-02 | `nominal`: 30 solicitudes/s con hasta 40 sesiones, 30 min (5 min en PRs) | p95 ≤ 200 ms, p99 ≤ 1 s, errores < 0.1 % |
 | RNF-REND-03 | `burst`: 100 solicitudes/s con hasta 40 sesiones, 60 s, después del nominal | Menu sigue respondiendo al terminar; sin umbral de latencia |
 
-`setup()` siembra 12 categorías, 150 entradas activas (una de cada diez sin categoría) y 2 ofertas por entrada a través de la API. La mezcla de operaciones (catálogo, ofertas de una entrada, composición, búsqueda por texto y filtro por categoría) se reparte por igual mientras OPEN-009 no fije la proporción. El resumen (`k6-summary.json`, artefacto `k6-summary`) incluye las solicitudes completadas, fallidas y descartadas (`dropped_iterations`) que pide RNF-REND-03.CA2.
+`setup()` siembra, a través de la API y con un token comodín, 12 categorías, 150 entradas activas (una de cada diez sin categoría) y 2 ofertas activas por entrada. Las consultas usan el catálogo visible (BE-14) con un token de solo `menu:catalog:read`, como quien lo consulta. La mezcla de operaciones se reparte por igual mientras OPEN-009 no fije la proporción:
+
+- página de `GET /menu/catalog`;
+- búsqueda por texto (`q`);
+- filtro por categoría o «sin categoría» (`categoryId`);
+- `GET /menu/catalog/categories`.
+
+`TOKEN` y `CATALOG_TOKEN` permiten usar tokens reales. El resumen (`k6-summary.json`, artefacto `k6-summary`) incluye las solicitudes completadas, fallidas y descartadas (`dropped_iterations`) que pide RNF-REND-03.CA2.
+
+En CI, Docker no descarga dependencias: el job `test` compila el JAR con la caché de Gradle y lo sube como artefacto (`app-jar`), y `performance` y `build-and-push` lo empaquetan con la etapa `prebuilt` del `Dockerfile` (`--target prebuilt --build-context jar=build/docker`). Así Maven Central, que a veces responde `429 Too Many Requests` a los runners de GitHub, no corta esos jobs. Compose arranca con `--no-build` usando esa imagen (`menu-backend-api`); en local, `docker compose up --build` sigue compilando dentro de Docker.
 
 Ejecutarlo localmente (sin instalar k6):
 

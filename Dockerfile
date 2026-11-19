@@ -16,7 +16,7 @@ RUN ./gradlew bootJar --no-daemon -q \
 	&& find build/libs -name '*.jar' ! -name '*-plain.jar' -exec cp {} app.jar \;
 
 # 5. Etapa de ejecución: solo el JRE, sin herramientas de compilación
-FROM eclipse-temurin:25.0.4.1_1-jre-noble
+FROM eclipse-temurin:25.0.4.1_1-jre-noble AS runtime
 
 WORKDIR /app
 
@@ -24,10 +24,18 @@ WORKDIR /app
 RUN groupadd --system spring && useradd --system --gid spring spring
 USER spring:spring
 
-COPY --from=build /workspace/app.jar app.jar
-
 # 7. Puerto HTTP por defecto de Spring Boot
 EXPOSE 8080
 
 # 8. Comando por defecto al ejecutar el contenedor; el heap se calcula sobre el límite de memoria del contenedor
 ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75.0", "-jar", "/app/app.jar"]
+
+# 9. Imagen con un JAR ya compilado (CI): el job de pruebas lo genera con la caché de Gradle y lo pasa como el
+# contexto "jar" (docker buildx build --target prebuilt --build-context jar=<dir con app.jar>). Así Docker no
+# descarga dependencias de Maven Central, que a veces responde 429 a los runners de GitHub.
+FROM runtime AS prebuilt
+COPY --from=jar app.jar app.jar
+
+# 10. Imagen por defecto (docker build, docker compose up --build): compila el JAR en la etapa build.
+FROM runtime
+COPY --from=build /workspace/app.jar app.jar

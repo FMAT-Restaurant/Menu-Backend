@@ -1,6 +1,7 @@
 package com.fmatrestaurant.menu.infrastructure.repository;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -13,7 +14,9 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import com.fmatrestaurant.menu.domain.model.RecipeRevision;
 
 import jakarta.persistence.criteria.Predicate;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface RecipeRevisionRepository extends JpaRepository<RecipeRevision, UUID>,
 		JpaSpecificationExecutor<RecipeRevision> {
@@ -29,6 +32,22 @@ public interface RecipeRevisionRepository extends JpaRepository<RecipeRevision, 
 		"""
 	)
 	Optional<RecipeRevision> findCurrentByRecipeId(UUID recipeId);
+
+	/**
+	 * Pairs of recipe id and the availability Inventory communicated for it, read from the current revision; every
+	 * revision of a recipe holds the same value.
+	 */
+	@Query("select r.recipe.id, r.isAvailable from RecipeRevision r "
+			+ "where r.recipe.id in :recipeIds and r.revision = r.recipe.currentRevision")
+	List<Object[]> findAvailabilityByRecipeIds(@Param("recipeIds") Collection<UUID> recipeIds);
+
+	/**
+	 * Sets the availability that Inventory communicated for the recipe on every revision, since the content source
+	 * is the recipe; 0 when there is no such recipe.
+	 */
+	@Modifying
+	@Query("update RecipeRevision r set r.isAvailable = :available where r.recipe.id = :recipeId")
+	int updateAvailability(@Param("recipeId") UUID recipeId, @Param("available") boolean available);
 
 	/**
 	 * The current revision of every recipe.

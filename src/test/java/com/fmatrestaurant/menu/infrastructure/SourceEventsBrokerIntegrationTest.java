@@ -41,6 +41,7 @@ import org.springframework.test.web.servlet.ResultActions;
 import com.fmatrestaurant.menu.InventoryStub;
 import com.fmatrestaurant.menu.RabbitMqTestcontainersConfiguration;
 import com.fmatrestaurant.menu.TestcontainersConfiguration;
+import com.fmatrestaurant.menu.TestSecurityConfiguration;
 import com.fmatrestaurant.menu.domain.model.CatalogEntry;
 import com.fmatrestaurant.menu.domain.model.Image;
 import com.fmatrestaurant.menu.domain.model.InventoryItem;
@@ -58,7 +59,7 @@ import tools.jackson.databind.json.JsonMapper;
  * The contract of Menu with the rest of the system: what is published in {@code menu.topic}, with which routing
  * key and payload, when a recipe or an Inventory option is created, updated or deleted. Requires Docker.
  */
-@Import({ TestcontainersConfiguration.class, RabbitMqTestcontainersConfiguration.class })
+@Import({ TestcontainersConfiguration.class, RabbitMqTestcontainersConfiguration.class, TestSecurityConfiguration.class })
 @SpringBootTest(properties = "spring.jpa.hibernate.ddl-auto=create-drop")
 @AutoConfigureMockMvc
 class SourceEventsBrokerIntegrationTest {

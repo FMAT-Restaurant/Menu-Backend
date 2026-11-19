@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
@@ -81,7 +82,8 @@ public class CatalogOfferService {
 
 	/**
 	 * Creates an offer of the entry. It always starts {@link OfferStatus#INACTIVE} and its options start
-	 * {@link OfferStatus#ACTIVE}; the server assigns every status and id, so the client cannot send them.
+	 * {@link OfferStatus#ACTIVE} unless they say otherwise (RF-OPC-01.CA2); the server assigns every id and
+	 * the status of the offer, so the client cannot send them.
 	 *
 	 * @throws CatalogEntryNotFoundException                      if the entry does not exist
 	 * @throws InvalidFieldException                              if a field is not defined by the contract, a value is missing or invalid,
@@ -120,6 +122,22 @@ public class CatalogOfferService {
 	@Transactional(readOnly = true)
 	public CatalogOffer get(UUID id) {
 		return offerRepository.findById(id).orElseThrow(() -> new CatalogOfferNotFoundException(id));
+	}
+
+	/**
+	 * The ids of the slots of the offer, in order, each with the ids of its options, in order; empty when the
+	 * offer does not exist. Lets authorization tell a change of statuses from a change of the composition.
+	 */
+	@Transactional(readOnly = true)
+	public Optional<List<CompositionShape>> compositionShape(UUID id) {
+		return offerRepository.findById(id).map(offer -> offer.getSlots().stream()
+				.map(slot -> new CompositionShape(slot.getId(),
+						slot.getOptions().stream().map(SlotOption::getId).toList()))
+				.toList());
+	}
+
+	/** A slot of the composition by its id and the ids of its options. */
+	public record CompositionShape(UUID slotId, List<UUID> optionIds) {
 	}
 
 	/**
@@ -231,7 +249,7 @@ public class CatalogOfferService {
 	}
 
 	/**
-	 * @param create when {@code true}, every slot and option is new and ids or statuses are not allowed
+	 * @param create when {@code true}, every slot and option is new and ids are not allowed
 	 * @param items the Inventory articles already confirmed in this operation, by id
 	 */
 	private List<CompositionSlot> slots(List<CompositionSlot> current, List<SlotInput> inputs, boolean create,
@@ -308,7 +326,6 @@ public class CatalogOfferService {
 		input.rejectUnknownFields();
 		if (create) {
 			notAllowed("/optionId", input.optionId());
-			notAllowed("/status", input.status());
 		}
 		if (input.sourceType() == null) {
 			throw new InvalidFieldException("/sourceType", "The source type is required");
@@ -317,11 +334,11 @@ public class CatalogOfferService {
 		if (id == null) {
 			if (input.sourceType() == SourceType.RECIPE) {
 				rejectInventoryFields(input);
-				return new SlotOption(input.displayName(), create ? OfferStatus.ACTIVE : input.status(),
+				return new SlotOption(input.displayName(), input.status(),
 						input.recipeId(), latestRecipeRevision(input.recipeId()));
 			}
 			rejectRecipeFields(input);
-			return new SlotOption(input.displayName(), create ? OfferStatus.ACTIVE : input.status(),
+			return new SlotOption(input.displayName(), input.status(),
 					inventoryItem(input.inventoryItemId(), items), input.quantity(), input.unit());
 		}
 		SlotOption option = existing(byId, seen, id, "/optionId", "option", "slot");

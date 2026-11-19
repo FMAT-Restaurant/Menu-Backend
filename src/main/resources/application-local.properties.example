@@ -21,4 +21,4 @@ menu.inventory.token=
 # Menu publishes its events in menu.topic and consumes its availability queue.
 spring.rabbitmq.addresses=amqp://menu:menu@localhost:5672
 # Routing key that binds the availability queue to inventory.topic (INVENTORY_AVAILABILITY_ROUTING_KEY).
-# menu.rabbitmq.inventory.availability-routing-key=inventory.recipe.availability-changed
+# menu.rabbitmq.inventory.availability-routing-key=inventory.source.availability.updated

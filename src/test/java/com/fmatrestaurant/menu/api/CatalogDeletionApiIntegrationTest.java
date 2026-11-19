@@ -46,6 +46,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import com.fmatrestaurant.menu.InventoryStub;
 import com.fmatrestaurant.menu.TestcontainersConfiguration;
+import com.fmatrestaurant.menu.TestSecurityConfiguration;
 import com.fmatrestaurant.menu.application.service.CatalogEntryService;
 import com.fmatrestaurant.menu.application.service.CatalogOfferService;
 import com.fmatrestaurant.menu.domain.model.CatalogEntry;
@@ -62,7 +63,7 @@ import com.jayway.jsonpath.JsonPath;
  * HTTP flows to delete entries and offers against PostgreSQL (Testcontainers), including deletions that
  * run concurrently with other writes. Requires Docker.
  */
-@Import(TestcontainersConfiguration.class)
+@Import({ TestcontainersConfiguration.class, TestSecurityConfiguration.class })
 @SpringBootTest(properties = "spring.jpa.hibernate.ddl-auto=create-drop")
 @AutoConfigureMockMvc
 class CatalogDeletionApiIntegrationTest {

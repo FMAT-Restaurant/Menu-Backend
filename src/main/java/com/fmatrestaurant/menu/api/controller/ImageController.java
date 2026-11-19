@@ -1,6 +1,5 @@
 package com.fmatrestaurant.menu.api.controller;
 
-import com.fmatrestaurant.menu.api.ApiVersioning;
 import com.fmatrestaurant.menu.api.MenuApi;
 import java.io.IOException;
 import java.util.UUID;
@@ -14,7 +13,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import com.fmatrestaurant.menu.application.service.ImageService;
 import com.fmatrestaurant.menu.domain.model.Image;
@@ -22,7 +20,7 @@ import com.fmatrestaurant.menu.domain.model.Image;
 @MenuApi(ImageController.PATH)
 public class ImageController {
 
-	/** Relative to the API version; also where {@code url} of an image points to. */
+	/** Relative to the API version. */
 	static final String PATH = "/menu/media/images";
 
 	private final ImageService imageService;
@@ -40,7 +38,10 @@ public class ImageController {
 				.body(new DataResponse<>(ImageResponse.of(image.getId())));
 	}
 
-	/** Serves the file. Not part of the contract, but it is where {@code url} points to. */
+	/**
+	 * getMenuImage: the file and its current ETag, to send in If-Match when the file is replaced. It requires
+	 * {@code menu:images:write}; clients show images from the public {@code url} ({@link PublicImageController}).
+	 */
 	@GetMapping("/{imageId}")
 	public ResponseEntity<byte[]> get(@PathVariable UUID imageId) {
 		Image image = imageService.get(imageId);
@@ -55,11 +56,11 @@ public class ImageController {
 		return "\"" + image.getId() + "\"";
 	}
 
+	/** {@code url} and {@code thumbnailUrl} are the public file, readable without permissions nor token. */
 	public record ImageResponse(UUID id, String url, String thumbnailUrl) {
 
 		public static ImageResponse of(UUID id) {
-			String url = ServletUriComponentsBuilder.fromCurrentContextPath()
-					.path(ApiVersioning.BASE + PATH + "/{id}").buildAndExpand(id).toUriString();
+			String url = PublicImageController.url(id);
 			// ponytail: no thumbnails are generated yet, the original is served for both.
 			return new ImageResponse(id, url, url);
 		}

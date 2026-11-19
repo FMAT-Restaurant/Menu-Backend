@@ -27,7 +27,20 @@ No hay outbox, así que un evento que no se entrega se pierde; lo que se garanti
 
 ## Consumo
 
-Menu declara la cola `menu.inventory.availability.queue` (con DLQ `menu.inventory.availability.dlq` en `menu.dlx`) y la enlaza a `inventory.topic` con la routing key de `INVENTORY_AVAILABILITY_ROUTING_KEY` (por defecto `inventory.recipe.availability-changed`). Por ahora solo registra los mensajes recibidos. Ante un fallo del listener (o un mensaje ilegible) hace 3 intentos (`spring.rabbitmq.listener.simple.retry.*`) y, si fallan, republica el mensaje en `menu.dlx` → DLQ con la causa en la cabecera `x-exception-message`; nunca se reencola. Nada consume la DLQ: revisarla es manual.
+Menu declara la cola `menu.inventory.availability.queue` (con DLQ `menu.inventory.availability.dlq` en `menu.dlx`) y la enlaza a `inventory.topic` con la routing key de `INVENTORY_AVAILABILITY_ROUTING_KEY` (por defecto `inventory.source.availability.updated`, el canal del contrato AsyncAPI). Cada mensaje `{sourceId, isAvailable}` fija la disponibilidad del origen (RF-INTG-03), sin cambiar ningún `status`:
+
+| `sourceId` es | Qué hace Menu |
+| ------------- | ------------- |
+| Una receta | Fija `recipe_revision.is_available` en **todas** sus revisiones: el origen es la receta, así que las opciones fijadas a revisiones anteriores también la reflejan. Una revisión nueva hereda la disponibilidad de la vigente |
+| Una opción `INVENTORY_ITEM` | Fija `slot_option.source_available` de esa opción |
+| Otra cosa (origen eliminado o desconocido, u opción con receta) | Nada; registra un `WARN` y confirma el mensaje |
+
+- **Disponibilidad inicial:** recetas y opciones nuevas empiezan **no disponibles** hasta que Inventario la comunica (RF-DISP-01.CA1/CA2, «si y solo si»). Inventario la envía al recibir `menu.source.created`.
+- **Duplicados:** el id del evento es el `messageId` del mensaje AMQP (o `eventId` del cuerpo si no hay). Se guarda en `processed_event` en la misma transacción que el cambio, así que un evento repetido o reentregado no tiene efecto; los ids se purgan a los 7 días. Sin id, el evento se aplica igual. El orden entre eventos distintos queda pendiente en OPEN-011 de la ERS.
+- Las actualizaciones no cambian la versión de recetas ni ofertas, así que un evento no invalida el `If-Match` de nadie.
+- **Errores:** un mensaje sin `sourceId` o `isAvailable`, ilegible o cuyo procesamiento falla se reintenta 3 veces (`spring.rabbitmq.listener.simple.retry.*`) y luego se republica en `menu.dlx` → DLQ con la causa en la cabecera `x-exception-message`; nunca se reencola. Nada consume la DLQ: revisarla es manual.
+
+En las pruebas, `AvailabilityEvents` publica estos eventos en el RabbitMQ de Testcontainers y espera a que Menu los aplique.
 
 ## Conexión
 

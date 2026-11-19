@@ -19,6 +19,8 @@ public class WebConfiguration {
 		FilterRegistrationBean<ShallowEtagHeaderFilter> registration =
 				new FilterRegistrationBean<>(new ShallowEtagHeaderFilter());
 		registration.addUrlPatterns(
+				ApiVersioning.BASE + "/menu/catalog",
+				ApiVersioning.BASE + "/menu/catalog/categories",
 				ApiVersioning.BASE + "/menu/categories",
 				ApiVersioning.BASE + "/menu/entries",
 				ApiVersioning.BASE + "/menu/offers",

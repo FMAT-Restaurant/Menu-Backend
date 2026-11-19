@@ -6,6 +6,7 @@ import java.util.UUID;
 import com.fmatrestaurant.menu.domain.exception.Fields;
 import com.fmatrestaurant.menu.domain.exception.InvalidFieldException;
 import jakarta.persistence.CheckConstraint;
+import org.hibernate.annotations.ColumnDefault;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -106,19 +107,26 @@ public class SlotOption {
 	@Column(name = "recipe_revision")
 	private Integer recipeRevision;
 
+	/**
+	 * Only for Inventory content: whether Inventory communicated that this option, as a content source, is available
+	 * (RF-DISP-01.CA2); false until it does. Only the event of Inventory changes it, with a bulk update, so a
+	 * concurrent edit of the option never writes back an old value.
+	 */
+	@Column(name = "source_available", nullable = false, updatable = false)
+	@ColumnDefault("false")
+	private boolean sourceAvailable;
+
 	protected SlotOption() {
 		// Required by JPA.
 	}
 
 	/**
-	 * Creates an option whose content is the Inventory article, as Inventory returned it.
+	 * Creates an option whose content is the Inventory article, as Inventory returned it. Without a
+	 * status, it starts {@link OfferStatus#ACTIVE} (RF-OPC-01.CA2).
 	 *
 	 * @throws InvalidFieldException if a value is missing or invalid, or the unit is not the one of the article
 	 */
 	public SlotOption(String displayName, OfferStatus status, InventoryItem item, BigDecimal quantity, String unit) {
-		if (status == null) {
-			throw new InvalidFieldException("/status", "The option status is required");
-		}
 		if (item == null) {
 			throw new InvalidFieldException("/inventoryItemId", "The inventory item is required");
 		}
@@ -128,7 +136,7 @@ public class SlotOption {
 		this.inventoryItemId = itemId(item);
 		this.sourceName = itemName(item);
 		this.unit = unit(unit, itemUnit(item));
-		this.status = status;
+		this.status = status == null ? OfferStatus.ACTIVE : status;
 		this.sourceType = SourceType.INVENTORY_ITEM;
 	}
 
@@ -165,20 +173,17 @@ public class SlotOption {
 	}
 
 	/**
-	 * Creates an option whose content is a recipe of the library. That the revision exists is checked
-	 * by the caller, which has access to the library.
+	 * Creates an option whose content is a recipe of the library, {@link OfferStatus#ACTIVE} without a
+	 * status. That the revision exists is checked by the caller, which has access to the library.
 	 *
 	 * @throws InvalidFieldException if a value is missing or invalid
 	 */
 	public SlotOption(String displayName, OfferStatus status, UUID recipeId, Integer recipeRevision) {
-		if (status == null) {
-			throw new InvalidFieldException("/status", "The option status is required");
-		}
 		this.id = UUID.randomUUID();
 		this.displayName = Fields.text(DISPLAY_NAME_PATH, DISPLAY_NAME_LABEL, displayName, DISPLAY_NAME_MAX_LENGTH);
 		this.recipeId = recipeId(recipeId);
 		this.recipeRevision = recipeRevision(recipeRevision);
-		this.status = status;
+		this.status = status == null ? OfferStatus.ACTIVE : status;
 		this.sourceType = SourceType.RECIPE;
 	}
 
@@ -296,6 +301,10 @@ public class SlotOption {
 
 	public Integer getRecipeRevision() {
 		return recipeRevision;
+	}
+
+	public boolean isSourceAvailable() {
+		return sourceAvailable;
 	}
 
 }

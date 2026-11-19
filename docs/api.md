@@ -20,6 +20,84 @@ La tarea descarga el bundle de ese `ref`, falla si su `info.version` no coincide
 - `ContractValidation.conformsToContract()` (en `src/test/.../api/`) valida una respuesta de MockMvc contra el contrato servido: `.andExpect(conformsToContract())`. Solo valida la respuesta; la solicitud y la autenticación no se revisan.
 - `OpenApiSpecTest` compara los `operationId` del contrato con los handlers registrados. Las operaciones sin implementar están en la lista `PENDING`; cada ticket que implementa una la quita de ahí. `/items` y `/items/{id}` se excluyen porque los sirve Inventario.
 
+## Permisos
+
+Cada operación exige los permisos de su `x-required-permission` en el contrato (RF-GEN-01). Se leen de la claim `permissions` del JWT de `Authorization: Bearer …`: un arreglo de strings `menu:<recurso>:<accion>`.
+
+> [!WARNING]
+> Hasta BE-12 (#63), Menu decodifica el JWT **sin verificar su firma** (`UnverifiedJwtPermissions`). No debe desplegarse expuesto sin el Gateway delante.
+
+- **401** (`Unauthorized`): no hay credencial, no es un JWT, o `permissions` no es un arreglo de strings.
+- **403** (`Forbidden`): falta un permiso exigido. Se responde antes de la idempotencia y de cualquier escritura, así que no queda ningún efecto: ni datos ni `Idempotency-Key` ligada.
+- Un token **sin** `permissions` equivale a una lista vacía: 403, no 401.
+- **`"*"`** concede todos los permisos (administradores). El comodín no aparece en la ERS ni en el contrato.
+- **Sin credencial:** `/openapi.yaml`, el preflight `OPTIONS`, los archivos de imagen (`GET` y `HEAD /api/v1/menu/media/images/{imageId}/file`) y el mock de Inventario del perfil `local` (`/items`, `/api/v1/items`).
+- **Rutas que no existen:** con una credencial legible siguen respondiendo `404`/`400`. No tienen handler, así que no hay nada que proteger.
+- **PATCH de entradas y ofertas** (RF-GEN-01.CA3): el cuerpo decide el permiso.
+  - Solo cambios de `status` → `…:status`.
+  - Sin cambios de `status` → `…:write`.
+  - Ambos → los dos.
+  - En ofertas, el `status` de una opción existente cuenta como cambio de estado. La `composition` solo cuenta como cambio de estado si lista exactamente los grupos y opciones actuales, en el mismo orden, y no trae más que sus ids, `sourceType` y `status`; si añade, quita, reordena o edita miembros, exige `write`.
+- **Imágenes públicas (#87):** `url` y `thumbnailUrl` apuntan a `GET /api/v1/menu/media/images/{imageId}/file`.
+  - La ruta está dentro de la API, con sus prefijos comunes y junto a la imagen, así que el Gateway la reenvía igual que el resto de `/api/v1/menu/**`.
+  - Sirve el archivo **sin permisos ni token**, así que un `<img src>` funciona.
+  - El contrato no la define.
+  - Responde con `Content-Type`, `Cache-Control: no-cache, public` y un `ETag`, que es el SHA-256 del archivo y cambia si se reemplaza (BE-17). Con un `If-None-Match` vigente responde 304.
+  - `GET /menu/media/images/{imageId}` (`getMenuImage`) sigue exigiendo `menu:images:write`, como dice el contrato. Solo sirve para obtener el ETag y preparar el reemplazo del archivo.
+
+### Implementación
+
+- `CredentialPermissions` (`application/security`) lee la credencial. BE-12 sustituirá `UnverifiedJwtPermissions` por una versión que verifique la firma.
+- `SecurityConfiguration` arma la cadena de Spring Security, que corre antes de `IdempotencyFilter`:
+  - `BearerPermissionsFilter` carga los permisos;
+  - `PermissionAuthorizationManager` decide con la tabla `OperationPermissions` y con `PatchPermissionRule`.
+- No se usa `@PreAuthorize`, porque se evaluaría después de `IdempotencyFilter`. Una solicitud sin permiso recibiría `400`/`409` de idempotencia en lugar de `403`, y un `403` dejaría la clave ligada.
+- `OperationPermissionsContractTest` comprueba tres cosas:
+  - que la tabla coincide con `x-required-permission` del contrato servido;
+  - que cada handler tiene regla;
+  - que con solo su permiso ninguna operación responde 403.
+- En las pruebas:
+  - `TestTokens` genera los JWT;
+  - `TestSecurityConfiguration` envía TK-ADMIN por defecto en MockMvc;
+  - `PermissionsApiIntegrationTest` no lo importa: cada solicitud lleva su propia credencial.
+
+## Disponibilidad
+
+`isAvailable` es la disponibilidad derivada y de solo lectura de opciones, grupos de selección, ofertas y entradas (RF-DISP-01 a RF-DISP-04). `DerivedAvailability` la calcula al armar cada respuesta, a partir de lo que comunicó Inventario ([messaging.md](messaging.md)), de la composición y de los estados, así que nunca queda desactualizada y nada se propaga. No cambia ningún `status`, y un `isAvailable` enviado en un POST o PATCH se ignora.
+
+| Elemento | Disponible si y solo si |
+| -------- | ----------------------- |
+| Opción `RECIPE` | Inventario comunicó su receta como disponible (todas las revisiones valen lo mismo) |
+| Opción `INVENTORY_ITEM` | Inventario comunicó la propia opción como disponible |
+| Grupo | Al menos una de sus opciones está `ACTIVE` y disponible |
+| Oferta | Todos sus grupos están disponibles (su `status` no interviene) |
+| Entrada | Al menos una de sus ofertas está `ACTIVE` y disponible; sin ofertas activas, `false` |
+
+El `status` de una opción no interviene en su propia disponibilidad (RF-DISP-01.CA3). Hasta que Inventario comunica un origen, este no está disponible.
+
+### ETag de entradas y ofertas
+
+La disponibilidad cambia sin que cambie la versión de la entrada o la oferta, por un evento de Inventario o por activar o inactivar ofertas. Por eso su ETag lleva una huella: `"rev-<versión>-<huella>"`.
+
+- **Entrada:** la huella es `a` (disponible) o `u` (no disponible).
+- **Oferta:** la huella es un CRC32 de los valores `isAvailable` de la oferta, sus grupos y sus opciones.
+
+Así, un `If-None-Match` con un ETag anterior al cambio responde 200 con el valor nuevo, no 304. `If-Match` compara solo la versión, así que un cambio de disponibilidad no hace fallar con 412 la edición de un administrador; también se acepta `"rev-<versión>"`. Categorías y recetas siguen con `"rev-<versión>"`.
+
+## Catálogo visible
+
+`GET /menu/catalog` y `GET /menu/catalog/categories` presentan el catálogo a quien tiene «Ver catálogo» (`menu:catalog:read`), conforme a RF-CONS-01 a RF-CONS-03.
+
+- **Qué se presenta:** solo las entradas `ACTIVE`, sus ofertas `ACTIVE` y, en cada grupo, sus opciones `ACTIVE`. Lo que no está disponible sí se presenta, con `isAvailable: false`, para que el cliente lo muestre deshabilitado. Una entrada `ACTIVE` sin ofertas `ACTIVE` aparece con `offers: []` e `isAvailable: false`.
+- **Orden:**
+  - entradas por nombre comercial;
+  - ofertas por etiqueta de presentación;
+  - grupos y opciones en el orden del administrador.
+- **Campos:** solo los que presenta el cliente. No hay `status`, origen, cantidades de Inventario ni opción predeterminada.
+- **Búsqueda y filtro:** `q` busca en el nombre comercial, la descripción y los nombres de categoría. `categoryId` admite una categoría o `__uncategorized__`; una categoría inexistente devuelve una página vacía.
+- **Categorías:** se devuelven todas, sin paginar y en orden alfabético, también las vacías. `entryCount` cuenta solo las entradas `ACTIVE`, y `uncategorized.entryCount`, las entradas `ACTIVE` sin categorías.
+- **ETag:** ambas respuestas llevan un ETag calculado sobre el cuerpo. Por eso cambia también con `isAvailable`, y un `If-None-Match` vigente responde 304.
+
 ## Versionado
 
 Todas las rutas de Menu viven bajo `/api/{version}` (hoy `/api/v1`). Usa el versionado nativo de Spring Framework 7: la versión es el segundo segmento del path, es obligatoria bajo `/api` y una versión que ningún controlador declare (`/api/v2/...`) responde `400` con el sobre de error.
@@ -89,3 +167,4 @@ No hay herramienta de migraciones: Hibernate (`ddl-auto=update`, solo desarrollo
 | ------ | ------ |
 | [`sql/inventory-item-id-to-text.sql`](sql/inventory-item-id-to-text.sql) | `component_ingredient.inventory_item_id` y `slot_option.inventory_item_id` pasan de UUID a `text` |
 | [`sql/recipe-deletion.sql`](sql/recipe-deletion.sql) | Agrega `recipe.deleted` para la baja lógica de recetas |
+| [`sql/source-availability.sql`](sql/source-availability.sql) | Agrega `slot_option.source_available` y la tabla `processed_event` para la disponibilidad que comunica Inventario |

@@ -24,12 +24,13 @@ import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
 import com.fmatrestaurant.menu.TestcontainersConfiguration;
+import com.fmatrestaurant.menu.TestSecurityConfiguration;
 
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.PathItem;
 import io.swagger.v3.parser.OpenAPIV3Parser;
 
-@Import(TestcontainersConfiguration.class)
+@Import({ TestcontainersConfiguration.class, TestSecurityConfiguration.class })
 @SpringBootTest
 @AutoConfigureMockMvc
 class OpenApiSpecTest {
@@ -41,8 +42,6 @@ class OpenApiSpecTest {
 	 * adds the handler; the test fails if one is implemented and still listed.
 	 */
 	private static final Set<String> PENDING = Set.of(
-			// BE-14 (#65)
-			"getMenuCatalog", "listMenuCatalogCategories",
 			// BE-15 (#66)
 			"getPrintableMenu",
 			// BE-16 (#67)
