@@ -231,6 +231,19 @@ class CatalogOfferApiIntegrationTest {
 	}
 
 	@Test
+	@DisplayName("TC-IMG-03-CA2: PATCH of an offer rejects the image, which is fixed at creation")
+	void patchRejectsTheImage() throws Exception {
+		String id = create(offerBody("Individual", "180"));
+		String etag = etag(id);
+
+		expectViolation(patchOffer(id, etag, "{\"basePrice\": 1, \"imageId\": \"" + imageId + "\"}"), "/imageId");
+
+		mockMvc.perform(get(OFFERS + "/" + id))
+				.andExpect(header().string(HttpHeaders.ETAG, etag))
+				.andExpect(jsonPath("$.data.basePrice").value(180));
+	}
+
+	@Test
 	@DisplayName("TC-OPC-01-CA2: an option starts ACTIVE unless another status is sent, on POST and PATCH")
 	void theStatusOfANewOptionIsOptional() throws Exception {
 		String id = create(offerWith(option(POTATOES.id(), "g"),

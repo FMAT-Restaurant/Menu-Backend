@@ -101,14 +101,11 @@ public class CatalogOffer {
 	 *
 	 * @throws InvalidFieldException if a value is invalid
 	 */
-	public void update(String presentationTag, BigDecimal basePrice, UUID imageId) {
+	public void update(String presentationTag, BigDecimal basePrice) {
 		String newTag = presentationTag == null ? this.presentationTag : presentationTag(presentationTag);
 		BigDecimal newPrice = basePrice == null ? this.basePrice : basePrice(basePrice);
 		this.presentationTag = newTag;
 		this.basePrice = newPrice;
-		if (imageId != null) {
-			this.imageId = imageId;
-		}
 	}
 
 	/**

@@ -62,7 +62,7 @@ class CatalogEntryTest {
 		assertPath("/brandName", () -> new CatalogEntry(MENU_ID, " ", "x", IMAGE_ID, List.of()));
 		assertPath("/description", () -> new CatalogEntry(MENU_ID, "Burger", null, IMAGE_ID, List.of()));
 		assertPath("/imageId", () -> new CatalogEntry(MENU_ID, "Burger", "x", null, List.of()));
-		assertPath("/categoryIds", () -> new CatalogEntry(MENU_ID, "Burger", "x", IMAGE_ID, null));
+		assertEquals(Set.of(), new CatalogEntry(MENU_ID, "Burger", "x", IMAGE_ID, null).getCategories());
 	}
 
 	@Test
@@ -85,7 +85,7 @@ class CatalogEntryTest {
 	void updateKeepsOmittedValuesAndReplacesCategories() {
 		CatalogEntry entry = entry();
 
-		entry.update(null, "New description", null, List.of(specials), null);
+		entry.update(null, "New description", List.of(specials), null);
 
 		assertEquals("Hawaiian burger", entry.getBrandName());
 		assertEquals("New description", entry.getDescription());
@@ -95,25 +95,14 @@ class CatalogEntryTest {
 	}
 
 	@Test
-	void updateReplacesTheImage() {
-		CatalogEntry entry = entry();
-		UUID newImage = UUID.randomUUID();
-
-		entry.update(null, null, newImage, null, null);
-
-		assertEquals(newImage, entry.getImageId());
-		assertEquals(Set.of(burgers), entry.getCategories());
-	}
-
-	@Test
 	void rejectedUpdateChangesNothing() {
 		CatalogEntry entry = entry();
 		Category foreign = new Category(2L, "Foreign", null);
 
 		assertPath("/categoryIds",
-				() -> entry.update("New name", "New", UUID.randomUUID(), List.of(foreign), EntryStatus.ACTIVE));
+				() -> entry.update("New name", "New", List.of(foreign), EntryStatus.ACTIVE));
 		assertPath("/description",
-				() -> entry.update("New name", " ", UUID.randomUUID(), List.of(specials), EntryStatus.ACTIVE));
+				() -> entry.update("New name", " ", List.of(specials), EntryStatus.ACTIVE));
 
 		assertEquals("Hawaiian burger", entry.getBrandName());
 		assertEquals("Pineapple and ham", entry.getDescription());
@@ -129,7 +118,7 @@ class CatalogEntryTest {
 	void allowedTransitions(EntryStatus from, EntryStatus to) {
 		CatalogEntry entry = entryIn(from);
 
-		entry.update(null, null, null, null, to);
+		entry.update(null, null, null, to);
 
 		assertEquals(to, entry.getStatus());
 	}
@@ -138,7 +127,7 @@ class CatalogEntryTest {
 	void archivedEntryCannotBeActivatedDirectly() {
 		CatalogEntry entry = entryIn(EntryStatus.ARCHIVED);
 
-		assertPath("/status", () -> entry.update("Renamed", null, null, null, EntryStatus.ACTIVE));
+		assertPath("/status", () -> entry.update("Renamed", null, null, EntryStatus.ACTIVE));
 
 		assertEquals(EntryStatus.ARCHIVED, entry.getStatus());
 		assertEquals("Hawaiian burger", entry.getBrandName());
@@ -148,15 +137,15 @@ class CatalogEntryTest {
 	void unarchivedEntryNeedsAnExplicitActivation() {
 		CatalogEntry entry = entryIn(EntryStatus.ARCHIVED);
 
-		entry.update(null, null, null, null, EntryStatus.INACTIVE);
-		assertDoesNotThrow(() -> entry.update(null, null, null, null, EntryStatus.ACTIVE));
+		entry.update(null, null, null, EntryStatus.INACTIVE);
+		assertDoesNotThrow(() -> entry.update(null, null, null, EntryStatus.ACTIVE));
 
 		assertEquals(EntryStatus.ACTIVE, entry.getStatus());
 	}
 
 	private CatalogEntry entryIn(EntryStatus status) {
 		CatalogEntry entry = entry();
-		entry.update(null, null, null, null, status);
+		entry.update(null, null, null, status);
 		return entry;
 	}
 

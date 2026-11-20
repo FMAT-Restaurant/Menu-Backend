@@ -3,6 +3,7 @@ package com.fmatrestaurant.menu.application;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -94,19 +95,19 @@ class CatalogEntryServiceTest {
 	}
 
 	@Test
-	void createRejectsMissingCategoriesWithoutSaving() {
-		assertPath("/categoryIds", () -> service.create("Burger", "Tasty", null, IMAGE_ID));
+	void createWithoutCategoriesSavesAnEntryWithNone() {
+		service.create("Burger", "Tasty", null, IMAGE_ID);
 
-		verify(entryRepository, never()).save(any(CatalogEntry.class));
+		verify(entryRepository).save(argThat(entry -> entry.getCategories().isEmpty()));
 	}
 
 	@Test
 	void updateWithoutCategoriesKeepsTheCurrentOnes() {
 		CatalogEntry entry = storedEntry();
-		entry.update(null, null, null, List.of(burgers), null);
+		entry.update(null, null, List.of(burgers), null);
 		when(entryRepository.findById(ENTRY_ID)).thenReturn(Optional.of(entry));
 
-		service.update(ENTRY_ID, VERSION, null, null, EntryStatus.ACTIVE, null, null);
+		service.update(ENTRY_ID, VERSION, null, null, EntryStatus.ACTIVE, null);
 
 		assertEquals(Set.of(burgers), entry.getCategories());
 		verify(categoryRepository, never()).findAllById(any());
@@ -124,7 +125,7 @@ class CatalogEntryServiceTest {
 		CatalogEntry entry = storedEntry();
 		when(entryRepository.findById(ENTRY_ID)).thenReturn(Optional.of(entry));
 
-		service.update(ENTRY_ID, VERSION, "Big burger", null, EntryStatus.ACTIVE, List.of(CATEGORY_ID), null);
+		service.update(ENTRY_ID, VERSION, "Big burger", null, EntryStatus.ACTIVE, List.of(CATEGORY_ID));
 
 		assertEquals("Big burger", entry.getBrandName());
 		assertEquals("Tasty", entry.getDescription());
@@ -139,21 +140,8 @@ class CatalogEntryServiceTest {
 		when(entryRepository.findById(ENTRY_ID)).thenReturn(Optional.of(entry));
 
 		assertThrows(StaleCatalogEntryException.class,
-				() -> service.update(ENTRY_ID, VERSION + 1, "Big burger", null, null, null, null));
+				() -> service.update(ENTRY_ID, VERSION + 1, "Big burger", null, null, null));
 
-		assertEquals("Burger", entry.getBrandName());
-		verify(entryRepository, never()).saveAndFlush(any(CatalogEntry.class));
-	}
-
-	@Test
-	void updateRejectsAnUnknownImageAndKeepsTheCurrentOne() {
-		CatalogEntry entry = storedEntry();
-		when(entryRepository.findById(ENTRY_ID)).thenReturn(Optional.of(entry));
-
-		assertPath("/imageId",
-				() -> service.update(ENTRY_ID, VERSION, "Big burger", null, null, null, UUID.randomUUID()));
-
-		assertEquals(IMAGE_ID, entry.getImageId());
 		assertEquals("Burger", entry.getBrandName());
 		verify(entryRepository, never()).saveAndFlush(any(CatalogEntry.class));
 	}
@@ -163,7 +151,7 @@ class CatalogEntryServiceTest {
 		when(entryRepository.findById(ENTRY_ID)).thenReturn(Optional.empty());
 
 		assertThrows(CatalogEntryNotFoundException.class,
-				() -> service.update(ENTRY_ID, 0, "x", null, null, null, null));
+				() -> service.update(ENTRY_ID, 0, "x", null, null, null));
 	}
 
 	@Test

@@ -162,7 +162,7 @@ class RecipeDeletionApiIntegrationTest {
 
 	@Test
 	void reportsEveryReferencingOfferExactlyOnceEvenForArchivedEntriesAndRepeatedOptions() throws Exception {
-		entry.update(null, null, null, null, EntryStatus.ARCHIVED);
+		entry.update(null, null, null, EntryStatus.ARCHIVED);
 		entry = entryRepository.saveAndFlush(entry);
 		CatalogOffer first = referencedOffer(recipeId, false, OfferStatus.INACTIVE);
 		CatalogOffer second = referencedOffer(recipeId, true, OfferStatus.ACTIVE);

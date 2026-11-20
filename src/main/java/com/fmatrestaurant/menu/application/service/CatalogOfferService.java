@@ -178,7 +178,9 @@ public class CatalogOfferService {
 		if (input.composition() != null) {
 			input.composition().rejectUnknownFields("/composition");
 		}
-		offer.update(input.presentationTag(), input.basePrice(), existingImage(input.imageId()));
+		// The image of an offer is fixed at creation (CatalogOfferPatchRequest has no imageId).
+		notAllowed("/imageId", input.imageId());
+		offer.update(input.presentationTag(), input.basePrice());
 		var stockBefore = InventoryOptionEvents.snapshot(offer.getSlots());
 		if (input.composition() != null && input.composition().slots() != null) {
 			offer.replaceSlots(slots(offer.getSlots(), input.composition().slots(), false, new HashMap<>()));

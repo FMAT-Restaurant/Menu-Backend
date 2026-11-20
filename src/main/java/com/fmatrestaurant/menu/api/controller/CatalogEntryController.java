@@ -49,9 +49,9 @@ public class CatalogEntryController {
 		this.availability = availability;
 	}
 
-	/** The initial status is always INACTIVE: a {@code status} sent by the client is ignored. */
+	/** The initial status is always INACTIVE; the request has no {@code status}. */
 	@PostMapping
-	public ResponseEntity<DataResponse<CatalogEntryDetail>> create(@RequestBody CatalogEntryRequest request) {
+	public ResponseEntity<DataResponse<CatalogEntryDetail>> create(@RequestBody CatalogEntryCreateRequest request) {
 		CatalogEntry entry = entryService.create(request.brandName(), request.description(), request.categoryIds(),
 				request.imageId());
 		boolean available = availability.entry(entry.getId());
@@ -85,9 +85,9 @@ public class CatalogEntryController {
 
 	@PatchMapping("/{entryId}")
 	public ResponseEntity<DataResponse<CatalogEntryDetail>> update(@PathVariable UUID entryId,
-			@RequestHeader(HttpHeaders.IF_MATCH) String ifMatch, @RequestBody CatalogEntryRequest request) {
+			@RequestHeader(HttpHeaders.IF_MATCH) String ifMatch, @RequestBody CatalogEntryPatchRequest request) {
 		CatalogEntry entry = entryService.update(entryId, Revisions.strongVersion(ifMatch), request.brandName(),
-				request.description(), request.status(), request.categoryIds(), request.imageId());
+				request.description(), request.status(), request.categoryIds());
 		return detail(entry);
 	}
 
@@ -113,9 +113,14 @@ public class CatalogEntryController {
 		return Revisions.strong(entry.getVersion(), available ? "a" : "u");
 	}
 
-	/** Body of POST and PATCH; on PATCH, missing values keep the current ones. */
-	public record CatalogEntryRequest(String brandName, String description, EntryStatus status,
-			List<UUID> categoryIds, UUID imageId) {
+	/** Body of POST; without {@code categoryIds}, the entry has no categories. */
+	public record CatalogEntryCreateRequest(String brandName, String description, List<UUID> categoryIds,
+			UUID imageId) {
+	}
+
+	/** Body of PATCH; missing values keep the current ones. The image is fixed at creation. */
+	public record CatalogEntryPatchRequest(String brandName, String description, EntryStatus status,
+			List<UUID> categoryIds) {
 	}
 
 	public record CatalogEntryDetail(UUID id, String brandName, String description, EntryStatus status,

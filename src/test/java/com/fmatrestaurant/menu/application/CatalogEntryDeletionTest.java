@@ -135,7 +135,7 @@ class CatalogEntryDeletionTest {
 	/** An entry as loaded by JPA, with the id and the version it assigns. */
 	private CatalogEntry entry(EntryStatus status) {
 		CatalogEntry entry = new CatalogEntry(1L, "Hawaiian burger", "Tasty", UUID.randomUUID(), List.of());
-		entry.update(null, null, null, null, status);
+		entry.update(null, null, null, status);
 		ReflectionTestUtils.setField(entry, "id", ENTRY_ID);
 		ReflectionTestUtils.setField(entry, "version", VERSION);
 		when(entryRepository.findWithLockById(ENTRY_ID)).thenReturn(Optional.of(entry));

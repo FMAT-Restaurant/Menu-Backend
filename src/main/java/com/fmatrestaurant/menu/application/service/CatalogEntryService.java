@@ -121,14 +121,13 @@ public class CatalogEntryService {
 	 */
 	@Transactional
 	public CatalogEntry update(UUID id, long expectedVersion, String brandName, String description,
-			EntryStatus status, List<UUID> categoryIds, UUID imageId) {
+			EntryStatus status, List<UUID> categoryIds) {
 		CatalogEntry entry = find(id);
 		if (entry.getVersion() != expectedVersion) {
 			throw new StaleCatalogEntryException(id);
 		}
 		// Missing categoryIds keep the current categories.
-		entry.update(brandName, description, existingImage(imageId),
-				categoryIds == null ? null : categories(categoryIds), status);
+		entry.update(brandName, description, categoryIds == null ? null : categories(categoryIds), status);
 		return entryRepository.saveAndFlush(entry);
 	}
 

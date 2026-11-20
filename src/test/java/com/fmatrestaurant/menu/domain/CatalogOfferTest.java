@@ -107,14 +107,14 @@ class CatalogOfferTest {
 		CatalogOffer offer = new CatalogOffer(entry, "Combo", BigDecimal.TEN, UUID.randomUUID(),
 				List.of(slot(OfferStatus.ACTIVE)));
 
-		assertPath("/basePrice", () -> offer.update("Family", new BigDecimal("-5"), null));
+		assertPath("/basePrice", () -> offer.update("Family", new BigDecimal("-5")));
 		assertEquals("Combo", offer.getPresentationTag());
 
-		offer.update(null, null, null);
+		offer.update(null, null);
 		assertEquals("Combo", offer.getPresentationTag());
 		assertEquals(BigDecimal.TEN, offer.getBasePrice());
 
-		assertPath("/presentationTag", () -> offer.update(" ", BigDecimal.ONE, null));
+		assertPath("/presentationTag", () -> offer.update(" ", BigDecimal.ONE));
 		assertEquals("Combo", offer.getPresentationTag());
 		assertEquals(BigDecimal.TEN, offer.getBasePrice());
 	}
