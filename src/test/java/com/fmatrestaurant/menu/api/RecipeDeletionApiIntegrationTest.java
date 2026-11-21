@@ -121,7 +121,7 @@ class RecipeDeletionApiIntegrationTest {
 
 		deleteRecipe("\"rev-1\"").andExpect(status().isNoContent())
 				.andExpect(content().string(""))
-				.andExpect(header().string(HttpHeaders.ETAG, "\"rev-2\""));
+				.andExpect(header().doesNotExist(HttpHeaders.ETAG));
 
 		mockMvc.perform(get(RECIPES + "/" + recipeId)).andExpect(status().isNotFound());
 		mockMvc.perform(get(RECIPES).header(HttpHeaders.IF_NONE_MATCH, listEtag)).andExpect(status().isOk())

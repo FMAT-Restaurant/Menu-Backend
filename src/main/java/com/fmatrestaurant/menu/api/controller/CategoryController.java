@@ -62,8 +62,8 @@ public class CategoryController {
 	@DeleteMapping("/{categoryId}")
 	public ResponseEntity<Void> delete(@PathVariable UUID categoryId,
 			@RequestHeader(HttpHeaders.IF_MATCH) String ifMatch) {
-		Category category = categoryService.delete(categoryId, version(ifMatch));
-		return ResponseEntity.noContent().eTag(etag(category)).build();
+		categoryService.delete(categoryId, version(ifMatch));
+		return ResponseEntity.noContent().build();
 	}
 
 	@PostMapping
