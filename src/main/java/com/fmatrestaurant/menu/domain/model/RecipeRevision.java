@@ -83,7 +83,7 @@ public class RecipeRevision {
 		this.description = Fields.text("/description", "recipe description", description, DESCRIPTION_MAX_LENGTH);
 		this.instructions = Fields.text("/instructions", "recipe instructions", instructions, Integer.MAX_VALUE);
 		if (ingredients == null || ingredients.isEmpty()) {
-			throw new InvalidFieldException("/supplies", "A recipe must have at least one ingredient");
+			throw new InvalidFieldException("/ingredients", "A recipe must have at least one ingredient");
 		}
 		this.recipe = recipe;
 		this.revision = revision;

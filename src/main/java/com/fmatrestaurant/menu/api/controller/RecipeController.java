@@ -22,7 +22,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import com.fmatrestaurant.menu.application.service.RecipeService;
-import com.fmatrestaurant.menu.application.service.RecipeService.SupplyData;
+import com.fmatrestaurant.menu.application.service.RecipeService.IngredientData;
 import com.fmatrestaurant.menu.domain.model.ComponentIngredient;
 import com.fmatrestaurant.menu.domain.model.RecipeRevision;
 
@@ -44,7 +44,7 @@ public class RecipeController {
 	@PostMapping
 	public ResponseEntity<DataResponse<RecipeDetail>> create(@RequestBody RecipeRequest request) {
 		RecipeRevision recipe = recipeService.create(request.name(), request.description(), request.instructions(),
-supplies(request.supplies()));
+				ingredients(request.ingredients()));
 		return ResponseEntity.status(HttpStatus.CREATED).eTag(etag(recipe))
 				.body(new DataResponse<>(RecipeDetail.of(recipe)));
 	}
@@ -72,7 +72,7 @@ supplies(request.supplies()));
 			@RequestHeader(HttpHeaders.IF_MATCH) String ifMatch, @RequestBody RecipeRequest request) {
 		RecipeRevision recipe = recipeService.update(recipeId, Revisions.strongVersion(ifMatch), request.name(),
 				request.description(), request.instructions(),
-				request.supplies() == null ? null : supplies(request.supplies()));
+				request.ingredients() == null ? null : ingredients(request.ingredients()));
 		return ResponseEntity.ok().eTag(etag(recipe)).body(new DataResponse<>(RecipeDetail.of(recipe)));
 	}
 
@@ -84,12 +84,12 @@ supplies(request.supplies()));
 		return ResponseEntity.noContent().eTag(Revisions.strong(version)).build();
 	}
 
-	private static List<SupplyData> supplies(List<SupplyRequest> supplies) {
-		if (supplies == null) {
+	private static List<IngredientData> ingredients(List<IngredientRequest> ingredients) {
+		if (ingredients == null) {
 			return List.of();
 		}
-		return supplies.stream()
-				.map(supply -> supply == null ? null : new SupplyData(supply.inventoryItemId(), supply.quantity()))
+		return ingredients.stream()
+				.map(line -> line == null ? null : new IngredientData(line.inventoryItemId(), line.quantity()))
 				.toList();
 	}
 
@@ -100,42 +100,43 @@ supplies(request.supplies()));
 
 	/** Body of POST and PATCH; on PATCH, a missing value keeps the current one, and so does {@code null}. */
 	public record RecipeRequest(String name, String description, String instructions,
-			List<SupplyRequest> supplies) {
+			List<IngredientRequest> ingredients) {
 	}
 
 	/** An ingredient as sent: the article, which Inventory confirms, and the quantity. */
-	public record SupplyRequest(String inventoryItemId, BigDecimal quantity) {
+	public record IngredientRequest(String inventoryItemId, BigDecimal quantity) {
 	}
 
 	public record InventoryItemData(String id, String name, String unit) {
 	}
 
-	public record Supply(String inventoryItemId, BigDecimal quantity, InventoryItemData inventoryItem) {
+	public record IngredientLine(String inventoryItemId, BigDecimal quantity, InventoryItemData inventoryItem) {
 
-		static Supply of(ComponentIngredient ingredient) {
-			return new Supply(ingredient.getInventoryItemId(), ingredient.getQuantity(),
+		static IngredientLine of(ComponentIngredient ingredient) {
+			return new IngredientLine(ingredient.getInventoryItemId(), ingredient.getQuantity(),
 					new InventoryItemData(ingredient.getInventoryItemId(), ingredient.getItemName(),
 							ingredient.getUnit()));
 		}
 
 	}
 
-	public record RecipeSummary(UUID id, int revision, String name, String description, List<Supply> supplies) {
+	public record RecipeSummary(UUID id, int revision, String name, String description,
+			List<IngredientLine> ingredients) {
 
 		static RecipeSummary of(RecipeRevision recipe) {
 			return new RecipeSummary(recipe.getRecipe().getId(), recipe.getRevision(), recipe.getName(),
-					recipe.getDescription(), recipe.getIngredients().stream().map(Supply::of).toList());
+					recipe.getDescription(), recipe.getIngredients().stream().map(IngredientLine::of).toList());
 		}
 
 	}
 
 	public record RecipeDetail(UUID id, int revision, String name, String description, String instructions,
-			List<Supply> supplies) {
+			List<IngredientLine> ingredients) {
 
 		static RecipeDetail of(RecipeRevision recipe) {
 			return new RecipeDetail(recipe.getRecipe().getId(), recipe.getRevision(), recipe.getName(),
 					recipe.getDescription(), recipe.getInstructions(),
-					recipe.getIngredients().stream().map(Supply::of).toList());
+					recipe.getIngredients().stream().map(IngredientLine::of).toList());
 		}
 	}
 

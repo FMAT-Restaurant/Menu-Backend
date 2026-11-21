@@ -1,5 +1,6 @@
 package com.fmatrestaurant.menu.api;
 
+import static com.fmatrestaurant.menu.api.ContractValidation.conformsToContract;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -13,6 +14,7 @@ import java.util.List;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -78,7 +80,7 @@ class RecipeApiIntegrationTest {
 
 	@Test
 	void createsARecipeWithItsFirstRevision() throws Exception {
-		createRecipe(recipe("Burger", supply(BEEF, "2")))
+		createRecipe(recipe("Burger", ingredient(BEEF, "2")))
 				.andExpect(status().isCreated())
 				.andExpect(header().string(HttpHeaders.ETAG, "\"rev-0\""))
 				.andExpect(jsonPath("$.data.id").exists())
@@ -86,11 +88,11 @@ class RecipeApiIntegrationTest {
 				.andExpect(jsonPath("$.data.name").value("Burger"))
 				.andExpect(jsonPath("$.data.description").value("Classic"))
 				.andExpect(jsonPath("$.data.instructions").value("Grill and serve"))
-				.andExpect(jsonPath("$.data.supplies.length()").value(1))
-				.andExpect(jsonPath("$.data.supplies[0].inventoryItemId").value(BEEF))
-				.andExpect(jsonPath("$.data.supplies[0].quantity").value(2))
-				.andExpect(jsonPath("$.data.supplies[0].inventoryItem.name").value("Beef patty"))
-				.andExpect(jsonPath("$.data.supplies[0].inventoryItem.unit").value("unit"));
+				.andExpect(jsonPath("$.data.ingredients.length()").value(1))
+				.andExpect(jsonPath("$.data.ingredients[0].inventoryItemId").value(BEEF))
+				.andExpect(jsonPath("$.data.ingredients[0].quantity").value(2))
+				.andExpect(jsonPath("$.data.ingredients[0].inventoryItem.name").value("Beef patty"))
+				.andExpect(jsonPath("$.data.ingredients[0].inventoryItem.unit").value("unit"));
 
 		assertEquals(1, recipeRepository.count());
 		assertEquals(1, revisionRepository.count());
@@ -98,45 +100,45 @@ class RecipeApiIntegrationTest {
 
 	@Test
 	void keepsTheOrderAndTheDecimalQuantitiesOfTheIngredients() throws Exception {
-		createRecipe(recipe("Burger", supply(BUN, "1"), supply(BEEF, "150.5")))
+		createRecipe(recipe("Burger", ingredient(BUN, "1"), ingredient(BEEF, "150.5")))
 				.andExpect(status().isCreated())
-				.andExpect(jsonPath("$.data.supplies[0].inventoryItemId").value(BUN))
-				.andExpect(jsonPath("$.data.supplies[1].inventoryItemId").value(BEEF))
-				.andExpect(jsonPath("$.data.supplies[1].quantity").value(150.5));
+				.andExpect(jsonPath("$.data.ingredients[0].inventoryItemId").value(BUN))
+				.andExpect(jsonPath("$.data.ingredients[1].inventoryItemId").value(BEEF))
+				.andExpect(jsonPath("$.data.ingredients[1].quantity").value(150.5));
 	}
 
 	@Test
 	void preservesLongOpaqueIdsWhenReadingAndPublishingANewRevision() throws Exception {
 		String item = "inventory:article/" + "x".repeat(300);
 		INVENTORY.add(new InventoryItem(item, "Special ingredient", "unit"));
-		String id = create(recipe("Burger", supply(item, "2")));
+		String id = create(recipe("Burger", ingredient(item, "2")));
 
 		mockMvc.perform(get(RECIPES + "/" + id))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.data.supplies[0].inventoryItemId").value(item))
-				.andExpect(jsonPath("$.data.supplies[0].inventoryItem.id").value(item));
+				.andExpect(jsonPath("$.data.ingredients[0].inventoryItemId").value(item))
+				.andExpect(jsonPath("$.data.ingredients[0].inventoryItem.id").value(item));
 		patchRecipe(id, "\"rev-0\"", "{\"name\": \"Updated burger\"}")
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.data.supplies[0].inventoryItemId").value(item));
+				.andExpect(jsonPath("$.data.ingredients[0].inventoryItemId").value(item));
 	}
 
 	@Test
 	void rejectsInvalidRecipesAndStoresNothing() throws Exception {
-		String valid = recipe("Burger", supply(BEEF, "2"));
+		String valid = recipe("Burger", ingredient(BEEF, "2"));
 
-		expectViolation(createRecipe(recipe("Burger", supply(" ", "1"))),
-				"/supplies/0/inventoryItemId");
+		expectViolation(createRecipe(recipe("Burger", ingredient(" ", "1"))),
+				"/ingredients/0/inventoryItemId");
 
-		expectViolation(createRecipe(recipe("Burger")), "/supplies");
+		expectViolation(createRecipe(recipe("Burger")), "/ingredients");
 		expectViolation(createRecipe(valid.replace("\"name\": \"Burger\", ", "")), "/name");
 		expectViolation(createRecipe(valid.replace("\"instructions\": \"Grill and serve\", ", "")), "/instructions");
-		expectViolation(createRecipe(valid.replace("\"quantity\": 2", "\"quantity\": 0")), "/supplies/0/quantity");
+		expectViolation(createRecipe(valid.replace("\"quantity\": 2", "\"quantity\": 0")), "/ingredients/0/quantity");
 		expectViolation(createRecipe(valid.replace("\"quantity\": 2", "\"quantity\": null")),
-				"/supplies/0/quantity");
+				"/ingredients/0/quantity");
 		expectViolation(createRecipe(valid.replace("\"inventoryItemId\": \"" + BEEF + "\", ", "")),
-				"/supplies/0/inventoryItemId");
-		expectViolation(createRecipe(recipe("Burger", supply("unknown-item", "1"))),
-				"/supplies/0/inventoryItemId");
+				"/ingredients/0/inventoryItemId");
+		expectViolation(createRecipe(recipe("Burger", ingredient("unknown-item", "1"))),
+				"/ingredients/0/inventoryItemId");
 
 		assertEquals(0, recipeRepository.count());
 		assertEquals(0, revisionRepository.count());
@@ -146,7 +148,7 @@ class RecipeApiIntegrationTest {
 	void answersBadGatewayAndStoresNothingWhenInventoryCannotConfirmTheArticles() throws Exception {
 		INVENTORY.fail(503, "{}");
 
-		createRecipe(recipe("Burger", supply(BEEF, "2"))).andExpect(status().isBadGateway());
+		createRecipe(recipe("Burger", ingredient(BEEF, "2"))).andExpect(status().isBadGateway());
 
 		assertEquals(0, recipeRepository.count());
 		assertEquals(0, revisionRepository.count());
@@ -155,14 +157,14 @@ class RecipeApiIntegrationTest {
 	/** A 404 is "the article does not exist" only with the error envelope of Inventory; otherwise it is a failure. */
 	@Test
 	void aNotFoundThatIsNotTheAnswerOfInventoryIsBadGatewayAndStoresNothing() throws Exception {
-		String burger = recipe("Burger", supply(BEEF, "2"));
+		String burger = recipe("Burger", ingredient(BEEF, "2"));
 		for (String body : List.of("", "not json", "{\"error\": \"Not Found\"}")) {
 			INVENTORY.fail(404, body);
 			createRecipe(burger).andExpect(status().isBadGateway());
 		}
 		INVENTORY.reset();
 		INVENTORY.fail(404, "{\"error\": {\"message\": \"No se encontró el recurso solicitado.\"}}");
-		expectViolation(createRecipe(burger), "/supplies/0/inventoryItemId");
+		expectViolation(createRecipe(burger), "/ingredients/0/inventoryItemId");
 		// The same 404 from a server that does not serve Inventory at the base URL confirms nothing.
 		INVENTORY.failCollection(404, "{\"error\": {\"message\": \"The requested resource was not found.\"}}");
 		createRecipe(burger).andExpect(status().isBadGateway());
@@ -173,10 +175,10 @@ class RecipeApiIntegrationTest {
 
 	@Test
 	void editingAnArticleThatDoesNotExistPublishesNothing() throws Exception {
-		String id = create(recipe("Burger", supply(BEEF, "2")));
+		String id = create(recipe("Burger", ingredient(BEEF, "2")));
 
-		expectViolation(patchRecipe(id, "\"rev-0\"", "{\"supplies\": [" + supply("unknown-item", "1") + "]}"),
-				"/supplies/0/inventoryItemId");
+		expectViolation(patchRecipe(id, "\"rev-0\"", "{\"ingredients\": [" + ingredient("unknown-item", "1") + "]}"),
+				"/ingredients/0/inventoryItemId");
 
 		assertEquals(1, revisionRepository.count());
 	}
@@ -188,7 +190,7 @@ class RecipeApiIntegrationTest {
 
 	@Test
 	void getsTheCurrentRevision() throws Exception {
-		String id = create(recipe("Burger", supply(BEEF, "2")));
+		String id = create(recipe("Burger", ingredient(BEEF, "2")));
 
 		mockMvc.perform(get(RECIPES + "/" + id))
 				.andExpect(status().isOk())
@@ -206,9 +208,9 @@ class RecipeApiIntegrationTest {
 
 	@Test
 	void listsSearchesAndPaginatesTheCurrentRevisions() throws Exception {
-		create(recipe("Cheeseburger", supply(BEEF, "1")));
-		create(recipe("Salad", supply(BUN, "50")));
-		create(recipe("Burger", supply(BEEF, "2")));
+		create(recipe("Cheeseburger", ingredient(BEEF, "1")));
+		create(recipe("Salad", ingredient(BUN, "50")));
+		create(recipe("Burger", ingredient(BEEF, "2")));
 
 		mockMvc.perform(get(RECIPES))
 				.andExpect(status().isOk())
@@ -218,7 +220,7 @@ class RecipeApiIntegrationTest {
 				.andExpect(jsonPath("$.data[2].name").value("Salad"))
 				.andExpect(jsonPath("$.data[0].revision").value(1))
 				.andExpect(jsonPath("$.data[0].instructions").doesNotExist())
-				.andExpect(jsonPath("$.data[0].supplies[0].inventoryItem.unit").value("unit"))
+				.andExpect(jsonPath("$.data[0].ingredients[0].inventoryItem.unit").value("unit"))
 				.andExpect(jsonPath("$.meta.page").value(1))
 				.andExpect(jsonPath("$.meta.pageSize").value(12))
 				.andExpect(jsonPath("$.meta.total").value(3))
@@ -240,7 +242,7 @@ class RecipeApiIntegrationTest {
 
 	@Test
 	void editingPublishesANewRevisionAndKeepsTheOldOnes() throws Exception {
-		String id = create(recipe("Burger", supply(BEEF, "2")));
+		String id = create(recipe("Burger", ingredient(BEEF, "2")));
 
 		patchRecipe(id, "\"rev-0\"", "{\"name\": \"Better burger\"}")
 				.andExpect(status().isOk())
@@ -249,8 +251,8 @@ class RecipeApiIntegrationTest {
 				.andExpect(jsonPath("$.data.name").value("Better burger"))
 				.andExpect(jsonPath("$.data.description").value("Classic"))
 				.andExpect(jsonPath("$.data.instructions").value("Grill and serve"))
-				.andExpect(jsonPath("$.data.supplies.length()").value(1))
-				.andExpect(jsonPath("$.data.supplies[0].inventoryItemId").value(BEEF));
+				.andExpect(jsonPath("$.data.ingredients.length()").value(1))
+				.andExpect(jsonPath("$.data.ingredients[0].inventoryItemId").value(BEEF));
 
 		RecipeRevision first = revisionRepository.findByRecipeIdAndRevision(UUID.fromString(id), 1).orElseThrow();
 		RecipeRevision second = revisionRepository.findByRecipeIdAndRevision(UUID.fromString(id), 2).orElseThrow();
@@ -265,13 +267,13 @@ class RecipeApiIntegrationTest {
 
 	@Test
 	void editingReplacesTheIngredientsWhenTheyAreSent() throws Exception {
-		String id = create(recipe("Burger", supply(BEEF, "2")));
+		String id = create(recipe("Burger", ingredient(BEEF, "2")));
 
-		patchRecipe(id, "\"rev-0\"", "{\"supplies\": [" + supply(BUN, "1") + "]}")
+		patchRecipe(id, "\"rev-0\"", "{\"ingredients\": [" + ingredient(BUN, "1") + "]}")
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.revision").value(2))
-				.andExpect(jsonPath("$.data.supplies.length()").value(1))
-				.andExpect(jsonPath("$.data.supplies[0].inventoryItemId").value(BUN));
+				.andExpect(jsonPath("$.data.ingredients.length()").value(1))
+				.andExpect(jsonPath("$.data.ingredients[0].inventoryItemId").value(BUN));
 
 		RecipeRevision first = revisionRepository.findByRecipeIdAndRevision(UUID.fromString(id), 1).orElseThrow();
 		assertEquals(BEEF, first.getIngredients().getFirst().getInventoryItemId());
@@ -279,7 +281,7 @@ class RecipeApiIntegrationTest {
 
 	@Test
 	void editingWithoutChangesKeepsTheRevisionAndTheEtag() throws Exception {
-		String id = create(recipe("Burger", supply(BEEF, "2")));
+		String id = create(recipe("Burger", ingredient(BEEF, "2")));
 
 		patchRecipe(id, "\"rev-0\"", "{}")
 				.andExpect(status().isOk())
@@ -291,13 +293,13 @@ class RecipeApiIntegrationTest {
 
 	@Test
 	void anInvalidEditPublishesNothing() throws Exception {
-		String id = create(recipe("Burger", supply(BEEF, "2")));
+		String id = create(recipe("Burger", ingredient(BEEF, "2")));
 
-		expectViolation(patchRecipe(id, "\"rev-0\"", "{\"supplies\": []}"), "/supplies");
+		expectViolation(patchRecipe(id, "\"rev-0\"", "{\"ingredients\": []}"), "/ingredients");
 		expectViolation(patchRecipe(id, "\"rev-0\"", "{\"name\": \" \"}"), "/name");
 		expectViolation(patchRecipe(id, "\"rev-0\"",
-				"{\"name\": \"Changed\", \"supplies\": [" + supply(BUN, "-1") + "]}"),
-				"/supplies/0/quantity");
+				"{\"name\": \"Changed\", \"ingredients\": [" + ingredient(BUN, "-1") + "]}"),
+				"/ingredients/0/quantity");
 
 		assertEquals(1, revisionRepository.count());
 		mockMvc.perform(get(RECIPES + "/" + id))
@@ -307,7 +309,7 @@ class RecipeApiIntegrationTest {
 
 	@Test
 	void rejectsAMissingStaleWeakOrMalformedValidator() throws Exception {
-		String id = create(recipe("Burger", supply(BEEF, "2")));
+		String id = create(recipe("Burger", ingredient(BEEF, "2")));
 
 		mockMvc.perform(patch(RECIPES + "/" + id).contentType(MediaType.APPLICATION_JSON)
 				.content("{\"name\": \"Changed\"}")).andExpect(status().isPreconditionRequired());
@@ -330,7 +332,7 @@ class RecipeApiIntegrationTest {
 
 	@Test
 	void answersNotModifiedWhileTheValidatorOfTheRecipeOrOfTheListStillMatches() throws Exception {
-		String id = create(recipe("Burger", supply(BEEF, "2")));
+		String id = create(recipe("Burger", ingredient(BEEF, "2")));
 		String listEtag = mockMvc.perform(get(RECIPES)).andExpect(status().isOk())
 				.andExpect(header().exists(HttpHeaders.ETAG)).andReturn().getResponse().getHeader(HttpHeaders.ETAG);
 		assertNotNull(listEtag, "ETag header is missing from GET response");
@@ -346,6 +348,66 @@ class RecipeApiIntegrationTest {
 				.andExpect(jsonPath("$.data.revision").value(2));
 		mockMvc.perform(get(RECIPES).header(HttpHeaders.IF_NONE_MATCH, listEtag))
 				.andExpect(status().isOk());
+	}
+
+	@Test
+	@DisplayName("TC-REC-02-CA8: the ingredient lines keep their order and conform to the contract")
+	void createKeepsIngredientOrderAndConformsToContract() throws Exception {
+		String id = JsonPath.read(createRecipe(recipe("Burger", ingredient(BUN, "1"), ingredient(BEEF, "150")))
+				.andExpect(status().isCreated())
+				.andExpect(conformsToContract())
+				.andExpect(jsonPath("$.data.revision").value(1))
+				.andExpect(jsonPath("$.data.ingredients[0].inventoryItemId").value(BUN))
+				.andExpect(jsonPath("$.data.ingredients[1].inventoryItemId").value(BEEF))
+				.andReturn().getResponse().getContentAsString(), "$.data.id");
+
+		mockMvc.perform(get(RECIPES + "/" + id)).andExpect(status().isOk()).andExpect(conformsToContract());
+		mockMvc.perform(get(RECIPES)).andExpect(status().isOk()).andExpect(conformsToContract());
+	}
+
+	@Test
+	@DisplayName("TC-REC-03-CA1: PATCH replaces the ingredient lines and shows the unit of Inventory")
+	void patchReplacesIngredients() throws Exception {
+		String id = create(recipe("Burger", ingredient(BEEF, "150"), ingredient(BUN, "1")));
+
+		patchRecipe(id, "\"rev-0\"", "{\"ingredients\": [" + ingredient(BEEF, "180") + "]}")
+				.andExpect(status().isOk())
+				.andExpect(conformsToContract())
+				.andExpect(jsonPath("$.data.revision").value(2))
+				.andExpect(jsonPath("$.data.ingredients.length()").value(1))
+				.andExpect(jsonPath("$.data.ingredients[0].quantity").value(180))
+				.andExpect(jsonPath("$.data.ingredients[0].inventoryItem.unit").value("unit"));
+	}
+
+	@Test
+	@DisplayName("TC-REC-04-CA2: PATCH validates the ingredient lines as POST does")
+	void patchValidatesIngredients() throws Exception {
+		String id = create(recipe("Burger", ingredient(BEEF, "2")));
+
+		expectViolation(patchRecipe(id, "\"rev-0\"", "{\"ingredients\": []}"), "/ingredients");
+		expectViolation(patchRecipe(id, "\"rev-0\"", "{\"ingredients\": [" + ingredient(BEEF, "0") + "]}"),
+				"/ingredients/0/quantity");
+		expectViolation(patchRecipe(id, "\"rev-0\"",
+				"{\"ingredients\": [" + ingredient(BEEF, "1") + ", " + ingredient(BEEF, "2") + "]}"),
+				"/ingredients/1/inventoryItemId");
+		mockMvc.perform(get(RECIPES + "/" + id)).andExpect(jsonPath("$.data.revision").value(1));
+	}
+
+	@Test
+	@DisplayName("TC-REC-02-CA5: an article repeated in two lines is rejected")
+	void createRejectsRepeatedArticle() throws Exception {
+		expectViolation(createRecipe(recipe("Burger", ingredient(BEEF, "150"), ingredient(BEEF, "50"))),
+				"/ingredients/1/inventoryItemId");
+		assertEquals(0, recipeRepository.count());
+	}
+
+	@Test
+	@DisplayName("TC-REC-02-CA4a: a field outside the contract, such as a unit of the line, is rejected")
+	void createRejectsUnknownFields() throws Exception {
+		expectViolation(createRecipe(recipe("Burger",
+				"{\"inventoryItemId\": \"" + BEEF + "\", \"quantity\": 1, \"unit\": \"g\"}")), "/ingredients/0/unit");
+		expectViolation(createRecipe("{\"name\": \"Burger\", \"description\": \"Classic\", \"instructions\": \"Grill\", "
+				+ "\"supplies\": [" + ingredient(BEEF, "1") + "]}"), "/supplies");
 	}
 
 	private ResultActions createRecipe(String json) throws Exception {
@@ -366,12 +428,12 @@ class RecipeApiIntegrationTest {
 		result.andExpect(status().isUnprocessableContent()).andExpect(jsonPath(VIOLATION_PATH).value(path));
 	}
 
-	private static String recipe(String name, String... supplies) {
+	private static String recipe(String name, String... lines) {
 		return "{\"name\": \"" + name + "\", \"description\": \"Classic\", \"instructions\": \"Grill and serve\", "
-				+ "\"supplies\": [" + String.join(", ", supplies) + "]}";
+				+ "\"ingredients\": [" + String.join(", ", lines) + "]}";
 	}
 
-	private static String supply(String item, String quantity) {
+	private static String ingredient(String item, String quantity) {
 		return "{\"inventoryItemId\": \"" + item + "\", \"quantity\": " + quantity + "}";
 	}
 

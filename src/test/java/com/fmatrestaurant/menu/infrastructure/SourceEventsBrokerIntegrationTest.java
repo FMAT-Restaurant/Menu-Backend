@@ -265,7 +265,7 @@ class SourceEventsBrokerIntegrationTest {
 
 	private static String recipe(String name, String item, String quantity) {
 		return "{\"name\": \"" + name + "\", \"description\": \"Classic\", \"instructions\": \"Grill and serve\", "
-				+ "\"supplies\": [{\"inventoryItemId\": \"" + item + "\", \"quantity\": " + quantity + "}]}";
+				+ "\"ingredients\": [{\"inventoryItemId\": \"" + item + "\", \"quantity\": " + quantity + "}]}";
 	}
 
 	private static byte[] png() throws IOException {

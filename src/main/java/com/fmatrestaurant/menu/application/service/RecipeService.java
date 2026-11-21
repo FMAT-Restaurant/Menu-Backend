@@ -61,7 +61,7 @@ public class RecipeService {
 	}
 
 	/** An ingredient as received: the article it references and the quantity. */
-	public record SupplyData(String inventoryItemId, BigDecimal quantity) {
+	public record IngredientData(String inventoryItemId, BigDecimal quantity) {
 	}
 
 	/**
@@ -72,10 +72,10 @@ public class RecipeService {
 	 * @throws org.springframework.web.client.RestClientException if Inventory cannot confirm the articles
 	 */
 	@Transactional
-	public RecipeRevision create(String name, String description, String instructions, List<SupplyData> supplies) {
+	public RecipeRevision create(String name, String description, String instructions, List<IngredientData> lines) {
 		Recipe recipe = new Recipe();
 		RecipeRevision revision = new RecipeRevision(recipe, recipe.getCurrentRevision(), name, description,
-				instructions, ingredients(supplies));
+				instructions, ingredients(lines));
 		recipeRepository.save(recipe);
 		var savedRevision = revisionRepository.saveAndFlush(revision);
 		eventPublisher.publish(SourceEvent.created(recipe.getId(), revision.getName(), revision.getIngredients().stream()
@@ -134,22 +134,22 @@ public class RecipeService {
 	 */
 	@Transactional
 	public RecipeRevision update(UUID recipeId, long expectedVersion, String name, String description,
-			String instructions, List<SupplyData> supplies) {
+			String instructions, List<IngredientData> lines) {
 		Recipe recipe = find(recipeId);
 		long currentVersion = recipe.getVersion() == null ? 0 : recipe.getVersion();
 		if (currentVersion != expectedVersion) {
 			throw new StaleRecipeException(recipeId);
 		}
 		RecipeRevision current = current(recipe);
-		if (name == null && description == null && instructions == null && supplies == null) {
+		if (name == null && description == null && instructions == null && lines == null) {
 			return current;
 		}
 		RecipeRevision next = new RecipeRevision(recipe, recipe.getCurrentRevision() + 1,
 				name == null ? current.getName() : name,
 				description == null ? current.getDescription() : description,
 				instructions == null ? current.getInstructions() : instructions,
-				supplies == null ? current.getIngredients().stream().map(ComponentIngredient::copy).toList()
-						: ingredients(supplies));
+				lines == null ? current.getIngredients().stream().map(ComponentIngredient::copy).toList()
+						: ingredients(lines));
 		next.inheritAvailability(current);
 		recipe.publishNextRevision();
 		recipeRepository.saveAndFlush(recipe);
@@ -198,23 +198,30 @@ public class RecipeService {
 				.orElseThrow(() -> new RecipeNotFoundException(recipe.getId(), recipe.getCurrentRevision()));
 	}
 
-	/** Inventory is consulted once per article in each operation. */
-	private List<ComponentIngredient> ingredients(List<SupplyData> supplies) {
-		if (supplies == null || supplies.isEmpty()) {
-			throw new InvalidFieldException("/supplies", "A recipe must have at least one ingredient");
+	/**
+	 * Inventory is consulted once per article in each operation. An article appears in a single line
+	 * (RF-REC-02.CA5), so a repeated one is rejected before consulting it again.
+	 */
+	private List<ComponentIngredient> ingredients(List<IngredientData> lines) {
+		if (lines == null || lines.isEmpty()) {
+			throw new InvalidFieldException("/ingredients", "A recipe must have at least one ingredient");
 		}
 		Map<String, InventoryItem> items = new HashMap<>();
 		List<ComponentIngredient> result = new ArrayList<>();
-		for (int i = 0; i < supplies.size(); i++) {
-			SupplyData supply = supplies.get(i);
+		for (int i = 0; i < lines.size(); i++) {
+			IngredientData line = lines.get(i);
 			try {
-				if (supply == null) {
+				if (line == null) {
 					throw new InvalidFieldException("", "The ingredient is required");
 				}
-				result.add(new ComponentIngredient(inventoryItem(supply.inventoryItemId(), items), supply.quantity()));
+				if (items.containsKey(line.inventoryItemId())) {
+					throw new InvalidFieldException("/inventoryItemId",
+							"The inventory item " + line.inventoryItemId() + " is repeated in the recipe");
+				}
+				result.add(new ComponentIngredient(inventoryItem(line.inventoryItemId(), items), line.quantity()));
 			}
 			catch (InvalidFieldException e) {
-				throw e.prefixed("/supplies/" + i);
+				throw e.prefixed("/ingredients/" + i);
 			}
 		}
 		return result;

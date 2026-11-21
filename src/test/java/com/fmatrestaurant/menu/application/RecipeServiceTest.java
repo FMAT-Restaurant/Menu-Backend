@@ -31,7 +31,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.client.RestClientException;
 
-import com.fmatrestaurant.menu.application.service.RecipeService.SupplyData;
+import com.fmatrestaurant.menu.application.service.RecipeService.IngredientData;
 import com.fmatrestaurant.menu.domain.model.ComponentIngredient;
 import com.fmatrestaurant.menu.domain.exception.InvalidFieldException;
 import com.fmatrestaurant.menu.domain.model.InventoryItem;
@@ -86,7 +86,7 @@ class RecipeServiceTest {
 
 	@Test
 	void createsTheRecipeAtRevisionOne() {
-		RecipeRevision created = service.create("Burger", "Classic", "Grill and serve", List.of(supply(BEEF, "2")));
+		RecipeRevision created = service.create("Burger", "Classic", "Grill and serve", List.of(ingredient(BEEF, "2")));
 
 		assertEquals(1, created.getRevision());
 		assertEquals("Burger", created.getName());
@@ -105,35 +105,35 @@ class RecipeServiceTest {
 		InvalidFieldException empty = assertThrows(InvalidFieldException.class,
 				() -> service.create("Burger", "Classic", "Grill", List.of()));
 
-		assertEquals("/supplies", none.getPath());
-		assertEquals("/supplies", empty.getPath());
+		assertEquals("/ingredients", none.getPath());
+		assertEquals("/ingredients", empty.getPath());
 		verify(recipeRepository, never()).save(any(Recipe.class));
 	}
 
 	@Test
 	void createPrefixesTheViolationsOfAnIngredientWithItsPosition() {
 		InvalidFieldException exception = assertThrows(InvalidFieldException.class,
-				() -> service.create("Burger", "Classic", "Grill", List.of(supply(BEEF, "2"), supply(BUN, "0"))));
+				() -> service.create("Burger", "Classic", "Grill", List.of(ingredient(BEEF, "2"), ingredient(BUN, "0"))));
 
-		assertEquals("/supplies/1/quantity", exception.getPath());
+		assertEquals("/ingredients/1/quantity", exception.getPath());
 		verify(recipeRepository, never()).save(any(Recipe.class));
 	}
 
 	@Test
 	void createRejectsAMissingIngredient() {
-		List<SupplyData> supplies = new ArrayList<>();
-		supplies.add(null);
+		List<IngredientData> lines = new ArrayList<>();
+		lines.add(null);
 
 		InvalidFieldException exception = assertThrows(InvalidFieldException.class,
-				() -> service.create("Burger", "Classic", "Grill", supplies));
+				() -> service.create("Burger", "Classic", "Grill", lines));
 
-		assertEquals("/supplies/0", exception.getPath());
+		assertEquals("/ingredients/0", exception.getPath());
 	}
 
 	@Test
 	void createRejectsInvalidTextsWithoutSaving() {
 		InvalidFieldException exception = assertThrows(InvalidFieldException.class,
-				() -> service.create(" ", "Classic", "Grill", List.of(supply(BEEF, "2"))));
+				() -> service.create(" ", "Classic", "Grill", List.of(ingredient(BEEF, "2"))));
 
 		assertEquals("/name", exception.getPath());
 		verify(recipeRepository, never()).save(any(Recipe.class));
@@ -146,18 +146,18 @@ class RecipeServiceTest {
 		when(inventoryClient.find(unknown)).thenReturn(Optional.empty());
 
 		InvalidFieldException exception = assertThrows(InvalidFieldException.class,
-				() -> service.create("Burger", "Classic", "Grill", List.of(supply(BEEF, "2"), supply(unknown, "1"))));
+				() -> service.create("Burger", "Classic", "Grill", List.of(ingredient(BEEF, "2"), ingredient(unknown, "1"))));
 
-		assertEquals("/supplies/1/inventoryItemId", exception.getPath());
+		assertEquals("/ingredients/1/inventoryItemId", exception.getPath());
 		verify(recipeRepository, never()).save(any(Recipe.class));
 	}
 
 	@Test
 	void createRejectsAMissingArticleId() {
 		InvalidFieldException exception = assertThrows(InvalidFieldException.class,
-				() -> service.create("Burger", "Classic", "Grill", List.of(new SupplyData(null, BigDecimal.ONE))));
+				() -> service.create("Burger", "Classic", "Grill", List.of(new IngredientData(null, BigDecimal.ONE))));
 
-		assertEquals("/supplies/0/inventoryItemId", exception.getPath());
+		assertEquals("/ingredients/0/inventoryItemId", exception.getPath());
 	}
 
 	@Test
@@ -165,17 +165,20 @@ class RecipeServiceTest {
 		when(inventoryClient.find(BEEF)).thenThrow(new RestClientException("Inventory is down"));
 
 		assertThrows(RestClientException.class,
-				() -> service.create("Burger", "Classic", "Grill", List.of(supply(BEEF, "2"))));
+				() -> service.create("Burger", "Classic", "Grill", List.of(ingredient(BEEF, "2"))));
 
 		verify(recipeRepository, never()).save(any(Recipe.class));
 		verify(revisionRepository, never()).saveAndFlush(any(RecipeRevision.class));
 	}
 
 	@Test
-	void inventoryIsConsultedOncePerArticleInEachOperation() {
-		RecipeRevision created = service.create("Burger", "Classic", "Grill", List.of(supply(BEEF, "2"), supply(BEEF, "3")));
+	void aRepeatedArticleIsRejectedWithoutConsultingInventoryAgain() {
+		List<IngredientData> lines = List.of(ingredient(BEEF, "2"), ingredient(BEEF, "3"));
 
-		assertEquals(2, created.getIngredients().size());
+		InvalidFieldException error = assertThrows(InvalidFieldException.class,
+				() -> service.create("Burger", "Classic", "Grill", lines));
+
+		assertEquals("/ingredients/1/inventoryItemId", error.getPath());
 		verify(inventoryClient, times(1)).find(BEEF);
 	}
 
@@ -301,7 +304,7 @@ class RecipeServiceTest {
 		existing(1);
 
 		RecipeRevision next = service.update(RECIPE_ID, VERSION, null, "Updated", "Grill longer",
-				List.of(supply(BUN, "1")));
+				List.of(ingredient(BUN, "1")));
 
 		assertEquals("Updated", next.getDescription());
 		assertEquals("Grill longer", next.getInstructions());
@@ -313,10 +316,10 @@ class RecipeServiceTest {
 	void updateRejectsInvalidIngredientsWithoutPublishing() {
 		RecipeRevision current = existing(1);
 
-		assertEquals("/supplies", assertThrows(InvalidFieldException.class,
+		assertEquals("/ingredients", assertThrows(InvalidFieldException.class,
 				() -> service.update(RECIPE_ID, VERSION, null, null, null, List.of())).getPath());
-		assertEquals("/supplies/0/quantity", assertThrows(InvalidFieldException.class,
-				() -> service.update(RECIPE_ID, VERSION, null, null, null, List.of(supply(BUN, "-1")))).getPath());
+		assertEquals("/ingredients/0/quantity", assertThrows(InvalidFieldException.class,
+				() -> service.update(RECIPE_ID, VERSION, null, null, null, List.of(ingredient(BUN, "-1")))).getPath());
 
 		assertEquals(1, current.getRecipe().getCurrentRevision());
 		verify(recipeRepository, never()).saveAndFlush(any(Recipe.class));
@@ -350,8 +353,8 @@ class RecipeServiceTest {
 		return current;
 	}
 
-	private static SupplyData supply(String item, String quantity) {
-		return new SupplyData(item, new BigDecimal(quantity));
+	private static IngredientData ingredient(String item, String quantity) {
+		return new IngredientData(item, new BigDecimal(quantity));
 	}
 
 	private static ComponentIngredient ingredient() {

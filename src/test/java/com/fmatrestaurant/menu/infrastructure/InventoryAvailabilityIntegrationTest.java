@@ -263,7 +263,7 @@ class InventoryAvailabilityIntegrationTest {
 		String json = mockMvc.perform(post(RECIPES).header("Idempotency-Key", UUID.randomUUID())
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("{\"name\": \"Burger\", \"description\": \"Classic\", \"instructions\": \"Grill and serve\", "
-						+ "\"supplies\": [{\"inventoryItemId\": \"" + BEEF.id() + "\", \"quantity\": 2}]}"))
+						+ "\"ingredients\": [{\"inventoryItemId\": \"" + BEEF.id() + "\", \"quantity\": 2}]}"))
 				.andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
 		return UUID.fromString(JsonPath.read(json, "$.data.id"));
 	}
