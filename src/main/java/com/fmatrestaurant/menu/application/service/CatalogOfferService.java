@@ -143,13 +143,15 @@ public class CatalogOfferService {
 	/**
 	 * @param entryId only offers of this entry
 	 * @param excludeOfferId leaves this offer out
+	 * @param excludeArchivedEntries leaves out the offers of ARCHIVED entries
 	 * @param page page number, starting at 1
 	 * @throws InvalidFieldException if the page or the page size are not valid
 	 */
 	@Transactional(readOnly = true)
-	public Page<CatalogOffer> list(UUID entryId, UUID excludeOfferId, int page, int pageSize) {
+	public Page<CatalogOffer> list(UUID entryId, UUID excludeOfferId, boolean excludeArchivedEntries, int page,
+			int pageSize) {
 		Pages.check(page, pageSize);
-		return offerRepository.findAll(CatalogOfferRepository.search(entryId, excludeOfferId),
+		return offerRepository.findAll(CatalogOfferRepository.search(entryId, excludeOfferId, excludeArchivedEntries),
 				PageRequest.of(page - 1, pageSize, Sort.by("entry.brandName", "presentationTag", "id")));
 	}
 

@@ -66,9 +66,10 @@ public class CatalogOfferController {
 	@GetMapping("/offers")
 	public OfferListResponse list(@RequestParam(required = false) UUID entryId,
 			@RequestParam(required = false) UUID excludeOfferId,
+			@RequestParam(defaultValue = "false") boolean excludeArchivedEntries,
 			@RequestParam(defaultValue = "1") int page,
 			@RequestParam(defaultValue = "12") int pageSize) {
-		Page<CatalogOffer> offers = offerService.list(entryId, excludeOfferId, page, pageSize);
+		Page<CatalogOffer> offers = offerService.list(entryId, excludeOfferId, excludeArchivedEntries, page, pageSize);
 		Map<UUID, OfferAvailability> available = availability.offers(offers.getContent());
 		return new OfferListResponse(offers.getContent().stream()
 				.map(offer -> OfferSummary.of(offer, available.get(offer.getId()))).toList(),

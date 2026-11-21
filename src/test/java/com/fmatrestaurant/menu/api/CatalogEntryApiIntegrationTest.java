@@ -377,6 +377,7 @@ class CatalogEntryApiIntegrationTest {
 	}
 
 	@Test
+	@DisplayName("TC-CONS-04-CA1: without a status filter the administrative list includes ARCHIVED entries")
 	void listFiltersAndPaginatesForAdministration() throws Exception {
 		create("Hawaiian burger", burgers);
 		create("Lemonade", drinks);
@@ -386,28 +387,28 @@ class CatalogEntryApiIntegrationTest {
 
 		mockMvc.perform(get(ENTRIES))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.data[*].brandName", contains("Hawaiian burger", "Lemonade", "Mystery")))
+				.andExpect(jsonPath("$.data[*].brandName", contains("Hawaiian burger", "Lemonade", "Mystery", "Old burger")))
 				.andExpect(jsonPath("$.data[0].categories[0].id").value(burgers.toString()))
 				.andExpect(jsonPath("$.data[0].categories[0].name").value("Burgers"))
 				.andExpect(jsonPath("$.data[0].offerCount").value(0))
 				.andExpect(jsonPath("$.data[0].image.id").value(imageId.toString()))
 				.andExpect(jsonPath("$.meta.page").value(1))
 				.andExpect(jsonPath("$.meta.pageSize").value(12))
-				.andExpect(jsonPath("$.meta.total").value(3))
+				.andExpect(jsonPath("$.meta.total").value(4))
 				.andExpect(jsonPath("$.meta.totalPages").value(1));
 		expectNames(get(ENTRIES).param("q", "DRINK"), "Lemonade");
 		expectNames(get(ENTRIES).param("q", "secret"), "Mystery");
-		expectNames(get(ENTRIES).param("q", "burger"), "Hawaiian burger");
+		expectNames(get(ENTRIES).param("q", "burger"), "Hawaiian burger", "Old burger");
 		expectNames(get(ENTRIES).param("q", "%"));
-		expectNames(get(ENTRIES).param("categoryId", burgers.toString()), "Hawaiian burger");
+		expectNames(get(ENTRIES).param("categoryId", burgers.toString()), "Hawaiian burger", "Old burger");
 		expectNames(get(ENTRIES).param("categoryId", "__uncategorized__"), "Mystery");
 		expectNames(get(ENTRIES).param("status", "ARCHIVED"), "Old burger");
 		expectNames(get(ENTRIES).param("status", "INACTIVE"), "Hawaiian burger", "Lemonade", "Mystery");
 		expectNames(get(ENTRIES).param("status", "ACTIVE"));
 		mockMvc.perform(get(ENTRIES).param("page", "2").param("pageSize", "2"))
-				.andExpect(jsonPath("$.data[*].brandName", contains("Mystery")))
+				.andExpect(jsonPath("$.data[*].brandName", contains("Mystery", "Old burger")))
 				.andExpect(jsonPath("$.meta.page").value(2))
-				.andExpect(jsonPath("$.meta.total").value(3))
+				.andExpect(jsonPath("$.meta.total").value(4))
 				.andExpect(jsonPath("$.meta.totalPages").value(2));
 		mockMvc.perform(get(ENTRIES).param("page", "0"))
 				.andExpect(status().isUnprocessableContent())

@@ -74,7 +74,7 @@ public interface CatalogEntryRepository extends JpaRepository<CatalogEntry, UUID
 	 * @param q text searched, case-insensitively, in the brand name, the description and the category names
 	 * @param categoryId only entries classified in this category
 	 * @param uncategorized only entries without categories
-	 * @param status only entries with this status; when {@code null}, archived entries are left out
+	 * @param status only entries with this status; when {@code null}, every status, ARCHIVED included
 	 */
 	static Specification<CatalogEntry> search(Long menuId, String q, UUID categoryId, boolean uncategorized,
 			EntryStatus status) {
@@ -82,9 +82,9 @@ public interface CatalogEntryRepository extends JpaRepository<CatalogEntry, UUID
 		return (root, query, cb) -> {
 			List<Predicate> predicates = new ArrayList<>();
 			predicates.add(cb.equal(root.get("menuId"), menuId));
-			predicates.add(status == null
-					? cb.notEqual(root.get("status"), EntryStatus.ARCHIVED)
-					: cb.equal(root.get("status"), status));
+			if (status != null) {
+				predicates.add(cb.equal(root.get("status"), status));
+			}
 			if (uncategorized) {
 				predicates.add(cb.isEmpty(root.get(categories)));
 			}
