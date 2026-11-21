@@ -6,6 +6,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
 
+import com.fmatrestaurant.menu.domain.exception.ArchivedEntryException;
 import com.fmatrestaurant.menu.domain.exception.InvalidFieldException;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -97,20 +98,23 @@ public class CatalogEntry {
 	 * Applies the given changes; a {@code null} value keeps the current one. The categories, when
 	 * given, replace the current ones. If any value is invalid, nothing is modified.
 	 *
-	 * <p>Changing the status does not change the status of the offers.
+	 * <p>Changing the status does not change the status of the offers. An ARCHIVED entry admits only
+	 * being unarchived to INACTIVE, without other changes (RF-ENT-02.CA4).
 	 *
-	 * @throws InvalidFieldException if any value is invalid or the status transition is not allowed
+	 * @throws InvalidFieldException if any value is invalid
+	 * @throws ArchivedEntryException if the entry is ARCHIVED and the change is not unarchiving it
 	 */
 	public void update(String brandName, String description, Collection<Category> categories, EntryStatus status) {
+		boolean onlyUnarchives = brandName == null && description == null && categories == null
+				&& status != EntryStatus.ACTIVE;
+		if (this.status == EntryStatus.ARCHIVED && !onlyUnarchives) {
+			throw new ArchivedEntryException("An ARCHIVED entry can only be unarchived to INACTIVE");
+		}
 		String newBrandName = brandName == null ? this.brandName
 				: text("/brandName", "brand name", brandName, BRAND_NAME_MAX_LENGTH);
 		String newDescription = description == null ? this.description
 				: text("/description", "description", description, DESCRIPTION_MAX_LENGTH);
 		Set<Category> newCategories = categories == null ? null : sameMenu(categories);
-		if (status == EntryStatus.ACTIVE && this.status == EntryStatus.ARCHIVED) {
-			throw new InvalidFieldException("/status",
-					"An archived catalog entry must be unarchived to INACTIVE before it can be activated");
-		}
 		this.brandName = newBrandName;
 		this.description = newDescription;
 		// Replacing an equal set would still mark the collection dirty and bump the version.

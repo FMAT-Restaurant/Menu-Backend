@@ -28,6 +28,7 @@ import java.util.concurrent.TimeoutException;
 import javax.imageio.ImageIO;
 
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -350,38 +351,20 @@ class CatalogDeletionApiIntegrationTest {
 	}
 
 	@Test
-	void creatingAnOfferOfAnEntryBeingDeletedFailsWithoutLeavingTheOffer() throws Exception {
-		UUID entry = newEntry();
-		newOffer(entry);
-		setEntryStatus(entry, "ARCHIVED");
-		long entryVersion = entryRepository.findById(entry).orElseThrow().getVersion();
-
-		duringDeletion(() -> entryService.delete(entry, entryVersion),
-				() -> mockMvc.perform(post(ENTRIES + "/" + entry + "/offers").header("Idempotency-Key", UUID.randomUUID())
-						.contentType(MediaType.APPLICATION_JSON).content(offerBody())))
-				.andExpect(status().isNotFound());
-
-		assertFalse(entryRepository.existsById(entry));
-		assertEquals(0, offerRepository.count());
-		assertEquals(0, count("composition_slot"));
-		assertEquals(0, count("slot_option"));
-	}
-
-	@Test
-	void patchingAnOfferOfAnEntryBeingDeletedFails() throws Exception {
+	@DisplayName("TC-OFE-04-CA4: the offers of an ARCHIVED entry cannot be created or changed")
+	void theOffersOfAnArchivedEntryCannotChange() throws Exception {
 		UUID entry = newEntry();
 		String offer = newOffer(entry);
 		setEntryStatus(entry, "ARCHIVED");
 		String offerEtag = offerEtag(offer);
-		long entryVersion = entryRepository.findById(entry).orElseThrow().getVersion();
 
-		duringDeletion(() -> entryService.delete(entry, entryVersion),
-				() -> patchOffer(offer, offerEtag, lastOptionInactive(offer)))
-				.andExpect(status().isPreconditionFailed());
+		mockMvc.perform(post(ENTRIES + "/" + entry + "/offers").header("Idempotency-Key", UUID.randomUUID())
+				.contentType(MediaType.APPLICATION_JSON).content(offerBody()))
+				.andExpect(status().isConflict());
+		patchOffer(offer, offerEtag, "{\"basePrice\": 1}").andExpect(status().isConflict());
 
-		assertFalse(entryRepository.existsById(entry));
-		assertEquals(0, offerRepository.count());
-		assertEquals(0, count("slot_option"));
+		assertEquals(1, offerRepository.count());
+		assertEquals(offerEtag, offerEtag(offer));
 	}
 
 	private UUID newEntry() {

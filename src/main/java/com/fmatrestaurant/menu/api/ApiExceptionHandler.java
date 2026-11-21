@@ -39,6 +39,7 @@ import com.fmatrestaurant.menu.application.exception.StaleCatalogEntryException;
 import com.fmatrestaurant.menu.application.exception.StaleCatalogOfferException;
 import com.fmatrestaurant.menu.application.exception.StaleRecipeException;
 import com.fmatrestaurant.menu.domain.model.Image;
+import com.fmatrestaurant.menu.domain.exception.ArchivedEntryException;
 import com.fmatrestaurant.menu.domain.exception.InvalidCategoryException;
 import com.fmatrestaurant.menu.domain.exception.InvalidFieldException;
 
@@ -144,9 +145,9 @@ public class ApiExceptionHandler {
 				.body(new ErrorEnvelope(new ErrorBody(e.getMessage(), Map.of("offerIds", e.getOfferIds()))));
 	}
 
-	/** The current state does not allow the deletion; the contract does not document this answer yet. */
-	@ExceptionHandler(DeletionNotAllowedException.class)
-	ResponseEntity<ErrorEnvelope> deletionNotAllowed(DeletionNotAllowedException e) {
+	/** The current state does not allow the deletion or the change; still without a domain error code. */
+	@ExceptionHandler({ DeletionNotAllowedException.class, ArchivedEntryException.class })
+	ResponseEntity<ErrorEnvelope> notAllowedInCurrentState(RuntimeException e) {
 		return error(HttpStatus.CONFLICT, e.getMessage());
 	}
 

@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
+import com.fmatrestaurant.menu.domain.exception.ArchivedEntryException;
 import com.fmatrestaurant.menu.domain.exception.InvalidFieldException;
 import com.fmatrestaurant.menu.domain.model.CatalogEntry;
 import com.fmatrestaurant.menu.domain.model.Category;
@@ -127,7 +128,9 @@ class CatalogEntryTest {
 	void archivedEntryCannotBeActivatedDirectly() {
 		CatalogEntry entry = entryIn(EntryStatus.ARCHIVED);
 
-		assertPath("/status", () -> entry.update("Renamed", null, null, EntryStatus.ACTIVE));
+		assertThrows(ArchivedEntryException.class, () -> entry.update("Renamed", null, null, EntryStatus.ACTIVE));
+		assertThrows(ArchivedEntryException.class, () -> entry.update(null, null, null, EntryStatus.ACTIVE));
+		assertThrows(ArchivedEntryException.class, () -> entry.update("Renamed", null, null, EntryStatus.INACTIVE));
 
 		assertEquals(EntryStatus.ARCHIVED, entry.getStatus());
 		assertEquals("Hawaiian burger", entry.getBrandName());

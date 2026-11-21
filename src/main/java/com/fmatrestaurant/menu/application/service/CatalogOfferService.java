@@ -33,6 +33,7 @@ import com.fmatrestaurant.menu.domain.model.CatalogEntry;
 import com.fmatrestaurant.menu.domain.model.CatalogOffer;
 import com.fmatrestaurant.menu.domain.model.CompositionSlot;
 import com.fmatrestaurant.menu.domain.model.EntryStatus;
+import com.fmatrestaurant.menu.domain.exception.ArchivedEntryException;
 import com.fmatrestaurant.menu.domain.exception.InvalidFieldException;
 import com.fmatrestaurant.menu.domain.model.InventoryItem;
 import com.fmatrestaurant.menu.domain.model.OfferStatus;
@@ -94,6 +95,7 @@ public class CatalogOfferService {
 	public CatalogOffer create(UUID entryId, OfferInput input) {
 		CatalogEntry entry = entryRepository.findById(entryId)
 				.orElseThrow(() -> new CatalogEntryNotFoundException(entryId));
+		requireNotArchived(entry);
 		input.rejectUnknownFields();
 		notAllowed("/status", input.status());
 		if (input.composition() != null) {
@@ -177,6 +179,7 @@ public class CatalogOfferService {
 		if (offer.getVersion() != expectedVersion) {
 			throw new StaleCatalogOfferException(id);
 		}
+		requireNotArchived(offer.getEntry());
 		input.rejectUnknownFields();
 		if (input.composition() != null) {
 			input.composition().rejectUnknownFields("/composition");
@@ -416,6 +419,13 @@ public class CatalogOfferService {
 			throw new InvalidFieldException(path, "The " + label + " " + id + " is repeated");
 		}
 		return member;
+	}
+
+	/** The offers of an ARCHIVED entry admit no changes (RF-OFE-01.CA6, RF-OFE-04.CA4). */
+	private static void requireNotArchived(CatalogEntry entry) {
+		if (entry.getStatus() == EntryStatus.ARCHIVED) {
+			throw new ArchivedEntryException("The offers of an ARCHIVED entry cannot change");
+		}
 	}
 
 	/** A field that the server assigns, so the client must not send it. */
