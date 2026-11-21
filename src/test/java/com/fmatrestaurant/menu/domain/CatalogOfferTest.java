@@ -145,44 +145,43 @@ class CatalogOfferTest {
 	}
 
 	@Test
-	void inventoryContentNeedsAPositiveQuantityAndTheUnitOfTheArticle() {
-		SlotOption option = new SlotOption(" Fries ", OfferStatus.ACTIVE, POTATOES, new BigDecimal("200"), "g");
+	void inventoryContentNeedsAPositiveQuantityAndTakesTheUnitOfTheArticle() {
+		SlotOption option = new SlotOption(" Fries ", OfferStatus.ACTIVE, POTATOES, new BigDecimal("200"));
 		assertEquals("Fries", option.getDisplayName());
 		assertEquals(SourceType.INVENTORY_ITEM, option.getSourceType());
 		assertEquals(POTATOES.id(), option.getInventoryItemId());
 		assertEquals("Potatoes", option.getSourceName());
+		assertEquals("g", option.getUnit());
 
-		assertPath("/quantity", () -> new SlotOption("Fries", OfferStatus.ACTIVE, POTATOES, BigDecimal.ZERO, "g"));
-		assertPath("/unit", () -> new SlotOption("Fries", OfferStatus.ACTIVE, POTATOES, BigDecimal.ONE, "kg"));
-		assertEquals(OfferStatus.ACTIVE, new SlotOption("Fries", null, POTATOES, BigDecimal.ONE, "g").getStatus());
-		assertPath("/inventoryItemId", () -> new SlotOption("Fries", OfferStatus.ACTIVE, null, BigDecimal.ONE, "g"));
+		assertPath("/quantity", () -> new SlotOption("Fries", OfferStatus.ACTIVE, POTATOES, BigDecimal.ZERO));
+		assertEquals(OfferStatus.ACTIVE, new SlotOption("Fries", null, POTATOES, BigDecimal.ONE).getStatus());
+		assertPath("/inventoryItemId", () -> new SlotOption("Fries", OfferStatus.ACTIVE, null, BigDecimal.ONE));
 		assertPath("/inventoryItemId", () -> new SlotOption("Fries", OfferStatus.ACTIVE,
-				new InventoryItem("INV-" + UUID.randomUUID(), " ", "g"), BigDecimal.ONE, "g"));
+				new InventoryItem("INV-" + UUID.randomUUID(), " ", "g"), BigDecimal.ONE));
 		assertPath("/inventoryItemId", () -> new SlotOption("Fries", OfferStatus.ACTIVE,
-				new InventoryItem("INV-" + UUID.randomUUID(), "Potatoes", null), BigDecimal.ONE, "g"));
+				new InventoryItem("INV-" + UUID.randomUUID(), "Potatoes", null), BigDecimal.ONE));
 	}
 
 	@Test
-	void optionUpdateKeepsMissingValuesAndChecksANewArticle() {
-		SlotOption option = new SlotOption("Fries", OfferStatus.ACTIVE, POTATOES, new BigDecimal("200"), "g");
+	void optionUpdateKeepsMissingValuesAndTakesTheUnitOfANewArticle() {
+		SlotOption option = new SlotOption("Fries", OfferStatus.ACTIVE, POTATOES, new BigDecimal("200"));
 		InventoryItem juice = new InventoryItem("INV-" + UUID.randomUUID(), "Juice", "ml");
 
-		assertPath("/unit", () -> option.update("Juice", null, juice, null, null));
+		assertPath("/quantity", () -> option.update("Juice", null, juice, BigDecimal.ZERO));
 		assertEquals("Fries", option.getDisplayName());
 
-		option.update(null, OfferStatus.INACTIVE, null, new BigDecimal("250"), null);
+		option.update(null, OfferStatus.INACTIVE, null, new BigDecimal("250"));
 		assertEquals(OfferStatus.INACTIVE, option.getStatus());
 		assertEquals(new BigDecimal("250"), option.getQuantity());
 
-		option.update("Juice", null, juice, null, "ml");
+		option.update("Juice", null, juice, null);
 		assertEquals(juice.id(), option.getInventoryItemId());
 		assertEquals("Juice", option.getSourceName());
 		assertEquals("ml", option.getUnit());
 
-		// The unit is checked against the article as Inventory returns it now, not the stored unit.
-		InventoryItem juiceInLiters = new InventoryItem(juice.id(), "Juice", "l");
-		assertPath("/unit", () -> option.update(null, null, juiceInLiters, null, "ml"));
-		assertEquals("ml", option.getUnit());
+		// The unit is always the one Inventory returns now, not the stored one.
+		option.update(null, null, new InventoryItem(juice.id(), "Juice", "l"), null);
+		assertEquals("l", option.getUnit());
 	}
 
 	@Test
@@ -201,7 +200,7 @@ class CatalogOfferTest {
 	}
 
 	private static SlotOption option(OfferStatus status) {
-		return new SlotOption("Fries", status, POTATOES, BigDecimal.ONE, "g");
+		return new SlotOption("Fries", status, POTATOES, BigDecimal.ONE);
 	}
 
 	private static void assertPath(String path, Runnable action) {

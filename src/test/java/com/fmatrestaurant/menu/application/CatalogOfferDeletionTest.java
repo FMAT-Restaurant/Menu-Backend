@@ -198,7 +198,7 @@ class CatalogOfferDeletionTest {
 
 	private static CatalogOffer offer(CatalogEntry entry, UUID id, boolean active) {
 		SlotOption option = new SlotOption("Fries", OfferStatus.ACTIVE,
-				new InventoryItem("INV-" + UUID.randomUUID(), "Potatoes", "g"), new BigDecimal("200"), "g");
+				new InventoryItem("INV-" + UUID.randomUUID(), "Potatoes", "g"), new BigDecimal("200"));
 		CompositionSlot slot = new CompositionSlot("Side", BigDecimal.ONE, null, List.of(option));
 		CatalogOffer offer = new CatalogOffer(entry, "Individual", BigDecimal.TEN, UUID.randomUUID(), List.of(slot));
 		if (active) {

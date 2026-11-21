@@ -151,7 +151,7 @@ class CatalogOfferRecipeApiIntegrationTest {
 	@Test
 	void createsAnOfferThatMixesInventoryAndRecipeOptions() throws Exception {
 		String inventoryOption = "{\"displayName\": \"Fries\", \"sourceType\": \"INVENTORY_ITEM\", \"inventoryItemId\": \""
-				+ POTATOES.id() + "\", \"quantity\": 200, \"unit\": \"g\"}";
+				+ POTATOES.id() + "\", \"quantity\": 200}";
 		String recipeOption = "{\"displayName\": \"House burger\", \"sourceType\": \"RECIPE\", \"recipeId\": \""
 				+ recipeId + "\"}";
 		String body = "{\"presentationTag\": \"Combo\", \"basePrice\": 220, \"imageId\": \"" + imageId

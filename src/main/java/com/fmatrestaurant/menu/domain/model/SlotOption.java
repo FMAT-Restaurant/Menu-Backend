@@ -124,9 +124,9 @@ public class SlotOption {
 	 * Creates an option whose content is the Inventory article, as Inventory returned it. Without a
 	 * status, it starts {@link OfferStatus#ACTIVE} (RF-OPC-01.CA2).
 	 *
-	 * @throws InvalidFieldException if a value is missing or invalid, or the unit is not the one of the article
+	 * @throws InvalidFieldException if a value is missing or invalid
 	 */
-	public SlotOption(String displayName, OfferStatus status, InventoryItem item, BigDecimal quantity, String unit) {
+	public SlotOption(String displayName, OfferStatus status, InventoryItem item, BigDecimal quantity) {
 		if (item == null) {
 			throw new InvalidFieldException("/inventoryItemId", "The inventory item is required");
 		}
@@ -135,33 +135,25 @@ public class SlotOption {
 		this.quantity = quantity(quantity);
 		this.inventoryItemId = itemId(item);
 		this.sourceName = itemName(item);
-		this.unit = unit(unit, itemUnit(item));
+		this.unit = itemUnit(item);
 		this.status = status == null ? OfferStatus.ACTIVE : status;
 		this.sourceType = SourceType.INVENTORY_ITEM;
 	}
 
 	/**
 	 * Applies the given changes; a {@code null} value keeps the current one. When the article or the
-	 * unit change, {@code item} is the article as Inventory returned it, so the unit is checked against
-	 * its current unit. If any value is invalid, nothing is modified.
+	 * quantity change, {@code item} is the article as Inventory returned it, and the option takes its
+	 * current name and unit (RF-OPC-08.CA3). If any value is invalid, nothing is modified.
 	 *
-	 * @throws InvalidFieldException if a value is invalid or the unit is not the one of the article
+	 * @throws InvalidFieldException if a value is invalid
 	 */
-	public void update(String displayName, OfferStatus status, InventoryItem item, BigDecimal quantity, String unit) {
+	public void update(String displayName, OfferStatus status, InventoryItem item, BigDecimal quantity) {
 		String newDisplayName = displayName == null ? this.displayName
 				: Fields.text(DISPLAY_NAME_PATH, DISPLAY_NAME_LABEL, displayName, DISPLAY_NAME_MAX_LENGTH);
 		BigDecimal newQuantity = quantity == null ? this.quantity : quantity(quantity);
 		String newInventoryItemId = item == null ? this.inventoryItemId : itemId(item);
 		String newSourceName = item == null ? this.sourceName : itemName(item);
-		String sourceUnit = item == null ? this.unit : itemUnit(item);
-		String newUnit = this.unit;
-		if (item != null || unit != null) {
-			String unitToValidate = this.unit;
-			if (unit != null) {
-				unitToValidate = unit;
-			}
-			newUnit = unit(unitToValidate, sourceUnit);
-		}
+		String newUnit = item == null ? this.unit : itemUnit(item);
 		this.displayName = newDisplayName;
 		this.quantity = newQuantity;
 		this.unit = newUnit;
@@ -251,16 +243,6 @@ public class SlotOption {
 
 	private static String itemUnit(InventoryItem item) {
 		return Fields.text("/inventoryItemId", "inventory item unit", item.unit(), UNIT_MAX_LENGTH);
-	}
-
-	/** OPEN-006 defines no conversions, so the option unit must match the unit of the article. */
-	private static String unit(String unit, String itemUnit) {
-		String value = Fields.text("/unit", "unit", unit, UNIT_MAX_LENGTH);
-		if (!value.equals(itemUnit)) {
-			throw new InvalidFieldException("/unit",
-					"The unit " + value + " is not compatible with the unit " + itemUnit + " of the inventory item");
-		}
-		return value;
 	}
 
 	public UUID getId() {

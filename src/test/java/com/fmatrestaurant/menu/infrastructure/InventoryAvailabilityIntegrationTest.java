@@ -276,7 +276,7 @@ class InventoryAvailabilityIntegrationTest {
 
 	private UUID inventoryOption() throws Exception {
 		return createOffer("{\"displayName\": \"Fries\", \"sourceType\": \"INVENTORY_ITEM\", \"inventoryItemId\": \""
-				+ POTATOES.id() + "\", \"quantity\": 200, \"unit\": \"g\"}");
+				+ POTATOES.id() + "\", \"quantity\": 200}");
 	}
 
 	private UUID recipeOption(UUID recipe) throws Exception {

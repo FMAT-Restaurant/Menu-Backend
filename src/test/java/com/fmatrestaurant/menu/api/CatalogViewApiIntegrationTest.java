@@ -619,7 +619,7 @@ class CatalogViewApiIntegrationTest {
 
 	private static String inventoryOption(String name, InventoryItem item, String quantity, String status) {
 		return "{\"displayName\": \"" + name + "\", \"sourceType\": \"INVENTORY_ITEM\", \"inventoryItemId\": \""
-				+ item.id() + "\", \"quantity\": " + quantity + ", \"unit\": \"" + item.unit() + "\", \"status\": \""
+				+ item.id() + "\", \"quantity\": " + quantity + ", \"status\": \""
 				+ status + "\"}";
 	}
 

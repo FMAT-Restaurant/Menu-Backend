@@ -99,6 +99,7 @@ public class CatalogOfferService {
 		if (input.composition() != null) {
 			input.composition().rejectUnknownFields("/composition");
 		}
+		CatalogOffer.checkFields(input.presentationTag(), input.basePrice(), input.imageId());
 		UUID imageId = existingImage(input.imageId());
 		List<SlotInput> slots = input.composition() == null ? null : input.composition().slots();
 		CatalogOffer offer = new CatalogOffer(entry, input.presentationTag(), input.basePrice(), imageId,
@@ -317,8 +318,8 @@ public class CatalogOfferService {
 	}
 
 	/**
-	 * Inventory is consulted for a new option and when the article or the unit of an existing one change;
-	 * other changes keep the stored reference without consulting it.
+	 * Inventory is consulted for a new option and when the article or the quantity of an existing one change
+	 * (RF-INTG-01.CA1); other changes keep the stored reference without consulting it.
 	 */
 	private SlotOption option(Map<UUID, SlotOption> byId, Set<UUID> seen, OptionInput input, boolean create,
 			Map<String, InventoryItem> items) {
@@ -341,7 +342,7 @@ public class CatalogOfferService {
 			}
 			rejectRecipeFields(input);
 			return new SlotOption(input.displayName(), input.status(),
-					inventoryItem(input.inventoryItemId(), items), input.quantity(), input.unit());
+					inventoryItem(input.inventoryItemId(), items), input.quantity());
 		}
 		SlotOption option = existing(byId, seen, id, "/optionId", "option", "slot");
 		if (input.sourceType() != option.getSourceType()) {
@@ -359,11 +360,11 @@ public class CatalogOfferService {
 	private void updateInventoryOption(SlotOption option, OptionInput input, Map<String, InventoryItem> items) {
 		rejectRecipeFields(input);
 		InventoryItem item = null;
-		if (input.inventoryItemId() != null || input.unit() != null) {
+		if (input.inventoryItemId() != null || input.quantity() != null) {
 			item = inventoryItem(input.inventoryItemId() != null ? input.inventoryItemId() : option.getInventoryItemId(),
 					items);
 		}
-		option.update(input.displayName(), input.status(), item, input.quantity(), input.unit());
+		option.update(input.displayName(), input.status(), item, input.quantity());
 	}
 
 	/**
@@ -379,7 +380,6 @@ public class CatalogOfferService {
 	private static void rejectInventoryFields(OptionInput input) {
 		notAllowed("/inventoryItemId", input.inventoryItemId());
 		notAllowed("/quantity", input.quantity());
-		notAllowed("/unit", input.unit());
 	}
 
 	private static void rejectRecipeFields(OptionInput input) {
@@ -426,8 +426,7 @@ public class CatalogOfferService {
 	}
 
 	/**
-	 * The article as Inventory returns it, consulted once per id in each operation. Its unit is the one
-	 * the option unit is checked against.
+	 * The article as Inventory returns it, consulted once per id in each operation; the option takes its unit.
 	 */
 	private InventoryItem inventoryItem(String id, Map<String, InventoryItem> items) {
 		if (id == null || id.isBlank()) {
@@ -617,10 +616,6 @@ public class CatalogOfferService {
 
 		@JsonProperty
 		@JsonSetter(nulls = Nulls.FAIL)
-		private String unit;
-
-		@JsonProperty
-		@JsonSetter(nulls = Nulls.FAIL)
 		private UUID recipeId;
 
 		public UUID recipeId() {
@@ -649,10 +644,6 @@ public class CatalogOfferService {
 
 		public BigDecimal quantity() {
 			return quantity;
-		}
-
-		public String unit() {
-			return unit;
 		}
 
 	}

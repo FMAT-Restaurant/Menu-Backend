@@ -151,7 +151,7 @@ class CatalogOfferApiIntegrationTest {
 				.andExpect(jsonPath("$.data.composition.slots[0].options[0].status").value("ACTIVE"))
 				.andExpect(jsonPath("$.data.composition.slots[0].options[0].displayName").value("Fries"))
 				.andExpect(jsonPath("$.data.composition.slots[0].options[0].quantity").value(200))
-				.andExpect(jsonPath("$.data.composition.slots[0].options[0].unit").value("g"))
+				.andExpect(jsonPath("$.data.composition.slots[0].options[0].unit").doesNotExist())
 				.andExpect(jsonPath("$.data.composition.slots[0].options[0].source").doesNotExist())
 				.andExpect(jsonPath("$.data.composition.slots[0].options[0].recipeId").doesNotExist())
 				.andExpect(jsonPath("$.data.composition.slots[0].options[0].recipeRevision").doesNotExist())
@@ -199,30 +199,32 @@ class CatalogOfferApiIntegrationTest {
 		expectViolation(createOffer(entryId, offerBody("Individual", "180").replace("\"" + imageId + "\"", "null")),
 				"/imageId");
 		expectViolation(createOffer(entryId, """
-				{"basePrice": 10, "imageId": "%s"}""".formatted(imageId)), "/composition/slots");
-		expectViolation(createOffer(entryId, """
-				{"basePrice": 10, "imageId": "%s", "composition": {"slots": []}}""".formatted(imageId)),
+				{"presentationTag": "Individual", "basePrice": 10, "imageId": "%s"}""".formatted(imageId)),
 				"/composition/slots");
 		expectViolation(createOffer(entryId, """
-				{"basePrice": 10, "imageId": "%s", "composition": {"slots": null}}""".formatted(imageId)),
+				{"presentationTag": "Individual", "basePrice": 10, "imageId": "%s", "composition": {"slots": []}}""".formatted(imageId)),
+				"/composition/slots");
+		expectViolation(createOffer(entryId, """
+				{"presentationTag": "Individual", "basePrice": 10, "imageId": "%s", "composition": {"slots": null}}""".formatted(imageId)),
 				"/composition/slots");
 		expectViolation(createOffer(entryId, offerBody("Individual", "-1")), "/basePrice");
 		// The tag is required: missing, blank or null are rejected.
 		expectViolation(createOffer(entryId, offerBody("Individual", "180").replace("\"presentationTag\": \"Individual\", ",
 				"")), "/presentationTag");
 		expectViolation(createOffer(entryId, offerBody(" ", "180")), "/presentationTag");
-		expectViolation(createOffer(entryId, offerWith(option(POTATOES.id(), "g")
+		expectViolation(createOffer(entryId, offerWith(option(POTATOES.id())
 				.replace("\"inventoryItemId\": \"" + POTATOES.id() + "\", ", ""))),
 				"/composition/slots/0/options/0/inventoryItemId");
-		expectViolation(createOffer(entryId, offerWith(option(" ", "g"))),
+		expectViolation(createOffer(entryId, offerWith(option(" "))),
 				"/composition/slots/0/options/0/inventoryItemId");
-		expectViolation(createOffer(entryId, offerWith(option("unknown-item", "g"))),
+		expectViolation(createOffer(entryId, offerWith(option("unknown-item"))),
 				"/composition/slots/0/options/0/inventoryItemId");
-		expectViolation(createOffer(entryId, offerWith(option(POTATOES.id(), "kg"))),
+		expectViolation(createOffer(entryId, offerWith(option(POTATOES.id())
+				.replace("\"quantity\": 200", "\"quantity\": 200, \"unit\": \"g\""))),
 				"/composition/slots/0/options/0/unit");
-		expectViolation(createOffer(entryId, offerWith(option(POTATOES.id(), "g").replace("200", "0"))),
+		expectViolation(createOffer(entryId, offerWith(option(POTATOES.id()).replace("200", "0"))),
 				"/composition/slots/0/options/0/quantity");
-		expectViolation(createOffer(entryId, offerWith(option(POTATOES.id(), "g").replace("INVENTORY_ITEM", "RECIPE"))),
+		expectViolation(createOffer(entryId, offerWith(option(POTATOES.id()).replace("INVENTORY_ITEM", "RECIPE"))),
 				"/composition/slots/0/options/0/inventoryItemId");
 		expectViolation(createOffer(entryId, offerBody("Individual", "180").replace("entrada", "snack")),
 				"/composition/slots/0/course");
@@ -248,8 +250,8 @@ class CatalogOfferApiIntegrationTest {
 	@Test
 	@DisplayName("TC-OPC-01-CA2: an option starts ACTIVE unless another status is sent, on POST and PATCH")
 	void theStatusOfANewOptionIsOptional() throws Exception {
-		String id = create(offerWith(option(POTATOES.id(), "g"),
-				option(JUICE.id(), "ml").replace("\"sourceType\"", "\"status\": \"INACTIVE\", \"sourceType\"")));
+		String id = create(offerWith(option(POTATOES.id()),
+				option(JUICE.id()).replace("\"sourceType\"", "\"status\": \"INACTIVE\", \"sourceType\"")));
 		mockMvc.perform(get(OFFERS + "/" + id))
 				.andExpect(jsonPath("$.data.composition.slots[0].status").doesNotExist())
 				.andExpect(jsonPath("$.data.composition.slots[0].options[0].status").value("ACTIVE"))
@@ -258,7 +260,7 @@ class CatalogOfferApiIntegrationTest {
 
 		patchOffer(id, etag(id), """
 				{"composition": {"slots": [{"slotId": "%s"}, {"name": "Drink", "quantity": 1, "options": [%s]}]}}
-				""".formatted(slot, option(JUICE.id(), "ml")))
+				""".formatted(slot, option(JUICE.id())))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.composition.slots[1].options[0].status").value("ACTIVE"));
 	}
@@ -334,7 +336,7 @@ class CatalogOfferApiIntegrationTest {
 
 	@Test
 	void patchKeepsTheIdentityOfSlotsAndOptionsAndReplacesTheSentSets() throws Exception {
-		String id = create(offerWith(option(POTATOES.id(), "g"), option(JUICE.id(), "ml")));
+		String id = create(offerWith(option(POTATOES.id()), option(JUICE.id())));
 		String json = read(id);
 		String slot = JsonPath.read(json, "$.data.composition.slots[0].slotId");
 		String fries = JsonPath.read(json, "$.data.composition.slots[0].options[0].optionId");
@@ -344,7 +346,7 @@ class CatalogOfferApiIntegrationTest {
 				  {"slotId": "%s", "course": null, "options": [
 				    {"optionId": "%s", "sourceType": "INVENTORY_ITEM", "quantity": 250}]},
 				  {"name": "Drink", "quantity": 2, "course": "bebida", "options": [%s]}]}}
-				""".formatted(slot, fries, newOption(JUICE.id(), "ml")))
+				""".formatted(slot, fries, newOption(JUICE.id())))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.composition.slots[0].slotId").value(slot))
 				.andExpect(jsonPath("$.data.composition.slots[0].name").value("Side"))
@@ -379,13 +381,13 @@ class CatalogOfferApiIntegrationTest {
 		patchOffer(id, after, """
 				{"composition": {"slots": [
 				  {"slotId": "%s", "options": [
-				    {"optionId": "%s", "sourceType": "INVENTORY_ITEM", "inventoryItemId": "%s", "unit": "ml"}]}]}}
+				    {"optionId": "%s", "sourceType": "INVENTORY_ITEM", "inventoryItemId": "%s"}]}]}}
 				""".formatted(slot, fries, JUICE.id()))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.composition.slots", hasSize(1)))
 				.andExpect(jsonPath("$.data.composition.slots[0].options[0].optionId").value(fries))
 				.andExpect(jsonPath("$.data.composition.slots[0].options[0].inventoryItemId").value(JUICE.id()))
-				.andExpect(jsonPath("$.data.composition.slots[0].options[0].unit").value("ml"));
+				.andExpect(jsonPath("$.data.composition.slots[0].options[0].inventoryItemId").value(JUICE.id()));
 
 		// Empty objects keep every value.
 		patchOffer(id, etag(id), "{\"composition\": {}}")
@@ -393,7 +395,7 @@ class CatalogOfferApiIntegrationTest {
 				.andExpect(jsonPath("$.data.composition.slots[0].options[0].optionId").value(fries));
 		patchOffer(id, etag(id), "{}")
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.data.composition.slots[0].options[0].unit").value("ml"));
+				.andExpect(jsonPath("$.data.composition.slots[0].options[0].inventoryItemId").value(JUICE.id()));
 	}
 
 	@Test
@@ -455,7 +457,7 @@ class CatalogOfferApiIntegrationTest {
 		expectRejected(offer, inSlot + existing(fries, "").replace("INVENTORY_ITEM", "RECIPE") + "]}]}}",
 				"/composition/slots/0/options/0/sourceType");
 		expectRejected(offer, prefix + "{\"slotId\": \"" + slot + "\"}, {\"quantity\": 1, \"options\": ["
-				+ newOption(POTATOES.id(), "g") + "]}]}}", "/composition/slots/1/name");
+				+ newOption(POTATOES.id()) + "]}]}}", "/composition/slots/1/name");
 		// Fields that the contract does not define.
 		expectRejected(offer, "{\"composition\": {\"extra\": 1}}", "/composition/extra");
 		expectRejected(offer, prefix + "{\"slotId\": \"" + slot + "\", \"status\": \"ACTIVE\"}]}}",
@@ -499,7 +501,7 @@ class CatalogOfferApiIntegrationTest {
 	}
 
 	@Test
-	void inventoryIsConsultedOnlyForNewArticlesOrUnitsAndOncePerArticle() throws Exception {
+	void inventoryIsConsultedOnlyForNewArticlesOrQuantitiesAndOncePerArticle() throws Exception {
 		for (int i = 0; i < 100; i++) {
 			INVENTORY.add("Filler " + i, "g");
 		}
@@ -507,7 +509,7 @@ class CatalogOfferApiIntegrationTest {
 		INVENTORY.clearRequests();
 
 		// Even with a large catalog, the repeated article is fetched directly only once.
-		String id = create(offerWith(option(cheddar.id(), "kg"), option(cheddar.id(), "kg")));
+		String id = create(offerWith(option(cheddar.id()), option(cheddar.id())));
 		assertEquals(List.of("GET /items/" + cheddar.id()), INVENTORY.requests());
 
 		String json = read(id);
@@ -517,7 +519,7 @@ class CatalogOfferApiIntegrationTest {
 		INVENTORY.clearRequests();
 		patchOffer(id, etag(id), """
 				{"composition": {"slots": [{"slotId": "%s", "options": [
-				  {"optionId": "%s", "sourceType": "INVENTORY_ITEM", "quantity": 3, "displayName": "Cheese",
+				  {"optionId": "%s", "sourceType": "INVENTORY_ITEM", "displayName": "Cheese",
 				   "status": "INACTIVE"},
 				  {"optionId": "%s", "sourceType": "INVENTORY_ITEM"}]}]}}
 				""".formatted(slot, first, second))
@@ -526,10 +528,10 @@ class CatalogOfferApiIntegrationTest {
 				.andExpect(jsonPath("$.data.composition.slots[0].options[0].displayName").value("Cheese"));
 		assertEquals(List.of(), INVENTORY.requests());
 
-		// Sending the unit checks it against the current unit of the stored article.
+		// Changing the quantity consults Inventory again (RF-INTG-01.CA1).
 		patchOffer(id, etag(id), """
 				{"composition": {"slots": [{"slotId": "%s", "options": [
-				  {"optionId": "%s", "sourceType": "INVENTORY_ITEM", "unit": "kg"}]}]}}
+				  {"optionId": "%s", "sourceType": "INVENTORY_ITEM", "quantity": 300}]}]}}
 				""".formatted(slot, first))
 				.andExpect(status().isOk());
 		assertEquals(List.of("GET /items/" + cheddar.id()), INVENTORY.requests());
@@ -550,7 +552,7 @@ class CatalogOfferApiIntegrationTest {
 				"/composition/slots/0/options/0/inventoryItemId");
 		expectViolation(patchOffer(id, etag, """
 				{"basePrice": 1, "composition": {"slots": [{"slotId": "%s", "options": [
-				  {"optionId": "%s", "sourceType": "INVENTORY_ITEM", "inventoryItemId": "gone", "unit": "g"}]}]}}
+				  {"optionId": "%s", "sourceType": "INVENTORY_ITEM", "inventoryItemId": "gone"}]}]}}
 				""".formatted(slot, option)), "/composition/slots/0/options/0/inventoryItemId");
 
 		assertEquals(1, offerRepository.count());
@@ -579,39 +581,81 @@ class CatalogOfferApiIntegrationTest {
 	}
 
 	@Test
+	@DisplayName("TC-OPC-08-CA3: the option takes the unit of Inventory, also when only its quantity changes")
+	void theOptionTakesTheUnitOfInventory() throws Exception {
+		String id = create(offerBody("Individual", "180"));
+		assertEquals("g", storedUnit(id));
+		String json = read(id);
+		String slot = JsonPath.read(json, "$.data.composition.slots[0].slotId");
+		String option = JsonPath.read(json, "$.data.composition.slots[0].options[0].optionId");
+		INVENTORY.reset();
+		INVENTORY.add(new InventoryItem(POTATOES.id(), POTATOES.name(), "kg"));
+
+		patchOffer(id, etag(id), """
+				{"composition": {"slots": [{"slotId": "%s", "options": [
+				  {"optionId": "%s", "sourceType": "INVENTORY_ITEM", "quantity": 0.5}]}]}}
+				""".formatted(slot, option))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.composition.slots[0].options[0].quantity").value(0.5));
+
+		assertEquals(List.of("GET /items/" + POTATOES.id()), INVENTORY.requests());
+		assertEquals("kg", storedUnit(id));
+	}
+
+	@Test
+	@DisplayName("TC-GEN-03-CA4: the offer fields are reported before an invalid composition")
+	void theOfferFieldsAreCheckedBeforeTheComposition() throws Exception {
+		String noComposition = "\"composition\": {\"slots\": []}";
+		String body = offerBody("Individual", "180");
+		String invalidComposition = body.substring(0, body.indexOf("\"composition\"")) + noComposition + "}";
+
+		expectViolation(createOffer(entryId, invalidComposition.replace("\"presentationTag\": \"Individual\", ", "")),
+				"/presentationTag");
+		expectViolation(createOffer(entryId, invalidComposition.replace("\"basePrice\": 180, ", "")), "/basePrice");
+		expectViolation(createOffer(entryId, invalidComposition.replace("\"imageId\": \"" + imageId + "\", ", "")),
+				"/imageId");
+	}
+
+	private String storedUnit(String offerId) {
+		return new TransactionTemplate(transactionManager).execute(_ -> offerService.get(UUID.fromString(offerId))
+				.getSlots().getFirst().getOptions().getFirst().getUnit());
+	}
+
+	@Test
+	@DisplayName("TC-INTG-01-CA3: Inventory not answering rejects the write, also a change of quantity alone")
 	void anInventoryFailureRejectsTheWriteWithoutChanges() throws Exception {
 		String id = create(offerBody("Individual", "180"));
 		String json = read(id);
 		String slot = JsonPath.read(json, "$.data.composition.slots[0].slotId");
 		String option = JsonPath.read(json, "$.data.composition.slots[0].options[0].optionId");
 		String etag = etag(id);
-		String unitChange = """
+		String quantityChange = """
 				{"basePrice": 1, "composition": {"slots": [{"slotId": "%s", "options": [
-				  {"optionId": "%s", "sourceType": "INVENTORY_ITEM", "unit": "g"}]}]}}
+				  {"optionId": "%s", "sourceType": "INVENTORY_ITEM", "quantity": 300}]}]}}
 				""".formatted(slot, option);
 
 		for (int failure : List.of(401, 403, 429, 500, 503)) {
 			INVENTORY.fail(failure, "{\"error\": {\"message\": \"No\"}}");
 			expectBadGateway(createOffer(entryId, offerBody("Other", "10")));
-			expectBadGateway(patchOffer(id, etag, unitChange));
+			expectBadGateway(patchOffer(id, etag, quantityChange));
 		}
 		// A 404 that is not the answer of Inventory for a missing article confirms nothing.
 		for (String notFound : List.of("", "not json", "{\"error\": \"Not Found\"}")) {
 			INVENTORY.fail(404, notFound);
 			expectBadGateway(createOffer(entryId, offerBody("Other", "10")));
-			expectBadGateway(patchOffer(id, etag, unitChange));
+			expectBadGateway(patchOffer(id, etag, quantityChange));
 		}
 		for (String invalid : List.of("not json", "{\"data\": []}", "{\"meta\": {\"totalPages\": 1}}",
 				"{\"data\": [{\"id\": \"" + POTATOES.id() + "\"}], \"meta\": {\"totalPages\": 1}}")) {
 			INVENTORY.fail(200, invalid);
 			expectBadGateway(createOffer(entryId, offerBody("Other", "10")));
-			expectBadGateway(patchOffer(id, etag, unitChange));
+			expectBadGateway(patchOffer(id, etag, quantityChange));
 		}
 		INVENTORY.reset();
 		INVENTORY.add(POTATOES);
 		INVENTORY.answerSlowly();
 		expectBadGateway(createOffer(entryId, offerBody("Other", "10")));
-		expectBadGateway(patchOffer(id, etag, unitChange));
+		expectBadGateway(patchOffer(id, etag, quantityChange));
 
 		assertEquals(1, offerRepository.count());
 		mockMvc.perform(get(OFFERS + "/" + id))
@@ -683,7 +727,7 @@ class CatalogOfferApiIntegrationTest {
 
 	/** An offer with two options in one slot, whose rejected updates must leave it as it was. */
 	private Rejectable offerToReject() throws Exception {
-		String id = create(offerWith(option(POTATOES.id(), "g"), option(JUICE.id(), "ml")));
+		String id = create(offerWith(option(POTATOES.id()), option(JUICE.id())));
 		String json = read(id);
 		return new Rejectable(id, etag(id), JsonPath.read(json, "$.data.composition.slots[0].slotId"),
 				JsonPath.read(json, "$.data.composition.slots[0].options[0].optionId"));
@@ -756,7 +800,7 @@ class CatalogOfferApiIntegrationTest {
 		return """
 				{"presentationTag": "%s", "basePrice": %s, "imageId": "%s", "composition": {"slots": [
 				  {"name": "Side", "quantity": 1, "course": "entrada", "options": [%s]}]}}
-				""".formatted(tag, price, imageId, option(POTATOES.id(), "g"));
+				""".formatted(tag, price, imageId, option(POTATOES.id()));
 	}
 
 	private String offerWith(String... options) {
@@ -767,16 +811,16 @@ class CatalogOfferApiIntegrationTest {
 	}
 
 	/** A new option of POST ({@code InventoryItemSlotOptionInput}). */
-	private static String option(String item, String unit) {
+	private static String option(String item) {
 		String name = item.equals(JUICE.id()) ? "Juice" : "Fries";
 		return """
-				{"displayName": "%s", "sourceType": "INVENTORY_ITEM", "inventoryItemId": "%s", "quantity": 200, \
-				"unit": "%s"}""".formatted(name, item, unit);
+				{"displayName": "%s", "sourceType": "INVENTORY_ITEM", "inventoryItemId": "%s", "quantity": 200}"""
+				.formatted(name, item);
 	}
 
 	/** A new option of PATCH, which also requires its status. */
-	private static String newOption(String item, String unit) {
-		return option(item, unit).replace("\"sourceType\"", "\"status\": \"ACTIVE\", \"sourceType\"");
+	private static String newOption(String item) {
+		return option(item).replace("\"sourceType\"", "\"status\": \"ACTIVE\", \"sourceType\"");
 	}
 
 	/** An existing option of PATCH, with the given extra fields. */

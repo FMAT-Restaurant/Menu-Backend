@@ -158,13 +158,13 @@ public class CatalogOfferController {
 	 * The status is always included.
 	 */
 	public record Option(UUID optionId, SourceType sourceType, @JsonInclude(NON_NULL) String inventoryItemId,
-			@JsonInclude(NON_NULL) BigDecimal quantity, @JsonInclude(NON_NULL) String unit,
+			@JsonInclude(NON_NULL) BigDecimal quantity,
 			@JsonInclude(NON_NULL) UUID recipeId, OfferStatus status, String displayName,
 			@JsonProperty("isAvailable") boolean isAvailable) {
 
 		static Option of(SlotOption option, OfferAvailability available) {
 			return new Option(option.getId(), option.getSourceType(), option.getInventoryItemId(),
-					option.getQuantity(), option.getUnit(), option.getRecipeId(), option.getStatus(),
+					option.getQuantity(), option.getRecipeId(), option.getStatus(),
 					option.getDisplayName(), available.option(option.getId()));
 		}
 

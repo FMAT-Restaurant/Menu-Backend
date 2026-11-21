@@ -82,15 +82,10 @@ public class CatalogOffer {
 		if (entry == null) {
 			throw new InvalidFieldException("/entryId", "An offer must belong to a catalog entry");
 		}
-		if (basePrice == null) {
-			throw new InvalidFieldException("/basePrice", "The base price is required");
-		}
-		if (imageId == null) {
-			throw new InvalidFieldException("/imageId", "The offer image is required");
-		}
+		checkFields(presentationTag, basePrice, imageId);
 		this.entry = entry;
 		this.presentationTag = presentationTag(presentationTag);
-		this.basePrice = basePrice(basePrice);
+		this.basePrice = basePrice;
 		this.imageId = imageId;
 		this.replaceSlots(slots);
 	}
@@ -143,6 +138,23 @@ public class CatalogOffer {
 
 	private boolean hasActiveSlot() {
 		return slots.stream().anyMatch(slot -> slot.getStatus() == OfferStatus.ACTIVE);
+	}
+
+	/**
+	 * The fields of a new offer other than its composition, so they can be checked before the
+	 * composition, which may consult Inventory.
+	 *
+	 * @throws InvalidFieldException if a value is missing or invalid
+	 */
+	public static void checkFields(String presentationTag, BigDecimal basePrice, UUID imageId) {
+		presentationTag(presentationTag);
+		if (basePrice == null) {
+			throw new InvalidFieldException("/basePrice", "The base price is required");
+		}
+		basePrice(basePrice);
+		if (imageId == null) {
+			throw new InvalidFieldException("/imageId", "The offer image is required");
+		}
 	}
 
 	private static String presentationTag(String tag) {
