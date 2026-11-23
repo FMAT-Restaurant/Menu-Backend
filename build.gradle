@@ -36,7 +36,7 @@ dependencies {
 	testImplementation 'org.testcontainers:testcontainers-rabbitmq'
 	testImplementation 'org.awaitility:awaitility'
 	// Valida en las pruebas las respuestas HTTP contra el contrato servido (static/openapi.yaml).
-	testImplementation 'com.atlassian.oai:swagger-request-validator-mockmvc:2.44.9'
+	testImplementation 'com.atlassian.oai:swagger-request-validator-mockmvc:3.0.0'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
